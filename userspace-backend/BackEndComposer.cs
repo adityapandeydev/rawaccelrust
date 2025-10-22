@@ -446,6 +446,27 @@ namespace userspace_backend
 
             #region DeviceGroup
 
+            services.AddSingleton<DeviceGroups>(sp =>
+            {
+                // Initialize with empty collection - will be populated during BackEnd.Load()
+                return new DeviceGroups([]);
+            });
+
+            services.AddSingleton<DeviceGroupValidator>(sp =>
+            {
+                var deviceGroups = sp.GetRequiredService<DeviceGroups>();
+                return new DeviceGroupValidator(deviceGroups);
+            });
+
+            services.AddSingleton<DevicesModel>(sp =>
+            {
+                var systemDevicesProvider = sp.GetRequiredService<ISystemDevicesProvider>();
+                var deviceGroups = sp.GetRequiredService<DeviceGroups>();
+                var devicesModel = new DevicesModel(sp, systemDevicesProvider);
+                devicesModel.DeviceGroups = deviceGroups;
+                return devicesModel;
+            });
+
             services.AddTransient<IDeviceModel, DeviceModel>();
             services.AddKeyedTransient<IEditableSettingSpecific<string>>(
                 DeviceModel.NameDIKey, (IServiceProvider services, object? key) =>
