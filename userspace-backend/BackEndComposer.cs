@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System;
+using userspace_backend.Display;
 using userspace_backend.IO;
 using userspace_backend.Model;
 using userspace_backend.Model.AccelDefinitions;
@@ -434,6 +435,12 @@ namespace userspace_backend
                         validator: services.GetRequiredService<IModelValueValidator<double>>()));
 
             #endregion Profile
+
+            #region Display
+
+            services.AddTransient<ICurvePreview, CurvePreview>();
+
+            #endregion Display
 
             #region DeviceGroup
 

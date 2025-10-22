@@ -40,7 +40,8 @@ namespace userspace_backend.Model
             [FromKeyedServices(OutputDPIDIKey)]IEditableSettingSpecific<int> outputDPI,
             [FromKeyedServices(YXRatioDIKey)]IEditableSettingSpecific<double> yxRatio,
             IAccelerationModel acceleration,
-            IHiddenModel hidden
+            IHiddenModel hidden,
+            ICurvePreview curvePreview
             ) : base(name, [outputDPI, yxRatio], [acceleration, hidden])
         {
             OutputDPI = outputDPI;
@@ -57,8 +58,7 @@ namespace userspace_backend.Model
             Acceleration.AnySettingChanged += AnyCurveSettingCollectionChangedEventHandler;
             Hidden.AnySettingChanged += AnyCurveSettingCollectionChangedEventHandler;
 
-            // TODO: DI - Curve preview to DI
-            CurvePreview = new CurvePreview();
+            CurvePreview = curvePreview;
             RecalculateDriverDataAndCurvePreview();
         }
 
