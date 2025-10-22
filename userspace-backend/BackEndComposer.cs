@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System;
+using userspace_backend.IO;
 using userspace_backend.Model;
 using userspace_backend.Model.AccelDefinitions;
 using userspace_backend.Model.AccelDefinitions.Formula;
@@ -494,6 +495,14 @@ namespace userspace_backend
                         validator: services.GetRequiredKeyedService<IModelValueValidator<string>>(MappingModel.NameDIKey)));
 
             #endregion Mapping
+
+            #region IO Layer
+
+            services.AddSingleton<DevicesReaderWriter>();
+            services.AddSingleton<MappingsReaderWriter>();
+            services.AddSingleton<ProfileReaderWriter>();
+
+            #endregion IO Layer
 
             return services.BuildServiceProvider();
         }

@@ -26,18 +26,22 @@ namespace userspace_backend
 
     public class BackEndLoader : IBackEndLoader
     {
-        public static DevicesReaderWriter DevicesReaderWriter = new DevicesReaderWriter();
-
-        public static MappingsReaderWriter MappingsReaderWriter = new MappingsReaderWriter();
-
-        public static ProfileReaderWriter ProfileReaderWriter = new ProfileReaderWriter();
-
-        public BackEndLoader(string settingsDirectory)
+        public BackEndLoader(
+            string settingsDirectory,
+            DevicesReaderWriter devicesReaderWriter,
+            MappingsReaderWriter mappingsReaderWriter,
+            ProfileReaderWriter profileReaderWriter)
         {
             SettingsDirectory = settingsDirectory;
+            DevicesReaderWriter = devicesReaderWriter;
+            MappingsReaderWriter = mappingsReaderWriter;
+            ProfileReaderWriter = profileReaderWriter;
         }
 
         public string SettingsDirectory { get; private set; }
+        protected DevicesReaderWriter DevicesReaderWriter { get; }
+        protected MappingsReaderWriter MappingsReaderWriter { get; }
+        protected ProfileReaderWriter ProfileReaderWriter { get; }
 
         public IEnumerable<DATA.Device> LoadDevices()
         {
