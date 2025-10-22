@@ -47,6 +47,9 @@ namespace userspace_backend
             services.AddKeyedSingleton<IModelValueValidator<string>, DefaultModelValueValidator<string>>(
                 DefaultModelValueValidator<string>.AllChangeInvalidDIKey);
 
+            services.AddKeyedSingleton<IModelValueValidator<string>, MaxNameLengthValidator>(
+                ProfileModel.NameDIKey);
+
             #endregion Validators
 
             #region Hidden
@@ -417,8 +420,7 @@ namespace userspace_backend
                         displayName: "Name",
                         "Empty",
                         parser: services.GetRequiredService<IUserInputParser<string>>(),
-                        // TODO: DI - change to max name length validator
-                        validator: services.GetRequiredService<IModelValueValidator<string>>()));
+                        validator: services.GetRequiredKeyedService<IModelValueValidator<string>>(ProfileModel.NameDIKey)));
             services.AddKeyedTransient<IEditableSettingSpecific<int>>(
                 ProfileModel.OutputDPIDIKey, (IServiceProvider services, object? key) =>
                     new EditableSettingV2<int>(
