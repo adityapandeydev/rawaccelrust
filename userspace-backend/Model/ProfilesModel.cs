@@ -14,9 +14,8 @@ namespace userspace_backend.Model
 
     public class ProfilesModel : EditableSettingsList<IProfileModel, DATA.Profile>, IProfilesModel
     {
-        // TODO: DI - hand default profile to profiles model
-        // public static readonly ProfileModel DefaultProfile = new ProfileModel(
-           // GenerateNewDefaultProfile("Default"), ModelValueValidators.AllChangesInvalidStringValidator);
+        // Default profile is handled via application bootstrap if needed
+        // Profiles are loaded from disk during BackEnd.Load()
 
         public ProfilesModel(IServiceProvider serviceProvider)
             : base(serviceProvider, [], [])
