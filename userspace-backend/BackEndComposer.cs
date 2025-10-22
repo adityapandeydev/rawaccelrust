@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System;
+using DATA = userspace_backend.Data;
 using userspace_backend.Display;
 using userspace_backend.IO;
 using userspace_backend.Model;
@@ -515,6 +516,21 @@ namespace userspace_backend
 
             #region Mapping
 
+            services.AddSingleton<MappingsModel>(sp =>
+            {
+                // Initialize with empty MappingSet - will be populated during BackEnd.Load()
+                var deviceGroups = sp.GetRequiredService<DeviceGroups>();
+                var profiles = sp.GetRequiredService<IProfilesModel>();
+                var emptyMappingSet = new DATA.MappingSet { Mappings = [] };
+                return new MappingsModel(emptyMappingSet, deviceGroups, profiles);
+            });
+
+            services.AddSingleton<MappingNameValidator>(sp =>
+            {
+                var mappings = sp.GetRequiredService<MappingsModel>();
+                return new MappingNameValidator(mappings);
+            });
+
             services.AddTransient<IMappingModel, MappingModel>();
             services.AddKeyedTransient<IEditableSettingSpecific<string>>(
                 MappingModel.NameDIKey, (IServiceProvider services, object? key) =>
@@ -522,7 +538,7 @@ namespace userspace_backend
                         displayName: "Name",
                         initialValue: "name",
                         parser: services.GetRequiredService<IUserInputParser<string>>(),
-                        validator: services.GetRequiredKeyedService<IModelValueValidator<string>>(MappingModel.NameDIKey)));
+                        validator: services.GetRequiredService<MappingNameValidator>()));
 
             #endregion Mapping
 
