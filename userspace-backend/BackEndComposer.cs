@@ -550,6 +550,14 @@ namespace userspace_backend
 
             #endregion IO Layer
 
+            #region BackEnd
+
+            services.AddSingleton<IProfilesModel, ProfilesModel>();
+
+            services.AddSingleton<IBackEnd, BackEnd>();
+
+            #endregion BackEnd
+
             return services.BuildServiceProvider();
         }
     }

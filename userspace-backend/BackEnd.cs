@@ -20,18 +20,17 @@ namespace userspace_backend
         IProfilesModel Profiles { get; }
     }
 
-    public class BackEnd
+    public class BackEnd : IBackEnd
     {
         public BackEnd(
             IBackEndLoader backEndLoader,
-            IProfilesModel profilesModel)
+            IProfilesModel profilesModel,
+            DevicesModel devicesModel,
+            MappingsModel mappingsModel)
         {
-            // TODO: fully construct BackEnd via DI
-            ServiceCollection services = new ServiceCollection();
-            IServiceProvider serviceProvider = BackEndComposer.Compose(services);
-
             BackEndLoader = backEndLoader;
-            Devices = new DevicesModel(serviceProvider.GetRequiredService<ISystemDevicesProvider>());
+            Devices = devicesModel;
+            Mappings = mappingsModel;
             Profiles = profilesModel;
         }
 
@@ -45,14 +44,14 @@ namespace userspace_backend
 
         public void Load()
         {
-            IEnumerable<DATA.Device> devicesData = BackEndLoader.LoadDevices(); ;
+            IEnumerable<DATA.Device> devicesData = BackEndLoader.LoadDevices();
             LoadDevicesFromData(devicesData);
 
-            IEnumerable<DATA.Profile> profilesData = BackEndLoader.LoadProfiles(); ;
+            IEnumerable<DATA.Profile> profilesData = BackEndLoader.LoadProfiles();
             LoadProfilesFromData(profilesData);
 
             DATA.MappingSet mappingData = BackEndLoader.LoadMappings();
-            Mappings = new MappingsModel(mappingData, Devices.DeviceGroups, Profiles);
+            LoadMappingsFromData(mappingData);
         }
 
         protected void LoadDevicesFromData(IEnumerable<DATA.Device> devicesData)
@@ -66,6 +65,16 @@ namespace userspace_backend
         protected void LoadProfilesFromData(IEnumerable<DATA.Profile> profileData)
         {
             Profiles.TryMapFromData(profileData);
+        }
+
+        protected void LoadMappingsFromData(DATA.MappingSet mappingData)
+        {
+            // Clear existing mappings and reload from data
+            Mappings.Mappings.Clear();
+            foreach (var mapping in mappingData.Mappings)
+            {
+                Mappings.TryAddMapping(mapping);
+            }
         }
 
         public void Apply()
