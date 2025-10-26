@@ -46,6 +46,10 @@ namespace userspace_backend
         public IEnumerable<DATA.Device> LoadDevices()
         {
             string devicesFile = GetDevicesFile(SettingsDirectory);
+            if (!File.Exists(devicesFile))
+            {
+                return [];
+            }
             string devicesText = File.ReadAllText(devicesFile);
             IEnumerable<DATA.Device> devicesData = DevicesReaderWriter.Read(devicesText);
             return devicesData;
@@ -53,12 +57,39 @@ namespace userspace_backend
 
         public DATA.MappingSet LoadMappings()
         {
-            throw new NotImplementedException();
+            string mappingsFile = GetMappingsFile(SettingsDirectory);
+            if (!File.Exists(mappingsFile))
+            {
+                return new DATA.MappingSet { Mappings = [] };
+            }
+            string mappingsText = File.ReadAllText(mappingsFile);
+            DATA.MappingSet mappingsData = MappingsReaderWriter.Read(mappingsText);
+            return mappingsData;
         }
 
         public IEnumerable<DATA.Profile> LoadProfiles()
         {
-            throw new NotImplementedException();
+            string profilesDirectory = GetProfilesDirectory(SettingsDirectory);
+            if (!Directory.Exists(profilesDirectory))
+            {
+                return [];
+            }
+
+            string[] profileFiles = Directory.GetFiles(profilesDirectory, "*.json");
+            if (profileFiles.Length == 0)
+            {
+                return [];
+            }
+
+            List<DATA.Profile> profiles = [];
+            foreach (string profileFile in profileFiles)
+            {
+                string profileText = File.ReadAllText(profileFile);
+                DATA.Profile profileData = ProfileReaderWriter.Read(profileText);
+                profiles.Add(profileData);
+            }
+
+            return profiles;
         }
 
         public void WriteSettingsToDisk(

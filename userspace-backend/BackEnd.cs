@@ -54,11 +54,13 @@ namespace userspace_backend
             IEnumerable<DATA.Profile> profilesData = BackEndLoader.LoadProfiles();
             LoadProfilesFromData(profilesData);
 
-            // Ensure at least one default profile exists
-            EnsureDefaultProfileExists();
-
             DATA.MappingSet mappingData = BackEndLoader.LoadMappings();
             LoadMappingsFromData(mappingData);
+
+            // Ensure defaults exist for first-run experience
+            EnsureDefaultDeviceGroupExists();
+            EnsureDefaultProfileExists();
+            EnsureDefaultMappingExists();
         }
 
         protected void LoadDevicesFromData(IEnumerable<DATA.Device> devicesData)
@@ -81,6 +83,15 @@ namespace userspace_backend
             }
         }
 
+        protected void EnsureDefaultDeviceGroupExists()
+        {
+            // If no device groups exist, create a "Default" group
+            if (Devices.DeviceGroups.DeviceGroupModels.Count == 0)
+            {
+                Devices.DeviceGroups.AddOrGetDeviceGroup(DeviceGroups.DefaultDeviceGroup);
+            }
+        }
+
         protected void EnsureDefaultProfileExists()
         {
             // If no "Default" profile exists, create one and add it to the beginning
@@ -89,6 +100,31 @@ namespace userspace_backend
                 var defaultProfile = ServiceProvider.GetRequiredService<IProfileModel>();
                 defaultProfile.Name.TryUpdateModelDirectly("Default");
                 Profiles.TryInsert(0, defaultProfile);
+            }
+        }
+
+        protected void EnsureDefaultMappingExists()
+        {
+            // If no mappings exist, create a "Default" mapping
+            if (Mappings.Mappings.Count == 0)
+            {
+                var defaultMapping = new DATA.Mapping
+                {
+                    Name = "Default",
+                    GroupsToProfiles = new DATA.Mapping.GroupsToProfilesMapping
+                    {
+                        { DeviceGroups.DefaultDeviceGroup, "Default" }
+                    }
+                };
+
+                if (Mappings.TryAddMapping(defaultMapping))
+                {
+                    // Set this as the active mapping
+                    if (Mappings.TryGetMapping("Default", out MappingModel? mapping) && mapping != null)
+                    {
+                        mapping.SetActive = true;
+                    }
+                }
             }
         }
 

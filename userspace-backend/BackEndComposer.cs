@@ -11,6 +11,7 @@ using userspace_backend.Model.ProfileComponents;
 using static userspace_backend.Data.Profiles.Accel.FormulaAccel;
 using static userspace_backend.Data.Profiles.Accel.LookupTableAccel;
 using static userspace_backend.Data.Profiles.Acceleration;
+using static userspace_backend.Model.EditableSettings.EditableSettingsSelectorHelper;
 
 namespace userspace_backend
 {
@@ -180,6 +181,17 @@ namespace userspace_backend
                         parser: services.GetRequiredService<IUserInputParser<AccelerationDefinitionType>>(),
                         validator: services.GetRequiredService<IModelValueValidator<AccelerationDefinitionType>>()));
 
+            // Register selector options for AccelerationDefinitionType
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>>(
+                GetSelectionKey(AccelerationDefinitionType.None),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>)sp.GetRequiredService<INoAccelDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>>(
+                GetSelectionKey(AccelerationDefinitionType.Formula),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>)sp.GetRequiredService<IFormulaAccelModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>>(
+                GetSelectionKey(AccelerationDefinitionType.LookupTable),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>)sp.GetRequiredService<ILookupTableDefinitionModel>());
+
             #endregion Acceleration
 
             #region FormulaAccel
@@ -200,6 +212,26 @@ namespace userspace_backend
                         initialValue: false,
                         parser: services.GetRequiredService<IUserInputParser<bool>>(),
                         validator: services.GetRequiredService<IModelValueValidator<bool>>()));
+
+            // Register selector options for AccelerationFormulaType
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Synchronous),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<ISynchronousAccelerationDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Linear),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<ILinearAccelerationDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Classic),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<IClassicAccelerationDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Power),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<IPowerAccelerationDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Natural),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<INaturalAccelerationDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Jump),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<IJumpAccelerationDefinitionModel>());
 
             #endregion FormulaAccel
 
