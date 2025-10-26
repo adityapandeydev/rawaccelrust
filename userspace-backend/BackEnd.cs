@@ -95,8 +95,8 @@ namespace userspace_backend
 
         protected void EnsureDefaultDeviceExists()
         {
-            // If no "Default" device exists, create one
-            if (!Devices.TryGetElement("Default", out _))
+            // If no devices exist, create a default device
+            if (Devices.Elements.Count == 0)
             {
                 var defaultDevice = ServiceProvider.GetRequiredService<IDeviceModel>();
                 defaultDevice.Name.TryUpdateModelDirectly("Default");
@@ -110,8 +110,8 @@ namespace userspace_backend
 
         protected void EnsureDefaultProfileExists()
         {
-            // If no "Default" profile exists, create one and add it to the beginning
-            if (!Profiles.TryGetElement("Default", out _))
+            // If no profiles exist, create a default profile
+            if (Profiles.Elements.Count == 0)
             {
                 var defaultProfile = ServiceProvider.GetRequiredService<IProfileModel>();
                 defaultProfile.Name.TryUpdateModelDirectly("Default");
@@ -121,8 +121,8 @@ namespace userspace_backend
 
         protected void EnsureDefaultMappingExists()
         {
-            // If no "Default" mapping exists, create one
-            if (!Mappings.TryGetMapping("Default", out _))
+            // If no mappings exist, create a default mapping
+            if (Mappings.Mappings.Count == 0)
             {
                 var defaultMapping = new DATA.Mapping
                 {
