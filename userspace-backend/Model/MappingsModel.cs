@@ -86,7 +86,7 @@ namespace userspace_backend.Model
             var nameSetting = new EditableSettingV2<string>(
                 displayName: "Name",
                 initialValue: mappingToAdd.Name,
-                parser: UserInputParsers.StringParser,
+                parser: ServiceProvider.GetRequiredService<IUserInputParser<string>>(),
                 validator: NameValidator);
 
             // Construct MappingModel with DI pattern

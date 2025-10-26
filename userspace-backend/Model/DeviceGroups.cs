@@ -12,7 +12,7 @@ namespace userspace_backend.Model
         bool TryGetDeviceGroup(string name, out string? deviceGroup);
     }
 
-    public class DeviceGroups : EditableSettingsCollection<IEnumerable<string>>
+    public class DeviceGroups : EditableSettingsCollection<IEnumerable<string>>, IDeviceGroups
     {
         public const string DefaultDeviceGroup = "Default";
 
