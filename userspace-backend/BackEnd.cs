@@ -63,10 +63,7 @@ namespace userspace_backend
 
         protected void LoadDevicesFromData(IEnumerable<DATA.Device> devicesData)
         {
-            foreach(var deviceData in devicesData)
-            {
-                Devices.TryAddFromData(deviceData);
-            }
+            Devices.TryMapFromData(devicesData);
         }
 
         protected void LoadProfilesFromData(IEnumerable<DATA.Profile> profileData)
