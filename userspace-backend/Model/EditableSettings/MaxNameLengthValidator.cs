@@ -2,7 +2,7 @@ namespace userspace_backend.Model.EditableSettings
 {
     public class MaxNameLengthValidator : IModelValueValidator<string>
     {
-        public const int MaxNameLength = 100;
+        public const int MaxNameLength = 256;
 
         public MaxNameLengthValidator()
         {

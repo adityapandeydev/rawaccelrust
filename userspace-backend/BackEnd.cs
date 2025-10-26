@@ -57,7 +57,6 @@ namespace userspace_backend
             DATA.MappingSet mappingData = BackEndLoader.LoadMappings();
             LoadMappingsFromData(mappingData);
 
-            // Ensure defaults exist for first-run experience
             EnsureDefaultDeviceGroupExists();
             EnsureDefaultDeviceExists();
             EnsureDefaultProfileExists();
