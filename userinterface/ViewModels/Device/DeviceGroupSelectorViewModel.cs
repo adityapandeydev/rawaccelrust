@@ -7,14 +7,14 @@ namespace userinterface.ViewModels.Device
     {
         protected string selectedEntry = null!;
 
-        public DeviceGroupSelectorViewModel(DeviceModel device, DeviceGroups deviceGroupsBE)
+        public DeviceGroupSelectorViewModel(IDeviceModel device, DeviceGroups deviceGroupsBE)
         {
             Device = device;
             DeviceGroupsBE = deviceGroupsBE;
             RefreshSelectedDeviceGroup();
         }
 
-        protected DeviceModel Device { get; }
+        protected IDeviceModel Device { get; }
         protected DeviceGroups DeviceGroupsBE { get; }
 
         public ObservableCollection<string> DeviceGroupEntries =>
@@ -27,7 +27,7 @@ namespace userinterface.ViewModels.Device
             {
                 if (DeviceGroupEntries.Contains(value))
                 {
-                    Device.DeviceGroup.TryUpdateUserInput(value);
+                    Device.DeviceGroup.TryUpdateModelDirectly(value);
                     selectedEntry = value;
                 }
             }
