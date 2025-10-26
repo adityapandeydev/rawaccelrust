@@ -59,6 +59,7 @@ namespace userspace_backend
 
             // Ensure defaults exist for first-run experience
             EnsureDefaultDeviceGroupExists();
+            EnsureDefaultDeviceExists();
             EnsureDefaultProfileExists();
             EnsureDefaultMappingExists();
         }
@@ -89,6 +90,26 @@ namespace userspace_backend
             if (Devices.DeviceGroups.DeviceGroupModels.Count == 0)
             {
                 Devices.DeviceGroups.AddOrGetDeviceGroup(DeviceGroups.DefaultDeviceGroup);
+            }
+        }
+
+        protected void EnsureDefaultDeviceExists()
+        {
+            // If no devices exist, create a hardcoded dummy device for bootstrapping
+            // TODO: Replace with actual device detection via wrapper abstraction (Windows/Linux)
+            if (Devices.Elements.Count == 0)
+            {
+                var defaultDevice = new DATA.Device
+                {
+                    Name = "Default Device",
+                    HWID = "DEFAULT_DEVICE_ID",
+                    DPI = 1000,
+                    PollingRate = 1000,
+                    Ignore = false,
+                    DeviceGroup = DeviceGroups.DefaultDeviceGroup
+                };
+
+                Devices.TryMapFromData([defaultDevice]);
             }
         }
 
