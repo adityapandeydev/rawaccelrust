@@ -16,17 +16,17 @@ namespace userinterface.ViewModels.Device
 
         protected BE.DeviceGroups DeviceGroupsBE { get; }
 
-        public ObservableCollection<BE.DeviceGroupModel> DeviceGroups => DeviceGroupsBE.DeviceGroupModels;
+        public ObservableCollection<string> DeviceGroups => DeviceGroupsBE.DeviceGroupModels;
 
         public ObservableCollection<DeviceGroupViewModel> DeviceGroupViews { get; }
 
-        private void DeviceGroupsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => 
+        private void DeviceGroupsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
             UpdateDeviceGroupViews();
 
         public void UpdateDeviceGroupViews()
         {
             DeviceGroupViews.Clear();
-            foreach (BE.DeviceGroupModel deviceGroup in DeviceGroupsBE.DeviceGroupModels)
+            foreach (string deviceGroup in DeviceGroupsBE.DeviceGroupModels)
             {
                 DeviceGroupViews.Add(new DeviceGroupViewModel(deviceGroup, DeviceGroupsBE));
             }

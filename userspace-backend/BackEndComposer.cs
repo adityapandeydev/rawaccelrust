@@ -522,7 +522,7 @@ namespace userspace_backend
                 var deviceGroups = sp.GetRequiredService<DeviceGroups>();
                 var profiles = sp.GetRequiredService<IProfilesModel>();
                 var emptyMappingSet = new DATA.MappingSet { Mappings = [] };
-                return new MappingsModel(emptyMappingSet, deviceGroups, profiles);
+                return new MappingsModel(emptyMappingSet, deviceGroups, profiles, sp);
             });
 
             services.AddSingleton<MappingNameValidator>(sp =>

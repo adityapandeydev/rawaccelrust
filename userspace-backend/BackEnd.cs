@@ -26,12 +26,14 @@ namespace userspace_backend
             IBackEndLoader backEndLoader,
             IProfilesModel profilesModel,
             DevicesModel devicesModel,
-            MappingsModel mappingsModel)
+            MappingsModel mappingsModel,
+            IServiceProvider serviceProvider)
         {
             BackEndLoader = backEndLoader;
             Devices = devicesModel;
             Mappings = mappingsModel;
             Profiles = profilesModel;
+            ServiceProvider = serviceProvider;
         }
 
         public DevicesModel Devices { get; set; }
@@ -42,6 +44,8 @@ namespace userspace_backend
 
         protected IBackEndLoader BackEndLoader { get; set; }
 
+        protected IServiceProvider ServiceProvider { get; set; }
+
         public void Load()
         {
             IEnumerable<DATA.Device> devicesData = BackEndLoader.LoadDevices();
@@ -49,6 +53,9 @@ namespace userspace_backend
 
             IEnumerable<DATA.Profile> profilesData = BackEndLoader.LoadProfiles();
             LoadProfilesFromData(profilesData);
+
+            // Ensure at least one default profile exists
+            EnsureDefaultProfileExists();
 
             DATA.MappingSet mappingData = BackEndLoader.LoadMappings();
             LoadMappingsFromData(mappingData);
@@ -58,7 +65,7 @@ namespace userspace_backend
         {
             foreach(var deviceData in devicesData)
             {
-                Devices.TryAddDevice(deviceData);
+                Devices.TryAddFromData(deviceData);
             }
         }
 
@@ -74,6 +81,22 @@ namespace userspace_backend
             foreach (var mapping in mappingData.Mappings)
             {
                 Mappings.TryAddMapping(mapping);
+            }
+        }
+
+        protected void EnsureDefaultProfileExists()
+        {
+            // If no "Default" profile exists, create one and add it to the beginning
+            if (!Profiles.TryGetElement("Default", out _))
+            {
+                var defaultProfile = ServiceProvider.GetRequiredService<IProfileModel>();
+                defaultProfile.Name.TryUpdateModelDirectly("Default");
+
+                // Access ProfilesModel directly to insert at the beginning
+                if (Profiles is ProfilesModel profilesModel)
+                {
+                    profilesModel.ElementsInternal.Insert(0, defaultProfile);
+                }
             }
         }
 
@@ -94,7 +117,7 @@ namespace userspace_backend
         protected void WriteSettingsToDisk()
         {
             BackEndLoader.WriteSettingsToDisk(
-                Devices.DevicesEnumerable,
+                Devices.Elements,
                 Mappings,
                 Profiles.Elements);
         }
@@ -139,7 +162,7 @@ namespace userspace_backend
 
         protected IEnumerable<DeviceSettings> MapToDriverDevices(string dg, string profileName)
         {
-            IEnumerable<DeviceModel> deviceModels = Devices.Devices.Where(d => d.DeviceGroup.ModelValue.Equals(dg));
+            IEnumerable<DeviceModel> deviceModels = Devices.Elements.Where(d => d.DeviceGroup.ModelValue.Equals(dg));
             return deviceModels.Select(dm => MapToDriverDevice(dm, profileName));
         }
 
