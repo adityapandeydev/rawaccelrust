@@ -154,11 +154,11 @@ namespace userspace_backend
 
         protected IEnumerable<DeviceSettings> MapToDriverDevices(string dg, string profileName)
         {
-            IEnumerable<DeviceModel> deviceModels = Devices.Elements.Where(d => d.DeviceGroup.ModelValue.Equals(dg));
+            IEnumerable<IDeviceModel> deviceModels = Devices.Elements.Where(d => d.DeviceGroup.ModelValue.Equals(dg));
             return deviceModels.Select(dm => MapToDriverDevice(dm, profileName));
         }
 
-        protected DeviceSettings MapToDriverDevice(DeviceModel deviceModel, string profileName)
+        protected DeviceSettings MapToDriverDevice(IDeviceModel deviceModel, string profileName)
         {
             return new DeviceSettings()
             {

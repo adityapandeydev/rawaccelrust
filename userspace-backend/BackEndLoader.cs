@@ -19,7 +19,7 @@ namespace userspace_backend
         public IEnumerable<DATA.Profile> LoadProfiles();
 
         public void WriteSettingsToDisk(
-            IEnumerable<DeviceModel> devices,
+            IEnumerable<IDeviceModel> devices,
             MappingsModel mappings,
             IEnumerable<IProfileModel> profiles);
     }
@@ -62,7 +62,7 @@ namespace userspace_backend
         }
 
         public void WriteSettingsToDisk(
-            IEnumerable<DeviceModel> devices,
+            IEnumerable<IDeviceModel> devices,
             MappingsModel mappings,
             IEnumerable<IProfileModel> profiles)
         {
@@ -71,7 +71,7 @@ namespace userspace_backend
             WriteProfiles(profiles);
         }
 
-        protected void WriteDevices(IEnumerable<DeviceModel> devices)
+        protected void WriteDevices(IEnumerable<IDeviceModel> devices)
         {
             IEnumerable<DATA.Device> devicesData = devices.Select(d => d.MapToData());
             string devicesFileText = DevicesReaderWriter.Serialize(devicesData);
