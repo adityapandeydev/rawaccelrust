@@ -88,12 +88,7 @@ namespace userspace_backend
             {
                 var defaultProfile = ServiceProvider.GetRequiredService<IProfileModel>();
                 defaultProfile.Name.TryUpdateModelDirectly("Default");
-
-                // Access ProfilesModel directly to insert at the beginning
-                if (Profiles is ProfilesModel profilesModel)
-                {
-                    profilesModel.ElementsInternal.Insert(0, defaultProfile);
-                }
+                Profiles.TryInsert(0, defaultProfile);
             }
         }
 

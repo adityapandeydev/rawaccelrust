@@ -15,6 +15,8 @@ namespace userspace_backend.Model.EditableSettings
 
         public bool TryAdd(T element);
 
+        public bool TryInsert(int index, T element);
+
         public bool TryGetElement(string name, out T? element);
 
         public bool TryRemoveElement(T element);
@@ -54,6 +56,19 @@ namespace userspace_backend.Model.EditableSettings
             if (!ContainsElementWithName(name))
             {
                 AddElement(element);
+                return true;
+            }
+
+            return false;
+        }
+
+        public bool TryInsert(int index, T element)
+        {
+            string name = GetNameFromElement(element);
+
+            if (!ContainsElementWithName(name))
+            {
+                ElementsInternal.Insert(index, element);
                 return true;
             }
 
