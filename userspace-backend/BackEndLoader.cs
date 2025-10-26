@@ -51,7 +51,7 @@ namespace userspace_backend
                 return [];
             }
             string devicesText = File.ReadAllText(devicesFile);
-            IEnumerable<DATA.Device> devicesData = DevicesReaderWriter.Read(devicesText);
+            IEnumerable<DATA.Device> devicesData = DevicesReaderWriter.Deserialize(devicesText);
             return devicesData;
         }
 
@@ -63,7 +63,7 @@ namespace userspace_backend
                 return new DATA.MappingSet { Mappings = [] };
             }
             string mappingsText = File.ReadAllText(mappingsFile);
-            DATA.MappingSet mappingsData = MappingsReaderWriter.Read(mappingsText);
+            DATA.MappingSet mappingsData = MappingsReaderWriter.Deserialize(mappingsText);
             return mappingsData;
         }
 
@@ -76,16 +76,11 @@ namespace userspace_backend
             }
 
             string[] profileFiles = Directory.GetFiles(profilesDirectory, "*.json");
-            if (profileFiles.Length == 0)
-            {
-                return [];
-            }
-
             List<DATA.Profile> profiles = [];
             foreach (string profileFile in profileFiles)
             {
                 string profileText = File.ReadAllText(profileFile);
-                DATA.Profile profileData = ProfileReaderWriter.Read(profileText);
+                DATA.Profile profileData = ProfileReaderWriter.Deserialize(profileText);
                 profiles.Add(profileData);
             }
 

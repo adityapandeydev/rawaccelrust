@@ -95,21 +95,16 @@ namespace userspace_backend
 
         protected void EnsureDefaultDeviceExists()
         {
-            // If no devices exist, create a hardcoded dummy device for bootstrapping
-            // TODO: Replace with actual device detection via wrapper abstraction (Windows/Linux)
-            if (Devices.Elements.Count == 0)
+            // If no "Default" device exists, create one
+            if (!Devices.TryGetElement("Default", out _))
             {
-                var defaultDevice = new DATA.Device
-                {
-                    Name = "Default Device",
-                    HWID = "DEFAULT_DEVICE_ID",
-                    DPI = 1000,
-                    PollingRate = 1000,
-                    Ignore = false,
-                    DeviceGroup = DeviceGroups.DefaultDeviceGroup
-                };
+                var defaultDevice = ServiceProvider.GetRequiredService<IDeviceModel>();
+                defaultDevice.Name.TryUpdateModelDirectly("Default");
+                defaultDevice.HardwareID.TryUpdateModelDirectly("DEFAULT_DEVICE_ID");
+                defaultDevice.DeviceGroup.TryUpdateModelDirectly(DeviceGroups.DefaultDeviceGroup);
+                // DPI, PollRate, and Ignore already have sensible defaults from DI (1000, 1000, false)
 
-                Devices.TryMapFromData([defaultDevice]);
+                Devices.TryInsert(0, defaultDevice);
             }
         }
 
@@ -126,8 +121,8 @@ namespace userspace_backend
 
         protected void EnsureDefaultMappingExists()
         {
-            // If no mappings exist, create a "Default" mapping
-            if (Mappings.Mappings.Count == 0)
+            // If no "Default" mapping exists, create one
+            if (!Mappings.TryGetMapping("Default", out _))
             {
                 var defaultMapping = new DATA.Mapping
                 {
@@ -146,6 +141,12 @@ namespace userspace_backend
                         mapping.SetActive = true;
                     }
                 }
+            }
+
+            // Ensure at least one mapping has SetActive = true
+            if (Mappings.GetMappingToSetActive() == null && Mappings.Mappings.Count > 0)
+            {
+                Mappings.Mappings[0].SetActive = true;
             }
         }
 
