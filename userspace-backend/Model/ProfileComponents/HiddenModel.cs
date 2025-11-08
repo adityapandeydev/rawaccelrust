@@ -37,6 +37,12 @@ namespace userspace_backend.Model.ProfileComponents
             [FromKeyedServices(OutputSmoothingHalfLifeDIKey)]IEditableSettingSpecific<double> outputSmoothingHalfLife
             ) : base([rotationDegrees, angleSnappingDegrees, leftRightRatio, upDownRatio, speedCap, outputSmoothingHalfLife], [])
         {
+            RotationDegrees = rotationDegrees;
+            AngleSnappingDegrees = angleSnappingDegrees;
+            LeftRightRatio = leftRightRatio;
+            UpDownRatio = upDownRatio;
+            SpeedCap = speedCap;
+            OutputSmoothingHalfLife = outputSmoothingHalfLife;
         }
 
         public IEditableSettingSpecific<double> RotationDegrees { get; set; }

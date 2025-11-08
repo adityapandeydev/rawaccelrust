@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
@@ -10,9 +11,10 @@ namespace userspace_backend.Model
 {
     public class MappingsModel : EditableSettingsCollection<DATA.MappingSet>
     {
-        public MappingsModel(DATA.MappingSet dataObject, DeviceGroups deviceGroups, IProfilesModel profiles)
+        public MappingsModel(DATA.MappingSet dataObject, DeviceGroups deviceGroups, IProfilesModel profiles, IServiceProvider serviceProvider)
             : base(dataObject)
         {
+            ServiceProvider = serviceProvider;
             DeviceGroups = deviceGroups;
             Profiles = profiles;
             NameValidator = new MappingNameValidator(this);
@@ -20,6 +22,8 @@ namespace userspace_backend.Model
         }
 
         public ObservableCollection<MappingModel> Mappings { get; protected set; }
+
+        protected IServiceProvider ServiceProvider { get; }
 
         protected DeviceGroups DeviceGroups { get; }
 
@@ -79,7 +83,15 @@ namespace userspace_backend.Model
                 return false;
             }
 
-            MappingModel mapping = new MappingModel(mappingToAdd, NameValidator, DeviceGroups, Profiles);
+            // Create Name setting for the mapping
+            var nameSetting = new EditableSettingV2<string>(
+                displayName: "Name",
+                initialValue: mappingToAdd.Name,
+                parser: ServiceProvider.GetRequiredService<IUserInputParser<string>>(),
+                validator: NameValidator);
+
+            // Construct MappingModel with DI pattern
+            MappingModel mapping = new MappingModel(nameSetting, NameValidator, DeviceGroups, Profiles, mappingToAdd);
             Mappings.Add(mapping);
             return true;
         }

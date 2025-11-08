@@ -155,7 +155,7 @@
 								 BorderThickness="0">
 							<ListBox.ItemTemplate>
 								<DataTemplate>
-									<TextBlock Text="{Binding InterfaceValue}"/>
+									<TextBlock Text="{Binding}"/>
 								</DataTemplate>
 							</ListBox.ItemTemplate>
 						</ListBox>
@@ -173,7 +173,7 @@
 						<TextBlock Grid.Column="0"
 								   HorizontalAlignment="Left"
 								   VerticalAlignment="Center"
-								   Text="{Binding DeviceGroup.InterfaceValue}"/>
+								   Text="{Binding DeviceGroup}"/>
 						<TextBlock Grid.Column="1"
 								   Classes="Arrow"
 								   HorizontalAlignment="Center"

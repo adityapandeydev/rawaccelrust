@@ -61,7 +61,7 @@
 
 			<TextBox KeyDown="TextBox_KeyDown"
                      LostFocus="LostFocusHandler"
-                     Text="{Binding DeviceGroupBE.InterfaceValue, Mode=TwoWay}" />
+                     Text="{Binding DeviceGroupBE, Mode=TwoWay}" />
 		</StackPanel>
 	</Border>
 </UserControl>

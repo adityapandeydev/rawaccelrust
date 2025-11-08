@@ -11,12 +11,12 @@ namespace userinterface.ViewModels.Device
             DevicesBE = devicesBE;
             DeviceViews = [];
             UpdateDeviceViews();
-            DevicesBE.Devices.CollectionChanged += DevicesCollectionChanged;
+            ((INotifyCollectionChanged)DevicesBE.Elements).CollectionChanged += DevicesCollectionChanged;
         }
 
         protected BE.DevicesModel DevicesBE { get; }
 
-        public ObservableCollection<BE.DeviceModel> Devices => DevicesBE.Devices;
+        public ReadOnlyObservableCollection<BE.IDeviceModel> Devices => DevicesBE.Elements;
 
         public ObservableCollection<DeviceViewModel> DeviceViews { get; }
 
@@ -26,12 +26,12 @@ namespace userinterface.ViewModels.Device
         public void UpdateDeviceViews()
         {
             DeviceViews.Clear();
-            foreach (BE.DeviceModel device in DevicesBE.Devices)
+            foreach (BE.IDeviceModel device in DevicesBE.Elements)
             {
                 DeviceViews.Add(new DeviceViewModel(device, DevicesBE));
             }
         }
 
-        public bool TryAddDevice() => DevicesBE.TryAddDevice();
+        public bool TryAddDevice() => DevicesBE.TryAddNewDefault();
     }
 }

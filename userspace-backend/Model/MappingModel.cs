@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.Linq;
 using userspace_backend.Model.EditableSettings;
 using userspace_backend.Data;
@@ -18,16 +19,36 @@ namespace userspace_backend.Model
             IEditableSettingSpecific<string> name,
             IModelValueValidator<string> nameValidator,
             IDeviceGroups deviceGroups,
-            IProfilesModel profiles)
+            IProfilesModel profiles,
+            Mapping dataObject)
             : base(name, [], [])
         {
             NameValidator = nameValidator;
             SetActive = true;
             DeviceGroups = deviceGroups;
             Profiles = profiles;
+
+            // Initialize collections
+            IndividualMappings = new ObservableCollection<MappingGroup>();
+            DeviceGroupsStillUnmapped = new ObservableCollection<string>();
+
+            // Initialize mappings from data
+            InitIndividualMappings(dataObject);
+            FindDeviceGroupsStillUnmapped();
+
+            // Wire up events
+            IndividualMappings.CollectionChanged += OnIndividualMappingsChanged;
+            if (DeviceGroups is DeviceGroups dg)
+            {
+                dg.DeviceGroupModels.CollectionChanged += OnIndividualMappingsChanged;
+            }
         }
 
         public bool SetActive { get; set; }
+
+        public ObservableCollection<MappingGroup> IndividualMappings { get; protected set; }
+
+        public ObservableCollection<string> DeviceGroupsStillUnmapped { get; protected set; }
 
         protected IModelValueValidator<string> NameValidator { get; }
 
@@ -45,7 +66,7 @@ namespace userspace_backend.Model
 
             foreach (var group in IndividualMappings)
             {
-                mapping.GroupsToProfiles.Add(group.DeviceGroup.ModelValue, group.Profile.Name.ModelValue);
+                mapping.GroupsToProfiles.Add(group.DeviceGroup, group.Profile.Name.ModelValue);
             }
 
             return mapping;
@@ -61,9 +82,9 @@ namespace userspace_backend.Model
 
         public bool TryAddMapping(string deviceGroupName, string profileName)
         {
-            if (!DeviceGroups.TryGetDeviceGroup(deviceGroupName, out DeviceGroupModel? deviceGroup)
+            if (!DeviceGroups.TryGetDeviceGroup(deviceGroupName, out string? deviceGroup)
                 || deviceGroup == null
-                || IndividualMappings.Any(m => m.DeviceGroup.Equals(deviceGroup)))
+                || IndividualMappings.Any(m => string.Equals(m.DeviceGroup, deviceGroup, StringComparison.InvariantCultureIgnoreCase)))
             {
                 return false;
             }
@@ -89,11 +110,14 @@ namespace userspace_backend.Model
         {
             DeviceGroupsStillUnmapped.Clear();
 
-            foreach (DeviceGroupModel group in DeviceGroups.DeviceGroupModels)
+            if (DeviceGroups is DeviceGroups dg)
             {
-                if (!IndividualMappings.Any(m => m.DeviceGroup.Equals(group)))
+                foreach (string group in dg.DeviceGroupModels)
                 {
-                    DeviceGroupsStillUnmapped.Add(group);
+                    if (!IndividualMappings.Any(m => string.Equals(m.DeviceGroup, group, StringComparison.InvariantCultureIgnoreCase)))
+                    {
+                        DeviceGroupsStillUnmapped.Add(group);
+                    }
                 }
             }
         }
@@ -116,7 +140,7 @@ namespace userspace_backend.Model
 
     public class MappingGroup
     {
-        public DeviceGroupModel DeviceGroup { get; set; }
+        public string DeviceGroup { get; set; }
 
         public IProfileModel Profile { get; set; }
 

@@ -1,5 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System;
+using DATA = userspace_backend.Data;
+using userspace_backend.Display;
+using userspace_backend.IO;
 using userspace_backend.Model;
 using userspace_backend.Model.AccelDefinitions;
 using userspace_backend.Model.AccelDefinitions.Formula;
@@ -8,6 +11,7 @@ using userspace_backend.Model.ProfileComponents;
 using static userspace_backend.Data.Profiles.Accel.FormulaAccel;
 using static userspace_backend.Data.Profiles.Accel.LookupTableAccel;
 using static userspace_backend.Data.Profiles.Acceleration;
+using static userspace_backend.Model.EditableSettings.EditableSettingsSelectorHelper;
 
 namespace userspace_backend
 {
@@ -44,6 +48,9 @@ namespace userspace_backend
 
             services.AddKeyedSingleton<IModelValueValidator<string>, DefaultModelValueValidator<string>>(
                 DefaultModelValueValidator<string>.AllChangeInvalidDIKey);
+
+            services.AddKeyedSingleton<IModelValueValidator<string>, MaxNameLengthValidator>(
+                ProfileModel.NameDIKey);
 
             #endregion Validators
 
@@ -174,6 +181,17 @@ namespace userspace_backend
                         parser: services.GetRequiredService<IUserInputParser<AccelerationDefinitionType>>(),
                         validator: services.GetRequiredService<IModelValueValidator<AccelerationDefinitionType>>()));
 
+            // Register selector options for AccelerationDefinitionType
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>>(
+                GetSelectionKey(AccelerationDefinitionType.None),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>)sp.GetRequiredService<INoAccelDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>>(
+                GetSelectionKey(AccelerationDefinitionType.Formula),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>)sp.GetRequiredService<IFormulaAccelModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>>(
+                GetSelectionKey(AccelerationDefinitionType.LookupTable),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Acceleration>)sp.GetRequiredService<ILookupTableDefinitionModel>());
+
             #endregion Acceleration
 
             #region FormulaAccel
@@ -194,6 +212,26 @@ namespace userspace_backend
                         initialValue: false,
                         parser: services.GetRequiredService<IUserInputParser<bool>>(),
                         validator: services.GetRequiredService<IModelValueValidator<bool>>()));
+
+            // Register selector options for AccelerationFormulaType
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Synchronous),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<ISynchronousAccelerationDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Linear),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<ILinearAccelerationDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Classic),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<IClassicAccelerationDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Power),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<IPowerAccelerationDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Natural),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<INaturalAccelerationDefinitionModel>());
+            services.AddKeyedTransient<IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>>(
+                GetSelectionKey(AccelerationFormulaType.Jump),
+                (sp, key) => (IEditableSettingsCollectionSpecific<userspace_backend.Data.Profiles.Accel.FormulaAccel>)sp.GetRequiredService<IJumpAccelerationDefinitionModel>());
 
             #endregion FormulaAccel
 
@@ -415,8 +453,7 @@ namespace userspace_backend
                         displayName: "Name",
                         "Empty",
                         parser: services.GetRequiredService<IUserInputParser<string>>(),
-                        // TODO: DI - change to max name length validator
-                        validator: services.GetRequiredService<IModelValueValidator<string>>()));
+                        validator: services.GetRequiredKeyedService<IModelValueValidator<string>>(ProfileModel.NameDIKey)));
             services.AddKeyedTransient<IEditableSettingSpecific<int>>(
                 ProfileModel.OutputDPIDIKey, (IServiceProvider services, object? key) =>
                     new EditableSettingV2<int>(
@@ -434,7 +471,34 @@ namespace userspace_backend
 
             #endregion Profile
 
+            #region Display
+
+            services.AddTransient<ICurvePreview, CurvePreview>();
+
+            #endregion Display
+
             #region DeviceGroup
+
+            services.AddSingleton<DeviceGroups>(sp =>
+            {
+                // Initialize with empty collection - will be populated during BackEnd.Load()
+                return new DeviceGroups([]);
+            });
+
+            services.AddSingleton<DeviceGroupValidator>(sp =>
+            {
+                var deviceGroups = sp.GetRequiredService<DeviceGroups>();
+                return new DeviceGroupValidator(deviceGroups);
+            });
+
+            services.AddSingleton<DevicesModel>(sp =>
+            {
+                var systemDevicesProvider = sp.GetRequiredService<ISystemDevicesProvider>();
+                var deviceGroups = sp.GetRequiredService<DeviceGroups>();
+                var devicesModel = new DevicesModel(sp, systemDevicesProvider);
+                devicesModel.DeviceGroups = deviceGroups;
+                return devicesModel;
+            });
 
             services.AddTransient<IDeviceModel, DeviceModel>();
             services.AddKeyedTransient<IEditableSettingSpecific<string>>(
@@ -484,6 +548,21 @@ namespace userspace_backend
 
             #region Mapping
 
+            services.AddSingleton<MappingsModel>(sp =>
+            {
+                // Initialize with empty MappingSet - will be populated during BackEnd.Load()
+                var deviceGroups = sp.GetRequiredService<DeviceGroups>();
+                var profiles = sp.GetRequiredService<IProfilesModel>();
+                var emptyMappingSet = new DATA.MappingSet { Mappings = [] };
+                return new MappingsModel(emptyMappingSet, deviceGroups, profiles, sp);
+            });
+
+            services.AddSingleton<MappingNameValidator>(sp =>
+            {
+                var mappings = sp.GetRequiredService<MappingsModel>();
+                return new MappingNameValidator(mappings);
+            });
+
             services.AddTransient<IMappingModel, MappingModel>();
             services.AddKeyedTransient<IEditableSettingSpecific<string>>(
                 MappingModel.NameDIKey, (IServiceProvider services, object? key) =>
@@ -491,9 +570,25 @@ namespace userspace_backend
                         displayName: "Name",
                         initialValue: "name",
                         parser: services.GetRequiredService<IUserInputParser<string>>(),
-                        validator: services.GetRequiredKeyedService<IModelValueValidator<string>>(MappingModel.NameDIKey)));
+                        validator: services.GetRequiredService<MappingNameValidator>()));
 
             #endregion Mapping
+
+            #region IO Layer
+
+            services.AddSingleton<DevicesReaderWriter>();
+            services.AddSingleton<MappingsReaderWriter>();
+            services.AddSingleton<ProfileReaderWriter>();
+
+            #endregion IO Layer
+
+            #region BackEnd
+
+            services.AddSingleton<IProfilesModel, ProfilesModel>();
+
+            services.AddSingleton<IBackEnd, BackEnd>();
+
+            #endregion BackEnd
 
             return services.BuildServiceProvider();
         }

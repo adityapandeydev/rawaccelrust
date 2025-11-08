@@ -1,4 +1,5 @@
-﻿using userspace_backend.Data;
+﻿using Microsoft.Extensions.DependencyInjection;
+using userspace_backend.Data;
 using userspace_backend.Model.EditableSettings;
 
 namespace userspace_backend.Model
@@ -28,12 +29,12 @@ namespace userspace_backend.Model
         public const string DeviceGroupDIKey = $"{nameof(DeviceModel)}.{nameof(DeviceGroup)}";
 
         public DeviceModel(
-            IEditableSettingSpecific<string> name,
-            IEditableSettingSpecific<string> hardwareID,
-            IEditableSettingSpecific<int> dpi,
-            IEditableSettingSpecific<int> pollRate,
-            IEditableSettingSpecific<bool> ignore,
-            IEditableSettingSpecific<string> deviceGroup)
+            [FromKeyedServices(NameDIKey)] IEditableSettingSpecific<string> name,
+            [FromKeyedServices(HardwareIDDIKey)] IEditableSettingSpecific<string> hardwareID,
+            [FromKeyedServices(DPIDIKey)] IEditableSettingSpecific<int> dpi,
+            [FromKeyedServices(PollRateDIKey)] IEditableSettingSpecific<int> pollRate,
+            [FromKeyedServices(IgnoreDIKey)] IEditableSettingSpecific<bool> ignore,
+            [FromKeyedServices(DeviceGroupDIKey)] IEditableSettingSpecific<string> deviceGroup)
             : base(name, [hardwareID, dpi, pollRate, ignore, deviceGroup], [])
         {
             HardwareID = hardwareID;

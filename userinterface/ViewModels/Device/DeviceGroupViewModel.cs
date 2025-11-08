@@ -5,13 +5,13 @@ namespace userinterface.ViewModels.Device
 {
     public partial class DeviceGroupViewModel : ViewModelBase
     {
-        public DeviceGroupViewModel(BE.DeviceGroupModel deviceGroupBE, BE.DeviceGroups deviceGroupsBE)
+        public DeviceGroupViewModel(string deviceGroupBE, BE.DeviceGroups deviceGroupsBE)
         {
             DeviceGroupBE = deviceGroupBE;
             DeviceGroupsBE = deviceGroupsBE;
         }
 
-        public BE.DeviceGroupModel DeviceGroupBE { get; }
+        public string DeviceGroupBE { get; }
 
         protected BE.DeviceGroups DeviceGroupsBE { get; }
 

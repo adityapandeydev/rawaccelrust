@@ -21,11 +21,11 @@ namespace userinterface.ViewModels.Mapping
 
         public void HandleAddMappingSelection(SelectionChangedEventArgs e)
         {
-            if (e.AddedItems.Count > 0 && e.AddedItems[0] is BE.DeviceGroupModel deviceGroup)
+            if (e.AddedItems.Count > 0 && e.AddedItems[0] is string deviceGroup)
             {
                 // TODO: re-add default profile
-                // MappingBE.TryAddMapping(deviceGroup.ModelValue, BE.ProfilesModel.DefaultProfile.CurrentNameForDisplay);
-                MappingBE.TryAddMapping(deviceGroup.ModelValue, "Default");
+                // MappingBE.TryAddMapping(deviceGroup, BE.ProfilesModel.DefaultProfile.CurrentNameForDisplay);
+                MappingBE.TryAddMapping(deviceGroup, "Default");
             }
         }
 

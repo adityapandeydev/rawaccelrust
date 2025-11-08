@@ -19,46 +19,76 @@ namespace userspace_backend
         public IEnumerable<DATA.Profile> LoadProfiles();
 
         public void WriteSettingsToDisk(
-            IEnumerable<DeviceModel> devices,
+            IEnumerable<IDeviceModel> devices,
             MappingsModel mappings,
             IEnumerable<IProfileModel> profiles);
     }
 
     public class BackEndLoader : IBackEndLoader
     {
-        public static DevicesReaderWriter DevicesReaderWriter = new DevicesReaderWriter();
-
-        public static MappingsReaderWriter MappingsReaderWriter = new MappingsReaderWriter();
-
-        public static ProfileReaderWriter ProfileReaderWriter = new ProfileReaderWriter();
-
-        public BackEndLoader(string settingsDirectory)
+        public BackEndLoader(
+            string settingsDirectory,
+            DevicesReaderWriter devicesReaderWriter,
+            MappingsReaderWriter mappingsReaderWriter,
+            ProfileReaderWriter profileReaderWriter)
         {
             SettingsDirectory = settingsDirectory;
+            DevicesReaderWriter = devicesReaderWriter;
+            MappingsReaderWriter = mappingsReaderWriter;
+            ProfileReaderWriter = profileReaderWriter;
         }
 
         public string SettingsDirectory { get; private set; }
+        protected DevicesReaderWriter DevicesReaderWriter { get; }
+        protected MappingsReaderWriter MappingsReaderWriter { get; }
+        protected ProfileReaderWriter ProfileReaderWriter { get; }
 
         public IEnumerable<DATA.Device> LoadDevices()
         {
             string devicesFile = GetDevicesFile(SettingsDirectory);
+            if (!File.Exists(devicesFile))
+            {
+                return [];
+            }
             string devicesText = File.ReadAllText(devicesFile);
-            IEnumerable<DATA.Device> devicesData = DevicesReaderWriter.Read(devicesText);
+            IEnumerable<DATA.Device> devicesData = DevicesReaderWriter.Deserialize(devicesText);
             return devicesData;
         }
 
         public DATA.MappingSet LoadMappings()
         {
-            throw new NotImplementedException();
+            string mappingsFile = GetMappingsFile(SettingsDirectory);
+            if (!File.Exists(mappingsFile))
+            {
+                return new DATA.MappingSet { Mappings = [] };
+            }
+            string mappingsText = File.ReadAllText(mappingsFile);
+            DATA.MappingSet mappingsData = MappingsReaderWriter.Deserialize(mappingsText);
+            return mappingsData;
         }
 
         public IEnumerable<DATA.Profile> LoadProfiles()
         {
-            throw new NotImplementedException();
+            string profilesDirectory = GetProfilesDirectory(SettingsDirectory);
+            if (!Directory.Exists(profilesDirectory))
+            {
+                return [];
+            }
+
+            string[] profileFiles = Directory.GetFiles(profilesDirectory, "*.json");
+            List<DATA.Profile> profiles = [];
+            foreach (string profileFile in profileFiles)
+            {
+                string profileText = File.ReadAllText(profileFile);
+                DATA.Profile profileData = ProfileReaderWriter.Deserialize(profileText);
+                profiles.Add(profileData);
+            }
+
+            return profiles;
         }
 
         public void WriteSettingsToDisk(
-            IEnumerable<DeviceModel> devices,
+            IEnumerable<IDeviceModel> devices,
             MappingsModel mappings,
             IEnumerable<IProfileModel> profiles)
         {
@@ -67,7 +97,7 @@ namespace userspace_backend
             WriteProfiles(profiles);
         }
 
-        protected void WriteDevices(IEnumerable<DeviceModel> devices)
+        protected void WriteDevices(IEnumerable<IDeviceModel> devices)
         {
             IEnumerable<DATA.Device> devicesData = devices.Select(d => d.MapToData());
             string devicesFileText = DevicesReaderWriter.Serialize(devicesData);
