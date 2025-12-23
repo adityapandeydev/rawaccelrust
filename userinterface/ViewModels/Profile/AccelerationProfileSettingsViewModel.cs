@@ -3,6 +3,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using userinterface.Services;
 using BE = userspace_backend.Model.AccelDefinitions;
 using BEData = userspace_backend.Data.Profiles.Acceleration;
 
@@ -15,17 +16,22 @@ namespace userinterface.ViewModels.Profile
                 .Cast<BEData.AccelerationDefinitionType>()
                 .Select(d => d.ToString()));
 
+        public static readonly ObservableCollection<string> DefinitionTypeKeys =
+            new(Enum.GetValues(typeof(BEData.AccelerationDefinitionType))
+                .Cast<BEData.AccelerationDefinitionType>()
+                .Select(d => $"AccelDefinition{d}"));
+
         [ObservableProperty]
         public bool areAccelSettingsVisible;
 
-        public AccelerationProfileSettingsViewModel(BE.IAccelerationModel accelerationBE)
+        public AccelerationProfileSettingsViewModel(BE.IAccelerationModel accelerationBE, INotificationService notificationService, LocalizationService localizationService)
         {
             AccelerationBE = accelerationBE;
             AccelerationFormulaSettings = new AccelerationFormulaSettingsViewModel(
-                accelerationBE.GetSelectable(BEData.AccelerationDefinitionType.Formula) as BE.IFormulaAccelModel);
+                accelerationBE.GetSelectable(BEData.AccelerationDefinitionType.Formula) as BE.IFormulaAccelModel, notificationService);
             AccelerationLUTSettings = new AccelerationLUTSettingsViewModel(
                 accelerationBE.GetSelectable(BEData.AccelerationDefinitionType.LookupTable) as BE.ILookupTableDefinitionModel);
-            AnisotropySettings = new AnisotropyProfileSettingsViewModel(accelerationBE.Anisotropy);
+            AnisotropySettings = new AnisotropyProfileSettingsViewModel(accelerationBE.Anisotropy, localizationService);
             CoalescionSettings = new CoalescionProfileSettingsViewModel(accelerationBE.Coalescion);
             // TODO: editable settings composition
             AccelerationBE.Selection.AutoUpdateFromInterface = true;
@@ -34,7 +40,9 @@ namespace userinterface.ViewModels.Profile
 
         public BE.IAccelerationModel AccelerationBE { get; }
 
-        public ObservableCollection<string> DefinitionTypesLocal => DefinitionTypes;
+        public static ObservableCollection<string> DefinitionTypesLocal => DefinitionTypes;
+
+        public static ObservableCollection<string> DefinitionTypeKeysLocal => DefinitionTypeKeys;
 
         public AccelerationFormulaSettingsViewModel AccelerationFormulaSettings { get; }
 

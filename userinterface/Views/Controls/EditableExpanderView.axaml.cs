@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
@@ -16,14 +16,13 @@ using System.Threading.Tasks;
 
 namespace userinterface.Controls;
 
-// TODO: Disable when ignore set to true (DeviceView)
 public partial class EditableExpanderView : UserControl, INotifyPropertyChanged, IDisposable
 {
     private const int HoverDelayMilliseconds = 50;
     private const int ChevronAnimationDurationMilliseconds = 100;
+    private const int ContentAnimationDurationMilliseconds = 100;
     private const double ExpandedChevronAngle = 90.0;
     private const double CollapsedChevronAngle = 0.0;
-
     private const string ExpandedClass = "Expanded";
     private const string SyncHoverClass = "SyncHover";
 
@@ -36,14 +35,18 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
     public static readonly StyledProperty<bool> IsExpandedProperty =
         AvaloniaProperty.Register<EditableExpanderView, bool>(nameof(IsExpanded));
 
-    private int _angle;
-    private CancellationTokenSource? _hoverDelayCancellationTokenSource;
-    private bool _isDisposed;
+    public static readonly StyledProperty<bool> IsExpanderEnabledProperty =
+        AvaloniaProperty.Register<EditableExpanderView, bool>(nameof(IsExpanderEnabled), true);
 
-    // Cached controls for performance
-    private NoInteractionButtonView? _cachedHeaderButton;
-    private NoInteractionButtonView? _cachedContentButton;
-    private PathIcon? _cachedExpandIcon;
+    private int AngleValue;
+    private CancellationTokenSource? HoverDelayCancellationTokenSource;
+    private bool IsDisposedValue;
+    private bool isAnimating;
+
+    private NoInteractionButtonView? CachedHeaderButton;
+
+    private NoInteractionButtonView? CachedContentButton;
+    private PathIcon? CachedExpandIcon;
 
     public new event PropertyChangedEventHandler? PropertyChanged;
 
@@ -65,15 +68,53 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
         set => SetValue(IsExpandedProperty, value);
     }
 
+    public bool IsExpanderEnabled
+    {
+        get => GetValue(IsExpanderEnabledProperty);
+        set => SetValue(IsExpanderEnabledProperty, value);
+    }
+
     public int Angle
     {
-        get => _angle;
-        set => RaiseAndSetIfChanged(ref _angle, value);
+        get => AngleValue;
+        set => RaiseAndSetIfChanged(ref AngleValue, value);
     }
 
     public EditableExpanderView()
     {
         InitializeComponent();
+
+        this.PropertyChanged += OnSelfPropertyChanged;
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == IsExpanderEnabledProperty)
+        {
+            HandleIsExpanderEnabledChanged((bool)change.NewValue!);
+        }
+        else if (change.Property == IsExpandedProperty)
+        {
+            UpdateExpandedState();
+        }
+    }
+
+    private void HandleIsExpanderEnabledChanged(bool isEnabled)
+    {
+        if (!isEnabled && IsExpanded)
+        {
+            IsExpanded = false;
+        }
+    }
+
+    private void OnSelfPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IsExpanded))
+        {
+            UpdateExpandedState();
+        }
     }
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -93,23 +134,25 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
 
     private NoInteractionButtonView? GetHeaderButton()
     {
-        return _cachedHeaderButton ??= this.FindControl<NoInteractionButtonView>("HeaderButton");
+        return CachedHeaderButton ??= this.FindControl<NoInteractionButtonView>("HeaderButton");
     }
 
     private NoInteractionButtonView? GetContentButton()
     {
-        return _cachedContentButton ??= this.FindControl<NoInteractionButtonView>("ContentButton");
+        return CachedContentButton ??= this.FindControl<NoInteractionButtonView>("ContentButton");
     }
 
     private PathIcon? GetExpandIcon()
     {
-        return _cachedExpandIcon ??= this.FindControl<PathIcon>("ExpandIcon");
+        return CachedExpandIcon ??= this.FindControl<PathIcon>("ExpandIcon");
     }
 
     private void ToggleButton_Click(object sender, RoutedEventArgs eventArgs)
     {
+        if (!IsExpanderEnabled || isAnimating)
+            return;
+
         IsExpanded = !IsExpanded;
-        UpdateExpandedState();
     }
 
     private async void UpdateExpandedState()
@@ -121,21 +164,41 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
         if (headerButton == null || contentButton == null || expandIcon == null)
             return;
 
-        contentButton.IsVisible = IsExpanded;
+        if (isAnimating)
+            return;
 
-        if (IsExpanded)
+        isAnimating = true;
+
+        try
         {
-            headerButton.Classes.Add(ExpandedClass);
-            await AnimateChevron(expandIcon, ExpandedChevronAngle);
+            if (IsExpanded)
+            {
+                contentButton.IsVisible = true;
+                headerButton.Classes.Add(ExpandedClass);
+
+                var chevronTask = AnimateChevron(expandIcon, ExpandedChevronAngle);
+                var heightTask = AnimateHeightExpand(contentButton);
+
+                await Task.WhenAll(chevronTask, heightTask);
+            }
+            else
+            {
+                var chevronTask = AnimateChevron(expandIcon, CollapsedChevronAngle);
+                var heightTask = AnimateHeightCollapse(contentButton);
+
+                await Task.WhenAll(chevronTask, heightTask);
+
+                headerButton.Classes.Remove(ExpandedClass);
+                contentButton.IsVisible = false;
+            }
         }
-        else
+        finally
         {
-            headerButton.Classes.Remove(ExpandedClass);
-            await AnimateChevron(expandIcon, CollapsedChevronAngle);
+            isAnimating = false;
         }
     }
 
-    private async Task AnimateChevron(PathIcon expandIcon, double targetAngle)
+    private static async Task AnimateChevron(PathIcon expandIcon, double targetAngle)
     {
         if (expandIcon.RenderTransform is not RotateTransform rotateTransform)
             return;
@@ -179,30 +242,200 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
         rotateTransform.Angle = targetAngle;
     }
 
+    private static async Task AnimateContentExpand(Control contentControl)
+    {
+        contentControl.Opacity = 0.0;
+        contentControl.RenderTransform = new ScaleTransform { ScaleY = 0.0 };
+        contentControl.RenderTransformOrigin = new RelativePoint(0.5, 0.0, RelativeUnit.Relative); // Scale from top
+
+        var animation = new Animation
+        {
+            Duration = TimeSpan.FromMilliseconds(ContentAnimationDurationMilliseconds),
+            Easing = new CubicEaseOut(),
+            FillMode = FillMode.Forward,
+            Children =
+            {
+                new KeyFrame
+                {
+                    Cue = new Cue(0.0),
+                    Setters =
+                    {
+                        new Setter { Property = Visual.OpacityProperty, Value = 0.0 },
+                        new Setter { Property = ScaleTransform.ScaleYProperty, Value = 0.0 }
+                    }
+                },
+                new KeyFrame
+                {
+                    Cue = new Cue(1.0),
+                    Setters =
+                    {
+                        new Setter { Property = Visual.OpacityProperty, Value = 1.0 },
+                        new Setter { Property = ScaleTransform.ScaleYProperty, Value = 1.0 }
+                    }
+                }
+            }
+        };
+
+        await animation.RunAsync(contentControl, CancellationToken.None);
+
+        // Ensure final state
+        contentControl.Opacity = 1.0;
+        if (contentControl.RenderTransform is ScaleTransform scaleTransform)
+        {
+            scaleTransform.ScaleY = 1.0;
+        }
+    }
+
+    private static async Task AnimateContentCollapse(Control contentControl)
+    {
+        // Ensure transform origin is set for consistent scaling direction
+        contentControl.RenderTransformOrigin = new RelativePoint(0.5, 0.0, RelativeUnit.Relative); // Scale from top
+
+        var animation = new Animation
+        {
+            Duration = TimeSpan.FromMilliseconds(ContentAnimationDurationMilliseconds),
+            Easing = new CubicEaseIn(),
+            FillMode = FillMode.Forward,
+            Children =
+            {
+                new KeyFrame
+                {
+                    Cue = new Cue(0.0),
+                    Setters =
+                    {
+                        new Setter { Property = Visual.OpacityProperty, Value = 1.0 },
+                        new Setter { Property = ScaleTransform.ScaleYProperty, Value = 1.0 }
+                    }
+                },
+                new KeyFrame
+                {
+                    Cue = new Cue(1.0),
+                    Setters =
+                    {
+                        new Setter { Property = Visual.OpacityProperty, Value = 0.0 },
+                        new Setter { Property = ScaleTransform.ScaleYProperty, Value = 0.0 }
+                    }
+                }
+            }
+        };
+
+        await animation.RunAsync(contentControl, CancellationToken.None);
+    }
+
+    private static async Task AnimateHeightExpand(Control contentControl)
+    {
+        // Ensure content is visible and reset any previous state
+        contentControl.Opacity = 1.0;
+        contentControl.RenderTransform = null;
+        contentControl.ClearValue(Control.HeightProperty);
+
+        // Measure the natural height of the content
+        contentControl.Measure(Size.Infinity);
+        var targetHeight = contentControl.DesiredSize.Height;
+
+        // Start with height 0 and animate to target height
+        var animation = new Animation
+        {
+            Duration = TimeSpan.FromMilliseconds(ContentAnimationDurationMilliseconds),
+            Easing = new CubicEaseOut(),
+            FillMode = FillMode.Forward,
+            Children =
+            {
+                new KeyFrame
+                {
+                    Cue = new Cue(0.0),
+                    Setters =
+                    {
+                        new Setter { Property = Control.HeightProperty, Value = 0.0 },
+                        new Setter { Property = Visual.OpacityProperty, Value = 0.0 }
+                    }
+                },
+                new KeyFrame
+                {
+                    Cue = new Cue(1.0),
+                    Setters =
+                    {
+                        new Setter { Property = Control.HeightProperty, Value = targetHeight },
+                        new Setter { Property = Visual.OpacityProperty, Value = 1.0 }
+                    }
+                }
+            }
+        };
+
+        await animation.RunAsync(contentControl, CancellationToken.None);
+
+        // Clear explicit height to allow natural responsive sizing
+        contentControl.ClearValue(Control.HeightProperty);
+    }
+
+    private static async Task AnimateHeightCollapse(Control contentControl)
+    {
+        // Get current height and ensure we start from a known state
+        var currentHeight = contentControl.Bounds.Height;
+        if (currentHeight <= 0)
+        {
+            // If no height, measure the content to get actual size
+            contentControl.Measure(Size.Infinity);
+            currentHeight = contentControl.DesiredSize.Height;
+        }
+
+        contentControl.Height = currentHeight;
+
+        var animation = new Animation
+        {
+            Duration = TimeSpan.FromMilliseconds(ContentAnimationDurationMilliseconds),
+            Easing = new CubicEaseIn(),
+            FillMode = FillMode.Forward,
+            Children =
+            {
+                new KeyFrame
+                {
+                    Cue = new Cue(0.0),
+                    Setters =
+                    {
+                        new Setter { Property = Control.HeightProperty, Value = currentHeight },
+                        new Setter { Property = Visual.OpacityProperty, Value = 1.0 }
+                    }
+                },
+                new KeyFrame
+                {
+                    Cue = new Cue(1.0),
+                    Setters =
+                    {
+                        new Setter { Property = Control.HeightProperty, Value = 0.0 },
+                        new Setter { Property = Visual.OpacityProperty, Value = 0.0 }
+                    }
+                }
+            }
+        };
+
+        await animation.RunAsync(contentControl, CancellationToken.None);
+    }
+
     private void ApplyHoverEffect()
     {
-        _hoverDelayCancellationTokenSource?.Cancel();
-        _hoverDelayCancellationTokenSource = null;
+        if (!IsExpanderEnabled)
+            return;
+
+        HoverDelayCancellationTokenSource?.Cancel();
+        HoverDelayCancellationTokenSource = null;
 
         var headerButton = GetHeaderButton();
         var contentButton = GetContentButton();
-
         headerButton?.Classes.Add(SyncHoverClass);
         contentButton?.Classes.Add(SyncHoverClass);
     }
 
     private async void RemoveHoverEffectWithDelay()
     {
-        _hoverDelayCancellationTokenSource?.Cancel();
-        _hoverDelayCancellationTokenSource = new CancellationTokenSource();
+        HoverDelayCancellationTokenSource?.Cancel();
+        HoverDelayCancellationTokenSource = new CancellationTokenSource();
 
         try
         {
-            await Task.Delay(HoverDelayMilliseconds, _hoverDelayCancellationTokenSource.Token);
-
+            await Task.Delay(HoverDelayMilliseconds, HoverDelayCancellationTokenSource.Token);
             var headerButton = GetHeaderButton();
             var contentButton = GetContentButton();
-
             headerButton?.Classes.Remove(SyncHoverClass);
             contentButton?.Classes.Remove(SyncHoverClass);
         }
@@ -212,8 +445,8 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
         }
         finally
         {
-            _hoverDelayCancellationTokenSource?.Dispose();
-            _hoverDelayCancellationTokenSource = null;
+            HoverDelayCancellationTokenSource?.Dispose();
+            HoverDelayCancellationTokenSource = null;
         }
     }
 
@@ -245,17 +478,16 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
 
     protected virtual void Dispose(bool disposing)
     {
-        if (_isDisposed)
+        if (IsDisposedValue)
             return;
 
         if (disposing)
         {
-            _hoverDelayCancellationTokenSource?.Cancel();
-            _hoverDelayCancellationTokenSource?.Dispose();
-            _hoverDelayCancellationTokenSource = null;
+            HoverDelayCancellationTokenSource?.Cancel();
+            HoverDelayCancellationTokenSource?.Dispose();
+            HoverDelayCancellationTokenSource = null;
         }
 
-        _isDisposed = true;
+        IsDisposedValue = true;
     }
 }
-

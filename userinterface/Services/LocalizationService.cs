@@ -1,0 +1,57 @@
+using System.ComponentModel;
+using System.Globalization;
+using System.Runtime.CompilerServices;
+
+namespace userinterface.Services;
+
+public class LocalizationService : INotifyPropertyChanged
+{
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    // Specific property name for language changes
+    public const string LanguageChangedPropertyName = "CurrentLanguage";
+
+    public bool TryChangeLanguage(string cultureCode, out CultureInfo? culture)
+    {
+        culture = null;
+        try
+        {
+            culture = new CultureInfo(cultureCode);
+            CultureInfo.CurrentCulture = culture;
+            CultureInfo.CurrentUICulture = culture;
+
+            Properties.Resources.Strings.Culture = culture;
+
+            OnPropertyChanged(LanguageChangedPropertyName);
+            return true;
+        }
+        catch (CultureNotFoundException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Culture not found: {cultureCode} - {ex.Message}");
+            return false;
+        }
+    }
+
+    public void ChangeLanguage(string cultureCode)
+    {
+        TryChangeLanguage(cultureCode, out _);
+    }
+
+    public string GetText(string key)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var result = Properties.Resources.Strings.ResourceManager.GetString(key) ?? key;
+        
+        if (stopwatch.ElapsedMilliseconds >= 10)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LOCALIZATION] SLOW: GetText('{key}') took {stopwatch.ElapsedMilliseconds}ms on thread {System.Threading.Thread.CurrentThread.ManagedThreadId}");
+        }
+        
+        return result;
+    }
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}

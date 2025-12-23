@@ -67,8 +67,8 @@ namespace userspace_backend.Model.AccelDefinitions
         protected override bool TryMapEditableSettingsCollectionsFromData(Acceleration data)
         {
             return Anisotropy.TryMapFromData(data.Anisotropy)
-            & Coalescion.TryMapFromData(data.Coalescion)
-            & Selected.TryMapFromData(data);
+                & Coalescion.TryMapFromData(data.Coalescion)
+                & Selected.TryMapFromData(data);
         }
     }
 }

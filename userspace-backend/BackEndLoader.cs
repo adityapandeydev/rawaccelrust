@@ -18,10 +18,14 @@ namespace userspace_backend
 
         public IEnumerable<DATA.Profile> LoadProfiles();
 
+        public DATA.Settings? LoadSettings();
+
         public void WriteSettingsToDisk(
             IEnumerable<IDeviceModel> devices,
             MappingsModel mappings,
             IEnumerable<IProfileModel> profiles);
+
+        public void WriteSettings(DATA.Settings settings);
     }
 
     public class BackEndLoader : IBackEndLoader
@@ -30,18 +34,21 @@ namespace userspace_backend
             string settingsDirectory,
             DevicesReaderWriter devicesReaderWriter,
             MappingsReaderWriter mappingsReaderWriter,
-            ProfileReaderWriter profileReaderWriter)
+            ProfileReaderWriter profileReaderWriter,
+            SettingsReaderWriter settingsReaderWriter)
         {
             SettingsDirectory = settingsDirectory;
             DevicesReaderWriter = devicesReaderWriter;
             MappingsReaderWriter = mappingsReaderWriter;
             ProfileReaderWriter = profileReaderWriter;
+            SettingsReaderWriter = settingsReaderWriter;
         }
 
         public string SettingsDirectory { get; private set; }
         protected DevicesReaderWriter DevicesReaderWriter { get; }
         protected MappingsReaderWriter MappingsReaderWriter { get; }
         protected ProfileReaderWriter ProfileReaderWriter { get; }
+        protected SettingsReaderWriter SettingsReaderWriter { get; }
 
         public IEnumerable<DATA.Device> LoadDevices()
         {
@@ -85,6 +92,31 @@ namespace userspace_backend
             }
 
             return profiles;
+        }
+
+        public DATA.Settings? LoadSettings()
+        {
+            string settingsFile = GetSettingsFile(SettingsDirectory);
+            
+            if (!File.Exists(settingsFile))
+            {
+                return null;
+            }
+
+            try
+            {
+                return SettingsReaderWriter.Read(settingsFile);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public void WriteSettings(DATA.Settings settings)
+        {
+            string settingsFile = GetSettingsFile(SettingsDirectory);
+            SettingsReaderWriter.Write(settingsFile, settings);
         }
 
         public void WriteSettingsToDisk(
@@ -134,5 +166,7 @@ namespace userspace_backend
         protected static string GetProfilesDirectory(string settingsDirectory) => Path.Combine(settingsDirectory, "profiles");
 
         protected static string GetProfileFile(string profileDirectory, string profileName) => Path.Combine(profileDirectory, $"{profileName}.json");
+
+        protected static string GetSettingsFile(string settingsDirectory) => Path.Combine(settingsDirectory, "settings.json");
     }
 }

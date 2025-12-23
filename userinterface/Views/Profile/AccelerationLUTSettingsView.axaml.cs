@@ -1,7 +1,10 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
-using userinterface.Views.Controls;
+using Microsoft.Extensions.DependencyInjection;
+using System;
+using userinterface.Services;
 using userinterface.ViewModels.Controls;
+using userinterface.Views.Controls;
 
 namespace userinterface.Views.Profile;
 
@@ -9,7 +12,6 @@ public partial class AccelerationLUTSettingsView : UserControl
 {
     private const string VelocityOptionText = "Velocity";
     private const string SensitivityOptionText = "Sensitivity";
-    private const string ApplyAsLabelText = "Apply as:";
 
     public AccelerationLUTSettingsView()
     {
@@ -23,10 +25,10 @@ public partial class AccelerationLUTSettingsView : UserControl
         var dualColumnViewModel = CreateDualColumnViewModel(applyAsComboBox);
         var labelFieldView = new DualColumnLabelFieldView(dualColumnViewModel);
 
-        AddControlToMainPanel(labelFieldView);
+        AddControlToStackPanel(labelFieldView);
     }
 
-    private ComboBox CreateApplyAsComboBox()
+    private static ComboBox CreateApplyAsComboBox()
     {
         return new ComboBox
         {
@@ -39,16 +41,17 @@ public partial class AccelerationLUTSettingsView : UserControl
         };
     }
 
-    private DualColumnLabelFieldViewModel CreateDualColumnViewModel(ComboBox applyAsComboBox)
+    private static DualColumnLabelFieldViewModel CreateDualColumnViewModel(ComboBox applyAsComboBox)
     {
-        var viewModel = new DualColumnLabelFieldViewModel();
-        viewModel.AddField(ApplyAsLabelText, applyAsComboBox);
+        var localizationService = App.Services?.GetRequiredService<LocalizationService>() ?? throw new InvalidOperationException("LocalizationService not available");
+        var viewModel = new DualColumnLabelFieldViewModel(localizationService);
+        viewModel.AddField("LookupTableApplyAs", applyAsComboBox);
         return viewModel;
     }
 
-    private void AddControlToMainPanel(DualColumnLabelFieldView labelFieldView)
+    private void AddControlToStackPanel(DualColumnLabelFieldView labelFieldView)
     {
-        var mainStackPanel = this.FindControl<StackPanel>("MainStackPanel");
-        mainStackPanel?.Children.Add(labelFieldView);
+        var LUTStackPanel = this.FindControl<StackPanel>("LUTStackPanel");
+        LUTStackPanel?.Children.Add(labelFieldView);
     }
 }

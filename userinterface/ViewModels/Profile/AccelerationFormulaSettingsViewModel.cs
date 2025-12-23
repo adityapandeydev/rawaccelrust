@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using userinterface.Services;
 using userinterface.ViewModels.Controls;
 using BE = userspace_backend.Model.AccelDefinitions;
 using BEData = userspace_backend.Data.Profiles.Accel.FormulaAccel;
@@ -9,13 +10,21 @@ namespace userinterface.ViewModels.Profile
 {
     public class AccelerationFormulaSettingsViewModel : ViewModelBase
     {
+        private readonly INotificationService notificationService;
+
         public static ObservableCollection<string> FormulaTypes { get; } =
             new(Enum.GetValues(typeof(BEData.AccelerationFormulaType))
                 .Cast<BEData.AccelerationFormulaType>()
                 .Select(formulaType => formulaType.ToString()));
 
-        public AccelerationFormulaSettingsViewModel(BE.IFormulaAccelModel formulaAccel)
+        public static ObservableCollection<string> FormulaTypeKeys { get; } =
+            new(Enum.GetValues(typeof(BEData.AccelerationFormulaType))
+                .Cast<BEData.AccelerationFormulaType>()
+                .Select(formulaType => $"AccelFormula{formulaType}"));
+
+        public AccelerationFormulaSettingsViewModel(BE.IFormulaAccelModel formulaAccel, INotificationService notificationService)
         {
+            this.notificationService = notificationService;
             FormulaAccelBE = formulaAccel;
 
             SynchronousSettings = new SynchronousSettings((formulaAccel.GetSelectable(BEData.AccelerationFormulaType.Synchronous)
@@ -35,11 +44,15 @@ namespace userinterface.ViewModels.Profile
 
             JumpSettings = new JumpSettings((formulaAccel.GetSelectable(BEData.AccelerationFormulaType.Jump)
                 as BE.Formula.JumpAccelerationDefinitionModel)!);
+
+            ClassicSettings.Exponent.PropertyChanged += OnClassicExponentChanged;
         }
 
         public BE.IFormulaAccelModel FormulaAccelBE { get; }
 
-        public ObservableCollection<string> FormulaTypesLocal => FormulaTypes;
+        public static ObservableCollection<string> FormulaTypesLocal => FormulaTypes;
+
+        public static ObservableCollection<string> FormulaTypeKeysLocal => FormulaTypeKeys;
 
         public SynchronousSettings SynchronousSettings { get; }
 
@@ -52,6 +65,19 @@ namespace userinterface.ViewModels.Profile
         public NaturalSettings NaturalSettings { get; }
 
         public JumpSettings JumpSettings { get; }
+
+        private void OnClassicExponentChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(EditableFieldViewModel.ValueText) &&
+                FormulaAccelBE.FormulaType.InterfaceValue == BEData.AccelerationFormulaType.Classic.ToString())
+            {
+                if (double.TryParse(ClassicSettings.Exponent.ValueText, out double exponentValue) &&
+                    Math.Abs(exponentValue - 2.0) < 0.001)
+                {
+                    notificationService.ShowInfoToast("ProfileClassicLinearEquivalent");
+                }
+            }
+        }
     }
 
     public class SynchronousSettings

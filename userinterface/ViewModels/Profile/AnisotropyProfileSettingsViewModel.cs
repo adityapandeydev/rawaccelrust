@@ -1,18 +1,19 @@
-﻿using userinterface.ViewModels.Controls;
+﻿using userinterface.Services;
+using userinterface.ViewModels.Controls;
 using BE = userspace_backend.Model.ProfileComponents;
 
 namespace userinterface.ViewModels.Profile
 {
     public partial class AnisotropyProfileSettingsViewModel : ViewModelBase
     {
-        public AnisotropyProfileSettingsViewModel(BE.IAnisotropyModel anisotropyBE)
+        public AnisotropyProfileSettingsViewModel(BE.IAnisotropyModel anisotropyBE, LocalizationService localizationService)
         {
             AnisotropyBE = anisotropyBE;
             DomainX = new EditableFieldViewModel(AnisotropyBE.DomainX);
             DomainY = new EditableFieldViewModel(AnisotropyBE.DomainY);
             RangeX = new EditableFieldViewModel(AnisotropyBE.RangeX);
             RangeY = new EditableFieldViewModel(AnisotropyBE.RangeY);
-            LPNorm = new NamedEditableFieldViewModel(AnisotropyBE.LPNorm);
+            LPNorm = new NamedEditableFieldViewModel(AnisotropyBE.LPNorm, localizationService);
         }
 
         protected BE.IAnisotropyModel AnisotropyBE { get; }

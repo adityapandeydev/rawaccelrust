@@ -1,17 +1,18 @@
-﻿using System;
 using Avalonia.Controls;
+using Microsoft.Extensions.DependencyInjection;
+using System;
+using userinterface.Services;
 using userinterface.ViewModels.Controls;
 
 namespace userinterface.Views.Controls;
 
 public partial class DualColumnLabelFieldView : UserControl
 {
-    public DualColumnLabelFieldViewModel? ViewModel => DataContext as DualColumnLabelFieldViewModel;
-
     public DualColumnLabelFieldView()
     {
         InitializeComponent();
-        DataContext = new DualColumnLabelFieldViewModel();
+        var localizationService = App.Services?.GetRequiredService<LocalizationService>() ?? throw new InvalidOperationException("LocalizationService not available");
+        DataContext = new DualColumnLabelFieldViewModel(localizationService);
     }
 
     public DualColumnLabelFieldView(DualColumnLabelFieldViewModel viewModel)

@@ -1,29 +1,36 @@
 using Avalonia.Controls;
-using Avalonia.Interactivity;
+using System.Diagnostics;
 using userinterface.ViewModels.Profile;
 
 namespace userinterface.Views.Profile;
 
 public partial class ProfileChartView : UserControl
 {
+    private bool isChartInitialized = false;
+
     public ProfileChartView()
     {
         InitializeComponent();
+        AttachedToVisualTree += OnAttachedToVisualTree;
     }
 
-    private void RecreateAxes_Click(object sender, RoutedEventArgs e)
+    private async void OnAttachedToVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
     {
-        if (DataContext is ProfileChartViewModel viewModel)
+        if (isChartInitialized || DataContext is not ProfileChartViewModel viewModel)
+            return;
+
+        isChartInitialized = true;
+        
+        try
         {
-            viewModel.RecreateAxes();
+            if (!viewModel.IsInitialized)
+            {
+                await viewModel.InitializeAsync();
+            }
         }
-    }
-
-    private void FitToData_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is ProfileChartViewModel viewModel)
+        catch (System.Exception ex)
         {
-            viewModel.FitToData();
+            Debug.WriteLine($"[CHART INIT] Error during initialization: {ex.Message}");
         }
     }
 }

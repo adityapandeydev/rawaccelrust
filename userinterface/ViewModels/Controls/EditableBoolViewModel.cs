@@ -1,4 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
+using System.ComponentModel;
+using userinterface.Services;
 using BE = userspace_backend.Model.EditableSettings;
 
 namespace userinterface.ViewModels.Controls
@@ -8,13 +11,24 @@ namespace userinterface.ViewModels.Controls
         [ObservableProperty]
         private bool valueInDisplay;
 
-        public EditableBoolViewModel(BE.IEditableSetting settingBE)
+        private readonly LocalizationService localizationService;
+
+        public EditableBoolViewModel(BE.IEditableSetting settingBE, LocalizationService localizationService)
         {
             SettingBE = settingBE;
+            this.localizationService = localizationService;
             ResetValueFromBackEnd();
+
+            // Subscribe to language changes to update the Name property
+            if (localizationService != null)
+            {
+                localizationService.PropertyChanged += OnLanguageChanged;
+            }
         }
 
-        public string Name => SettingBE.DisplayName;
+        public string Name => GetLocalizedName();
+
+        public bool Value => ValueInDisplay;
 
         protected BE.IEditableSetting SettingBE { get; }
 
@@ -26,7 +40,34 @@ namespace userinterface.ViewModels.Controls
             return wasSet;
         }
 
-        private void ResetValueFromBackEnd() => 
+        private void ResetValueFromBackEnd() =>
             ValueInDisplay = bool.TryParse(SettingBE.InterfaceValue, out bool result) && result;
+
+        private string GetLocalizedName()
+        {
+            var displayText = SettingBE.DisplayText;
+
+            // If there's a localization key, use the localization service to resolve it
+            if (!string.IsNullOrEmpty(SettingBE.LocalizationKey))
+            {
+                return localizationService?.GetText(SettingBE.LocalizationKey) ?? displayText;
+            }
+
+            // Otherwise, use the display name directly (for user input settings)
+            return displayText;
+        }
+
+        private void OnLanguageChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == LocalizationService.LanguageChangedPropertyName)
+            {
+                OnPropertyChanged(nameof(Name));
+            }
+        }
+
+        partial void OnValueInDisplayChanged(bool value)
+        {
+            OnPropertyChanged(nameof(Value));
+        }
     }
 }

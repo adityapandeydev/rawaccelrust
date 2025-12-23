@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using DATA = userspace_backend.Data;
-using userspace_backend.Model;
 using Microsoft.Extensions.DependencyInjection;
+using userspace_backend.Data.Profiles;
+using userspace_backend.IO;
+using userspace_backend.Model;
+using DATA = userspace_backend.Data;
 
 namespace userspace_backend
 {
@@ -18,6 +20,8 @@ namespace userspace_backend
         MappingsModel Mappings { get; }
 
         IProfilesModel Profiles { get; }
+
+        DATA.Settings Settings { get; }
     }
 
     public class BackEnd : IBackEnd
@@ -38,9 +42,11 @@ namespace userspace_backend
 
         public DevicesModel Devices { get; set; }
 
-        public MappingsModel Mappings { get; set; }
+        public MappingsModel Mappings { get; set; } = null!;
 
         public IProfilesModel Profiles { get; set; }
+
+        public DATA.Settings Settings { get; set; }
 
         protected IBackEndLoader BackEndLoader { get; set; }
 
@@ -56,6 +62,8 @@ namespace userspace_backend
 
             DATA.MappingSet mappingData = BackEndLoader.LoadMappings();
             LoadMappingsFromData(mappingData);
+
+            Settings = BackEndLoader.LoadSettings() ?? new DATA.Settings();
 
             EnsureDefaultDeviceGroupExists();
             EnsureDefaultDeviceExists();
@@ -153,9 +161,9 @@ namespace userspace_backend
         {
             try
             {
-                //WriteToDriver();
+                // WriteToDriver();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return;
             }
@@ -169,6 +177,8 @@ namespace userspace_backend
                 Devices.Elements,
                 Mappings,
                 Profiles.Elements);
+
+            BackEndLoader.WriteSettings(Settings);
         }
 
         protected void WriteToDriver()
@@ -179,7 +189,7 @@ namespace userspace_backend
             {
                 config.Activate();
             }
-            catch(Exception ex)
+            catch (Exception)
             {
                 // Log this once logging is added
             }
@@ -226,7 +236,7 @@ namespace userspace_backend
                 {
                     disable = deviceModel.Ignore.ModelValue,
                     dpi = deviceModel.DPI.ModelValue,
-                    pollingRate = deviceModel.DPI.ModelValue,
+                    pollingRate = deviceModel.PollRate.ModelValue,
                     pollTimeLock = false,
                     setExtraInfo = false,
                     maximumTime = 200,

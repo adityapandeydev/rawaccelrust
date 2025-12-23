@@ -24,7 +24,7 @@ namespace userspace_backend.Model
             : base(name, [], [])
         {
             NameValidator = nameValidator;
-            SetActive = true;
+            SetActive = false;
             DeviceGroups = deviceGroups;
             Profiles = profiles;
 
@@ -44,7 +44,12 @@ namespace userspace_backend.Model
             }
         }
 
-        public bool SetActive { get; set; }
+        private bool setActive;
+        public bool SetActive 
+        { 
+            get => setActive; 
+            internal set => SetProperty(ref setActive, value); 
+        }
 
         public ObservableCollection<MappingGroup> IndividualMappings { get; protected set; }
 

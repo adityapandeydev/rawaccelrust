@@ -7,6 +7,12 @@ namespace userspace_backend.Model.EditableSettings
     {
         string DisplayName { get; }
 
+        string LocalizationKey { get; set; }
+
+        string DisplayText { get; }
+
+        string EditedValueForDiplay { get; }
+
         string InterfaceValue { get; set; }
 
         bool HasChanged();

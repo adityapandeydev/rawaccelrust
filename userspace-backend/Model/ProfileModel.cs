@@ -1,12 +1,15 @@
-﻿using DATA = userspace_backend.Data;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
+using Microsoft.Extensions.DependencyInjection;
+using userspace_backend.Common;
+using userspace_backend.Display;
 using userspace_backend.Model.AccelDefinitions;
 using userspace_backend.Model.EditableSettings;
 using userspace_backend.Model.ProfileComponents;
-using System;
-using System.ComponentModel;
-using userspace_backend.Common;
-using userspace_backend.Display;
-using Microsoft.Extensions.DependencyInjection;
+using DATA = userspace_backend.Data;
 
 namespace userspace_backend.Model
 {
@@ -41,13 +44,16 @@ namespace userspace_backend.Model
             [FromKeyedServices(YXRatioDIKey)]IEditableSettingSpecific<double> yxRatio,
             IAccelerationModel acceleration,
             IHiddenModel hidden,
-            ICurvePreview curvePreview
+            ICurvePreview xCurvePreview,
+            ICurvePreview yCurvePreview
             ) : base(name, [outputDPI, yxRatio], [acceleration, hidden])
         {
             OutputDPI = outputDPI;
             YXRatio = yxRatio;
             Acceleration = acceleration;
             Hidden = hidden;
+            XCurvePreview = xCurvePreview;
+            YCurvePreview = yCurvePreview;
 
             // Name and Output DPI do not need to generate a new curve preview
             Name!.PropertyChanged += AnyNonPreviewPropertyChangedEventHandler;
@@ -58,7 +64,6 @@ namespace userspace_backend.Model
             Acceleration.AnySettingChanged += AnyCurveSettingCollectionChangedEventHandler;
             Hidden.AnySettingChanged += AnyCurveSettingCollectionChangedEventHandler;
 
-            CurvePreview = curvePreview;
             RecalculateDriverDataAndCurvePreview();
         }
 
@@ -74,7 +79,12 @@ namespace userspace_backend.Model
 
         public Profile CurrentValidatedDriverProfile { get; protected set; }
 
-        public ICurvePreview CurvePreview { get; protected set; }
+        public ICurvePreview XCurvePreview { get; protected set; }
+
+        public ICurvePreview YCurvePreview { get; protected set; }
+
+        [Obsolete("Use XCurvePreview instead")]
+        public ICurvePreview CurvePreview => XCurvePreview;
 
         protected IModelValueValidator<string> NameValidator { get; }
 
@@ -120,7 +130,27 @@ namespace userspace_backend.Model
         protected void RecalculateDriverDataAndCurvePreview()
         {
             RecalculateDriverData();
-            CurvePreview.GeneratePoints(CurrentValidatedDriverProfile);
+
+            // Generate X curve points (original behavior)
+            XCurvePreview.GeneratePoints(CurrentValidatedDriverProfile);
+
+            // Generate Y curve points by multiplying X curve outputs by YX ratio
+            GenerateYCurvePoints();
+        }
+
+        private void GenerateYCurvePoints()
+        {
+            var yPoints = CreateYCurvePointsFromX(XCurvePreview.Points, YXRatio.CurrentValidatedValue);
+            YCurvePreview.SetPoints(yPoints);
+        }
+
+        private List<CurvePoint> CreateYCurvePointsFromX(ObservableCollection<CurvePoint> xPoints, double yxRatio)
+        {
+            return xPoints.Select(xPoint => new CurvePoint
+            {
+                MouseSpeed = xPoint.MouseSpeed,
+                Output = xPoint.Output * yxRatio
+            }).ToList();
         }
 
         protected override bool TryMapEditableSettingsFromData(DATA.Profile data)

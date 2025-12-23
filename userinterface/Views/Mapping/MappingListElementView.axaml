@@ -1,0 +1,179 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:userinterface.ViewModels.Mapping"
+             mc:Ignorable="d" d:DesignWidth="800"
+             x:Class="userinterface.Views.Mapping.MappingListElementView"
+             x:DataType="vm:MappingListElementViewModel">
+
+	<UserControl.Styles>
+		<!-- Delete button style -->
+		<Style Selector="Button.DeleteButton">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="BorderThickness" Value="0"/>
+			<Setter Property="Padding" Value="4"/>
+			<Setter Property="Margin" Value="4,0,0,0"/>
+			<Setter Property="CornerRadius" Value="4"/>
+			<Setter Property="Width" Value="24"/>
+			<Setter Property="Height" Value="24"/>
+			<Setter Property="Cursor" Value="Hand"/>
+		</Style>
+
+		<Style Selector="Button.DeleteButton:pointerover">
+			<Setter Property="Background" Value="{DynamicResource DangerButtonHoverBrush}"/>
+		</Style>
+
+		<Style Selector="Button.DeleteButton PathIcon">
+			<Setter Property="Foreground" Value="{DynamicResource DangerButtonBrush}"/>
+		</Style>
+
+		<Style Selector="Button.DeleteButton:pointerover PathIcon">
+			<Setter Property="Foreground" Value="{DynamicResource ButtonIconOnHoverBrush}"/>
+		</Style>
+
+		<Style Selector="Button.DeleteButton:disabled">
+			<Setter Property="Background" Value="{DynamicResource DisabledButtonBrush}"/>
+			<Setter Property="Cursor" Value="Arrow"/>
+			<Setter Property="Opacity" Value="0.6"/>
+		</Style>
+
+		<Style Selector="Button.DeleteButton:disabled PathIcon">
+			<Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}"/>
+		</Style>
+
+		<!-- ComboBox styles -->
+		<Style Selector="ComboBox">
+			<Setter Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="Padding" Value="8,6" />
+			<Setter Property="MinWidth" Value="120" />
+			<Setter Property="FontSize" Value="14" />
+		</Style>
+
+		<Style Selector="ComboBox:focus">
+			<Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBrush}" />
+			<Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+		</Style>
+
+		<Style Selector="ComboBox:pointerover">
+			<Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBrush}" />
+			<Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+		</Style>
+
+		<Style Selector="ComboBox /template/ Button#PART_Button">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+		</Style>
+
+		<Style Selector="ComboBox:pointerover /template/ Button#PART_Button">
+			<Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+		</Style>
+
+		<Style Selector="ComboBox /template/ ContentPresenter#PART_ContentPresenter">
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+		</Style>
+
+		<Style Selector="ComboBox:focus /template/ ContentPresenter#PART_ContentPresenter">
+			<Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+		</Style>
+
+		<Style Selector="ComboBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+			<Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+		</Style>
+
+		<Style Selector="ComboBox /template/ Popup">
+			<Setter Property="MaxHeight" Value="200" />
+		</Style>
+
+		<Style Selector="ComboBox /template/ Border#PopupBorder">
+			<Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="4" />
+		</Style>
+
+		<Style Selector="ComboBox ListBox">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+		</Style>
+
+		<Style Selector="ComboBox ListBoxItem">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+			<Setter Property="Padding" Value="8,6" />
+			<Setter Property="Margin" Value="2" />
+			<Setter Property="CornerRadius" Value="3" />
+		</Style>
+
+		<Style Selector="ComboBox ListBoxItem:pointerover">
+			<Setter Property="Background" Value="{DynamicResource PrimaryButtonBrush}" />
+			<Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+		</Style>
+
+		<Style Selector="ComboBox ListBoxItem:selected">
+			<Setter Property="Background" Value="{DynamicResource PrimaryButtonBrush}" />
+			<Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+		</Style>
+
+		<Style Selector="ComboBox ListBoxItem:selected:pointerover">
+			<Setter Property="Background" Value="{DynamicResource PrimaryButtonHoverBrush}" />
+		</Style>
+
+		<!-- TextBlock styles -->
+		<Style Selector="TextBlock.Arrow">
+			<Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+			<Setter Property="FontWeight" Value="Bold"/>
+		</Style>
+		<Style Selector="TextBlock">
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
+			<Setter Property="FontSize" Value="14"/>
+		</Style>
+	</UserControl.Styles>
+
+	<Grid Name="MappingGrid" Height="36">
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="*"/>
+			<ColumnDefinition Width="Auto"/>
+		</Grid.ColumnDefinitions>
+
+		<Grid Grid.Column="0"
+              ColumnDefinitions="*,Auto,*"
+              VerticalAlignment="Center">
+			<TextBlock Grid.Column="0"
+                       HorizontalAlignment="Left"
+                       VerticalAlignment="Center"
+                       Text="{Binding DeviceGroupName}"/>
+			<TextBlock Grid.Column="1"
+                       Classes="Arrow"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Text=" → "
+                       Margin="8,0"/>
+			<ComboBox Grid.Column="2"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Center"
+                      ItemsSource="{Binding AvailableProfiles}"
+                      SelectedItem="{Binding SelectedProfile}">
+				<ComboBox.ItemTemplate>
+					<DataTemplate>
+						<TextBlock Text="{Binding Name.CurrentValidatedValue}"/>
+					</DataTemplate>
+				</ComboBox.ItemTemplate>
+			</ComboBox>
+		</Grid>
+
+		<Button Grid.Column="1"
+                Classes="DeleteButton"
+				Command="{Binding DeleteCommand}"
+                VerticalAlignment="Center"
+                IsEnabled="{Binding CanDelete}">
+			<PathIcon Data="{StaticResource delete_regular}"
+                      Width="12" Height="12"/>
+		</Button>
+	</Grid>
+</UserControl>

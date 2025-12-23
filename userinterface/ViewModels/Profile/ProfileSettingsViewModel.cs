@@ -1,27 +1,37 @@
-﻿using userinterface.ViewModels.Controls;
+﻿using userinterface.Services;
+using userinterface.ViewModels.Controls;
 using BE = userspace_backend.Model;
 
 namespace userinterface.ViewModels.Profile
 {
     public partial class ProfileSettingsViewModel : ViewModelBase
     {
-        public ProfileSettingsViewModel(BE.IProfileModel profileBE)
+        private readonly INotificationService notificationService;
+        private readonly LocalizationService localizationService;
+
+        public ProfileSettingsViewModel(INotificationService notificationService, LocalizationService localizationService)
         {
-            ProfileModelBE = profileBE;
-            OutputDPIField = new EditableFieldViewModel(profileBE.OutputDPI);
-            YXRatioField = new EditableFieldViewModel(profileBE.YXRatio);
-            AccelerationSettings = new AccelerationProfileSettingsViewModel(profileBE.Acceleration);
-            HiddenSettings = new HiddenProfileSettingsViewModel(profileBE.Hidden);
+            this.notificationService = notificationService;
+            this.localizationService = localizationService;
         }
 
-        protected BE.IProfileModel ProfileModelBE { get; }
+        protected BE.ProfileModel ProfileModelBE { get; private set; } = null!;
 
-        public EditableFieldViewModel OutputDPIField { get; set; }
+        public EditableFieldViewModel OutputDPIField { get; private set; } = null!;
 
-        public EditableFieldViewModel YXRatioField { get; set; }
+        public EditableFieldViewModel YXRatioField { get; private set; } = null!;
 
-        public AccelerationProfileSettingsViewModel AccelerationSettings { get; }
+        public AccelerationProfileSettingsViewModel AccelerationSettings { get; private set; } = null!;
 
-        public HiddenProfileSettingsViewModel HiddenSettings { get; }
+        public HiddenProfileSettingsViewModel HiddenSettings { get; private set; } = null!;
+
+        public void Initialize(BE.ProfileModel profileModel)
+        {
+            ProfileModelBE = profileModel;
+            OutputDPIField = new EditableFieldViewModel(profileModel.OutputDPI);
+            YXRatioField = new EditableFieldViewModel(profileModel.YXRatio);
+            AccelerationSettings = new AccelerationProfileSettingsViewModel(profileModel.Acceleration, notificationService, localizationService);
+            HiddenSettings = new HiddenProfileSettingsViewModel(profileModel.Hidden);
+        }
     }
 }

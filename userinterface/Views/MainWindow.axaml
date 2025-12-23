@@ -2,12 +2,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:userinterface.ViewModels"
         xmlns:v="using:userinterface.Views"
+        xmlns:vp="using:userinterface.Views.Profile"
+		xmlns:controls="using:userinterface.Views.Controls"
+		xmlns:ext="using:userinterface.Extensions"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
         x:Class="userinterface.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/mouse.ico"
         Title="userinterface"
         Background="{DynamicResource AppBackgroundBrush}">
 
@@ -16,7 +19,49 @@
 	</Design.DataContext>
 
 	<Window.Styles>
-		<!-- Sidebar Border -->
+		<!-- Scrollbar Styles -->
+		<Style Selector="ScrollBar">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="Transitions">
+				<Transitions>
+					<DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
+				</Transitions>
+			</Setter>
+		</Style>
+
+		<Style Selector="ScrollBar:vertical">
+			<Setter Property="Width" Value="8"/>
+			<Setter Property="Opacity" Value="0.3"/>
+		</Style>
+
+		<Style Selector="ScrollBar:vertical:pointerover">
+			<Setter Property="Width" Value="12"/>
+			<Setter Property="Opacity" Value="0.8"/>
+		</Style>
+
+		<Style Selector="ScrollBar /template/ Thumb">
+			<Setter Property="Background" Value="{DynamicResource DisabledTextBrush}"/>
+			<Setter Property="CornerRadius" Value="4"/>
+			<Setter Property="Transitions">
+				<Transitions>
+					<BrushTransition Property="Background" Duration="0:0:0.2"/>
+				</Transitions>
+			</Setter>
+		</Style>
+
+		<Style Selector="ScrollBar /template/ Thumb:pointerover">
+			<Setter Property="Background" Value="{DynamicResource SecondaryTextBrush}"/>
+		</Style>
+
+		<Style Selector="ScrollBar /template/ Thumb:pressed">
+			<Setter Property="Background" Value="{DynamicResource PrimaryTextBrush}"/>
+		</Style>
+
+		<Style Selector="ScrollBar /template/ RepeatButton">
+			<Setter Property="IsVisible" Value="False"/>
+		</Style>
+
+		<!-- Sidebar Styles -->
 		<Style Selector="Border.SidebarBorder">
 			<Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
 			<Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
@@ -24,10 +69,9 @@
 			<Setter Property="CornerRadius" Value="8"/>
 			<Setter Property="Margin" Value="16"/>
 			<Setter Property="Padding" Value="24"/>
-			<Setter Property="Width" Value="368"/>
+			<Setter Property="Width" Value="400"/>
 		</Style>
 
-		<!-- Sidebar title style -->
 		<Style Selector="TextBlock.SidebarTitle">
 			<Setter Property="FontSize" Value="28"/>
 			<Setter Property="FontWeight" Value="Bold"/>
@@ -41,7 +85,7 @@
 		<Style Selector="Button.NavButton">
 			<Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
 			<Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
-			<Setter Property="Margin" Value="0,4"/>
+			<Setter Property="Margin" Value="8,4"/>
 			<Setter Property="FontSize" Value="16"/>
 			<Setter Property="FontWeight" Value="Medium"/>
 			<Setter Property="BorderThickness" Value="1"/>
@@ -73,7 +117,6 @@
 			</Setter>
 		</Style>
 
-		<!-- Navigation Button hover state -->
 		<Style Selector="Button.NavButton:pointerover">
 			<Setter Property="Background" Value="{DynamicResource HoverBackgroundBrush}"/>
 			<Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}"/>
@@ -81,24 +124,22 @@
 			<Setter Property="RenderTransform" Value="scale(1.02)"/>
 		</Style>
 
-		<!-- Navigation Button selected state -->
 		<Style Selector="Button.NavButton.Selected">
 			<Setter Property="Background" Value="{DynamicResource PrimaryButtonBrush}"/>
 			<Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
 			<Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBrush}"/>
 		</Style>
 
-		<!-- Navigation Button selected hover state -->
 		<Style Selector="Button.NavButton.Selected:pointerover">
 			<Setter Property="Background" Value="{DynamicResource PrimaryButtonHoverBrush}"/>
 			<Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonHoverBrush}"/>
 		</Style>
 
-		<!-- Navigation Button pressed state -->
 		<Style Selector="Button.NavButton:pressed">
 			<Setter Property="RenderTransform" Value="scale(0.98)"/>
 		</Style>
 
+		<!-- Content Area Styles -->
 		<Style Selector="Border.ContentArea">
 			<Setter Property="Background" Value="{DynamicResource HoverBackgroundBrush}"/>
 			<Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
@@ -108,6 +149,7 @@
 			<Setter Property="Margin" Value="16"/>
 		</Style>
 
+		<!-- Apply Button Styles -->
 		<Style Selector="Button.ApplyButton">
 			<Setter Property="Background" Value="{DynamicResource PrimaryButtonBrush}"/>
 			<Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
@@ -119,6 +161,25 @@
 			<Setter Property="Cursor" Value="Hand"/>
 			<Setter Property="HorizontalAlignment" Value="Stretch"/>
 			<Setter Property="Margin" Value="0,24,0,0"/>
+			<Setter Property="Template">
+				<ControlTemplate>
+					<Border Name="PART_LayoutRoot"
+							Background="{TemplateBinding Background}"
+							BorderBrush="{TemplateBinding BorderBrush}"
+							BorderThickness="{TemplateBinding BorderThickness}"
+							CornerRadius="{TemplateBinding CornerRadius}"
+							Padding="{TemplateBinding Padding}">
+						<TextBlock Text="{TemplateBinding Content}"
+								   FontFamily="{TemplateBinding FontFamily}"
+								   FontSize="{TemplateBinding FontSize}"
+								   FontWeight="{TemplateBinding FontWeight}"
+								   Foreground="{TemplateBinding Foreground}"
+								   HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+								   VerticalAlignment="Center"
+								   Background="Transparent"/>
+					</Border>
+				</ControlTemplate>
+			</Setter>
 		</Style>
 
 		<Style Selector="Button.ApplyButton:pointerover">
@@ -127,6 +188,21 @@
 
 		<Style Selector="Button.ApplyButton:pressed">
 			<Setter Property="Background" Value="{DynamicResource PrimaryButtonPressedBrush}"/>
+		</Style>
+
+		<Style Selector="Button.ApplyButton:disabled">
+			<Setter Property="Background" Value="{DynamicResource DisabledButtonBrush}"/>
+			<Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}"/>
+			<Setter Property="Opacity" Value="0.6"/>
+		</Style>
+
+		<!-- Loading Progress Bar Styles -->
+		<Style Selector="ProgressBar.LoadingBar">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="Foreground" Value="{DynamicResource SuccessButtonBrush}"/>
+			<Setter Property="Height" Value="4"/>
+			<Setter Property="CornerRadius" Value="2"/>
+			<Setter Property="Margin" Value="0,8,0,0"/>
 		</Style>
 
 		<!-- Theme Toggle Button Styles -->
@@ -165,6 +241,50 @@
 			<Setter Property="RenderTransform" Value="scale(0.95)"/>
 		</Style>
 
+		<!-- Settings Button Styles -->
+		<Style Selector="Button.SettingsButton">
+			<Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
+			<Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+			<Setter Property="BorderThickness" Value="1"/>
+			<Setter Property="CornerRadius" Value="25"/>
+			<Setter Property="Width" Value="40"/>
+			<Setter Property="Height" Value="40"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="HorizontalContentAlignment" Value="Center"/>
+			<Setter Property="VerticalContentAlignment" Value="Center"/>
+		</Style>
+
+		<Style Selector="Button.SettingsButton:pointerover">
+			<Setter Property="Background" Value="{DynamicResource HoverBackgroundBrush}"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}"/>
+		</Style>
+
+		<Style Selector="Button.SettingsButton.Selected">
+			<Setter Property="Background" Value="{DynamicResource PrimaryButtonBrush}"/>
+			<Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBrush}"/>
+		</Style>
+
+		<Style Selector="Button.SettingsButton.Selected:pointerover">
+			<Setter Property="Background" Value="{DynamicResource PrimaryButtonHoverBrush}"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonHoverBrush}"/>
+		</Style>
+
+		<Style Selector="Button.SettingsButton:pressed">
+			<Setter Property="Background" Value="{DynamicResource PrimaryButtonPressedBrush}"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonPressedBrush}"/>
+			<Setter Property="RenderTransform" Value="scale(0.95)"/>
+		</Style>
+
+		<!-- Separator Styles -->
+		<Style Selector="Border.ProfileSeparator">
+			<Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
+			<Setter Property="Height" Value="1"/>
+			<Setter Property="Margin" Value="8,12"/>
+			<Setter Property="Opacity" Value="0.5"/>
+		</Style>
+
 		<!-- Transitions -->
 		<Style Selector="Button.NavButton">
 			<Setter Property="Transitions">
@@ -180,6 +300,7 @@
 			<Setter Property="Transitions">
 				<Transitions>
 					<BrushTransition Property="Background" Duration="0:0:0.15"/>
+					<BrushTransition Property="BorderBrush" Duration="0:0:0.25"/>
 					<TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.1"/>
 				</Transitions>
 			</Setter>
@@ -194,67 +315,89 @@
 				</Transitions>
 			</Setter>
 		</Style>
+
+		<Style Selector="Button.SettingsButton">
+			<Setter Property="Transitions">
+				<Transitions>
+					<BrushTransition Property="Background" Duration="0:0:0.2"/>
+					<BrushTransition Property="BorderBrush" Duration="0:0:0.2"/>
+					<TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.1"/>
+				</Transitions>
+			</Setter>
+		</Style>
 	</Window.Styles>
 
 	<Panel>
-		<!-- Sidebar with header and navigation -->
 		<Border Classes="SidebarBorder" HorizontalAlignment="Left" VerticalAlignment="Stretch">
 			<DockPanel>
-				<!-- Apply Settings Button at bottom -->
-				<Button Classes="ApplyButton"
-						DockPanel.Dock="Bottom"
-						Click="ApplyButtonHandler">
-					Apply Settings
-				</Button>
-
-				<!-- Navigation content -->
-				<StackPanel>
-					<!-- Sidebar Header with Title and Theme Toggle -->
-					<DockPanel Margin="0,0,0,16">
-						<ToggleButton Classes="ThemeToggle"
-									  Click="ToggleTheme"
-									  Name="ThemeToggleButton"
-									  DockPanel.Dock="Right"
-									  VerticalAlignment="Center">
-							<PathIcon Data="{StaticResource weather_moon_regular}"
-									  Width="16"
-									  Height="16"
-									  Name="ThemeIcon"/>
-						</ToggleButton>
-
-						<TextBlock Classes="SidebarTitle"
-								   Text="Navigation"
-								   VerticalAlignment="Center"/>
-					</DockPanel>
-
-					<!-- Navigation Items -->
-					<StackPanel Spacing="4">
-						<Button Classes="NavButton"
-								Name="DevicesButton"
-								Click="OnNavigationClick"
-								Tag="Devices">
-							Devices
-						</Button>
-						<Button Classes="NavButton"
-								Name="MappingsButton"
-								Click="OnNavigationClick"
-								Tag="Mappings">
-							Mappings
-						</Button>
-						<Button Classes="NavButton"
-								Name="ProfilesButton"
-								Click="OnNavigationClick"
-								Tag="Profiles">
-							Profiles
-						</Button>
-					</StackPanel>
+				<StackPanel DockPanel.Dock="Bottom">
+					<Grid>
+						<Button Classes="ApplyButton"
+								Name="ApplyButton"
+								IsEnabled="True"
+								Content="{ext:Localized MainWindowApplySettingsButton}"/>
+						<ProgressBar Classes="LoadingBar"
+									 Name="LoadingProgress"
+									 IsVisible="False"
+									 IsIndeterminate="True"
+									 VerticalAlignment="Bottom"/>
+					</Grid>
 				</StackPanel>
+
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<StackPanel>
+						<DockPanel Margin="0,0,0,16">
+							<StackPanel DockPanel.Dock="Right"
+										Orientation="Horizontal"
+										Spacing="8"
+										VerticalAlignment="Center">
+								<Button Classes="SettingsButton"
+										Name="SettingsButton">
+									<PathIcon Data="{StaticResource settings_regular}"
+											  Width="16"
+											  Height="16"/>
+								</Button>
+								<ToggleButton Classes="ThemeToggle"
+											  Name="ThemeToggleButton">
+									<PathIcon Data="{StaticResource weather_moon_regular}"
+											  Width="16"
+											  Height="16"
+											  Name="ThemeIcon"/>
+								</ToggleButton>
+							</StackPanel>
+							<TextBlock Classes="SidebarTitle"
+									   Text="{ext:Localized MainWindowNavigationTitle}"
+									   VerticalAlignment="Center"/>
+						</DockPanel>
+
+						<StackPanel Spacing="4">
+							<Button Classes="NavButton"
+									Name="DevicesButton"
+									Tag="Devices"
+									Content="{ext:Localized MainWindowDevicesButton}"/>
+							<Button Classes="NavButton"
+									Name="MappingsButton"
+									Tag="Mappings"
+									Content="{ext:Localized MainWindowMappingsButton}"/>
+							<Button Classes="NavButton"
+									Name="ProfilesButton"
+									Tag="Profiles"
+									Content="{ext:Localized MainWindowProfilesButton}"
+									ZIndex="1"/>
+							<vp:ProfileListView Name="ProfileListView" DataContext="{Binding ProfilesPage.ProfileListView}"/>
+						</StackPanel>
+					</StackPanel>
+				</ScrollViewer>
 			</DockPanel>
 		</Border>
 
-		<!-- Content Area -->
-		<Border Classes="ContentArea" Margin="400,16,16,16">
+		<Border Classes="ContentArea" Margin="432,16,16,16">
 			<ContentControl Content="{Binding CurrentPageContent}"/>
 		</Border>
+
+		<controls:ToastView DataContext="{Binding ToastViewModel}" />
+
+		<!-- Modal Overlay -->
+		<controls:ModalOverlay Name="ModalOverlay" />
 	</Panel>
 </Window>

@@ -22,9 +22,11 @@ namespace userspace_backend.Model.EditableSettings
             T initialValue,
             IUserInputParser<T> parser,
             IModelValueValidator<T> validator,
-            bool autoUpdateFromInterface = false)
+            bool autoUpdateFromInterface = false,
+            string localizationKey = null)
         {
             DisplayName = displayName;
+            LocalizationKey = localizationKey;
             LastWrittenValue = initialValue;
             Parser = parser;
             Validator = validator;
@@ -36,9 +38,25 @@ namespace userspace_backend.Model.EditableSettings
         /// <summary>
         /// Display name for this setting in UI
         /// </summary>
+        /// TODO: Make private and only use DisplayText for UI
         public string DisplayName { get; }
 
-        // TODO: test or remove
+        /// <summary>
+        /// Optional localization key for this setting. If provided, DisplayText will use localized string instead of DisplayName
+        /// </summary>
+        public string LocalizationKey { get; set; }
+
+        /// <summary>
+        /// Gets the display text for this setting. Returns LocalizationKey if provided, otherwise DisplayName.
+        /// UI layer should handle actual localization of the key.
+        /// </summary>
+        public string DisplayText =>
+            !string.IsNullOrEmpty(LocalizationKey)
+                ? LocalizationKey
+                : DisplayName ?? string.Empty;
+
+        public string EditedValueForDiplay => InterfaceValue;
+
         public T LastWrittenValue { get; protected set; }
 
         /// <summary>
@@ -71,6 +89,16 @@ namespace userspace_backend.Model.EditableSettings
             if (parsedValue.CompareTo(ModelValue) == 0)
             {
                 return true;
+            }
+
+            if (Validator == null)
+            {
+                throw new InvalidOperationException(
+                    $"Validator is null for EditableSetting '{DisplayName}'. " +
+                    $"InterfaceValue: '{InterfaceValue}', " +
+                    $"ParsedValue: '{parsedValue}', " +
+                    $"ModelValue: '{ModelValue}', " +
+                    $"Parser: {Parser?.GetType().Name ?? "null"}");
             }
 
             if (!Validator.Validate(parsedValue))
@@ -108,7 +136,20 @@ namespace userspace_backend.Model.EditableSettings
 
         public bool TryUpdateModelDirectly(T data)
         {
-            throw new NotImplementedException();
+            if (data.CompareTo(ModelValue) == 0)
+            {
+                return true;
+            }
+
+            if (!Validator.Validate(data))
+            {
+                UpdateInterfaceValue();
+                return false;
+            }
+
+            UpdatedModeValue(data);
+            UpdateInterfaceValue();
+            return true;
         }
     }
 
@@ -131,9 +172,11 @@ namespace userspace_backend.Model.EditableSettings
             T initialValue,
             IUserInputParser<T> parser,
             IModelValueValidator<T> validator,
-            bool autoUpdateFromInterface = false)
+            bool autoUpdateFromInterface = false,
+            string localizationKey = null)
         {
             DisplayName = displayName;
+            LocalizationKey = localizationKey;
             LastWrittenValue = initialValue;
             Parser = parser;
             Validator = validator;
@@ -146,6 +189,15 @@ namespace userspace_backend.Model.EditableSettings
         /// Display name for this setting in UI
         /// </summary>
         public string DisplayName { get; }
+
+        public string LocalizationKey { get; set; }
+
+        public string DisplayText =>
+            !string.IsNullOrEmpty(LocalizationKey)
+                ? LocalizationKey
+                : DisplayName ?? string.Empty;
+
+        public string EditedValueForDiplay => InterfaceValue;
 
         public T LastWrittenValue { get; protected set; }
 
@@ -243,7 +295,6 @@ namespace userspace_backend.Model.EditableSettings
 
             UpdateModeValue(data);
             return true;
-
         }
     }
 }

@@ -1,15 +1,18 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
-using userinterface.ViewModels.Profile;
+using Microsoft.Extensions.DependencyInjection;
+using System;
+using userinterface.Services;
 using userinterface.ViewModels.Controls;
+using userinterface.ViewModels.Profile;
 using userinterface.Views.Controls;
 
 namespace userinterface.Views.Profile;
 
 public partial class HiddenProfileSettingsView : UserControl
 {
-    private DualColumnLabelFieldView? _hiddenSettingsField;
+    private DualColumnLabelFieldView? HiddenSettingsFieldView;
 
     public HiddenProfileSettingsView()
     {
@@ -19,7 +22,7 @@ public partial class HiddenProfileSettingsView : UserControl
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        if (_hiddenSettingsField == null)
+        if (HiddenSettingsFieldView == null)
         {
             SetupHiddenSettingsFields();
         }
@@ -30,21 +33,22 @@ public partial class HiddenProfileSettingsView : UserControl
         if (DataContext is not HiddenProfileSettingsViewModel viewModel)
             return;
 
-        var hiddenSettingsFieldViewModel = new DualColumnLabelFieldViewModel();
-        hiddenSettingsFieldViewModel.AddField("Rotation", CreateInputControl(viewModel.RotationField));
-        hiddenSettingsFieldViewModel.AddField("LR Ratio", CreateInputControl(viewModel.LRRatioField));
-        hiddenSettingsFieldViewModel.AddField("UD Ratio", CreateInputControl(viewModel.UDRatioField));
-        hiddenSettingsFieldViewModel.AddField("Speed Cap", CreateInputControl(viewModel.SpeedCapField));
-        hiddenSettingsFieldViewModel.AddField("Angle Snapping", CreateInputControl(viewModel.AngleSnappingField));
-        hiddenSettingsFieldViewModel.AddField("Output Smoothing Half Life", CreateInputControl(viewModel.OutputSmoothingHalfLifeField));
+        var localizationService = App.Services?.GetRequiredService<LocalizationService>() ?? throw new InvalidOperationException("LocalizationService not available");
+        var hiddenSettingsFieldViewModel = new DualColumnLabelFieldViewModel(localizationService);
+        hiddenSettingsFieldViewModel.AddField("HiddenRotation", CreateInputControl(viewModel.RotationField));
+        hiddenSettingsFieldViewModel.AddField("HiddenLRRatio", CreateInputControl(viewModel.LRRatioField));
+        hiddenSettingsFieldViewModel.AddField("HiddenUDRatio", CreateInputControl(viewModel.UDRatioField));
+        hiddenSettingsFieldViewModel.AddField("HiddenSpeedCap", CreateInputControl(viewModel.SpeedCapField));
+        hiddenSettingsFieldViewModel.AddField("HiddenAngleSnapping", CreateInputControl(viewModel.AngleSnappingField));
+        hiddenSettingsFieldViewModel.AddField("HiddenOutputSmoothingHalfLife", CreateInputControl(viewModel.OutputSmoothingHalfLifeField));
 
-        _hiddenSettingsField = new DualColumnLabelFieldView(hiddenSettingsFieldViewModel);
+        HiddenSettingsFieldView = new DualColumnLabelFieldView(hiddenSettingsFieldViewModel);
 
         var mainStackPanel = this.FindControl<StackPanel>("MainStackPanel");
-        mainStackPanel?.Children.Add(_hiddenSettingsField);
+        mainStackPanel?.Children.Add(HiddenSettingsFieldView);
     }
 
-    private Control CreateInputControl(object bindingSource)
+    private static ContentControl CreateInputControl(object bindingSource)
     {
         return new ContentControl
         {

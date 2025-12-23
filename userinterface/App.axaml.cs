@@ -1,10 +1,20 @@
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System;
+using System.Diagnostics;
+using System.Security.AccessControl;
+using System.Threading.Tasks;
+using userinterface.Services;
 using userinterface.ViewModels;
+using userinterface.ViewModels.Controls;
+using userinterface.ViewModels.Settings;
 using userinterface.Views;
 using userspace_backend;
 using userspace_backend.IO;
@@ -14,6 +24,8 @@ namespace userinterface;
 
 public partial class App : Application
 {
+    public static IServiceProvider? Services { get; private set; }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -21,10 +33,18 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        // Create the DI container
-        ServiceCollection services = new ServiceCollection();
+        var services = new ServiceCollection();
 
-        // Register BackEndLoader first with settings directory
+        services.AddLogging(builder =>
+        {
+#if DEBUG
+            builder.AddDebug();
+            builder.SetMinimumLevel(LogLevel.Warning);
+#else
+            builder.SetMinimumLevel(LogLevel.Warning);
+#endif
+        });
+
         string settingsDirectory = System.AppDomain.CurrentDomain.BaseDirectory;
         services.AddSingleton<IBackEndLoader>(sp =>
         {
@@ -34,12 +54,27 @@ public partial class App : Application
             return new BackEndLoader(settingsDirectory, devicesRW, mappingsRW, profileRW);
         });
 
-        // Compose all other services
-        IServiceProvider serviceProvider = BackEndComposer.Compose(services);
+        services.AddSingleton<INotificationService>(provider =>
+            new NotificationService(provider.GetRequiredService<LocalizationService>(), provider.GetRequiredService<ISettingsService>()));
+        services.AddSingleton<IModalService>(provider =>
+            new ModalService(provider.GetRequiredService<LocalizationService>(), provider.GetRequiredService<ISettingsService>()));
+        services.AddSingleton<IThemeService>(provider =>
+            new ThemeService(provider.GetRequiredService<ISettingsService>()));
+        services.AddSingleton<IViewModelFactory, ViewModelFactory>();
+        services.AddSingleton<LocalizationService>();
+        services.AddSingleton<FrameTimerService>();
+        services.AddSingleton<PreviewChartRenderer>();
+        services.AddSingleton<IAnimationStateService, AnimationStateService>();
+        services.AddSingleton<ISettingsService, SettingsService>();
 
-        // Resolve and initialize BackEnd
-        IBackEnd backEnd = serviceProvider.GetRequiredService<IBackEnd>();
+        RegisterViewModels(services);
+
+        Services = BackEndComposer.Compose(services);
+
+        IBackEnd backEnd = Services.GetRequiredService<IBackEnd>();
         backEnd.Load();
+
+        ApplyStartupSettings();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -47,10 +82,25 @@ public partial class App : Application
             // Without this line you will get duplicate validations from both Avalonia and CT
             BindingPlugins.DataValidators.RemoveAt(0);
 
-            desktop.MainWindow = new MainWindow
+            var mainWindow = new MainWindow()
             {
-                DataContext = new MainWindowViewModel(backEnd),
+                DataContext = Services.GetRequiredService<MainWindowViewModel>(),
             };
+
+            // Set up the toast control (was already created in MainWindow.axaml)
+            var toastView = mainWindow.FindControl<Views.Controls.ToastView>("ToastView");
+            if (toastView != null)
+            {
+                toastView.DataContext = Services.GetRequiredService<ToastViewModel>();
+            }
+
+            desktop.MainWindow = mainWindow;
+
+            // Preload libraries that cause first-page stutter
+            _ = PreloadLibrariesAsync();
+
+            // Show alpha build warning modal
+            _ = ShowAlphaBuildWarningAsync();
 
 #if DEBUG
             desktop.MainWindow.AttachDevTools();
@@ -60,7 +110,67 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    protected Bootstrapper BootstrapBackEnd()
+    private void RegisterViewModels(IServiceCollection services)
+    {
+        // Main ViewModels
+        services.AddSingleton<MainWindowViewModel>(provider =>
+            new MainWindowViewModel(
+                provider.GetRequiredService<BackEnd>(),
+                provider.GetRequiredService<IThemeService>(),
+                provider.GetRequiredService<ISettingsService>(),
+                provider.GetRequiredService<FrameTimerService>()));
+        services.AddSingleton<ToastViewModel>();
+
+        // Device ViewModels
+        services.AddTransient<ViewModels.Device.DevicesPageViewModel>(provider =>
+            new ViewModels.Device.DevicesPageViewModel(
+                provider.GetRequiredService<BackEnd>(),
+                provider.GetRequiredService<IModalService>(),
+                provider.GetRequiredService<LocalizationService>()));
+        services.AddTransient<ViewModels.Device.DevicesListViewModel>(provider =>
+            new ViewModels.Device.DevicesListViewModel(
+                provider.GetRequiredService<BackEnd>().Devices,
+                provider.GetRequiredService<IModalService>(),
+                provider.GetRequiredService<LocalizationService>()));
+        services.AddTransient<ViewModels.Device.DeviceGroupsViewModel>();
+        services.AddTransient<ViewModels.Device.DeviceGroupViewModel>();
+        services.AddTransient<ViewModels.Device.DeviceGroupSelectorViewModel>();
+        services.AddTransient<ViewModels.Device.DeviceViewModel>();
+
+        // Profile ViewModels
+        services.AddTransient<ViewModels.Profile.ProfilesPageViewModel>();
+        services.AddSingleton<ViewModels.Profile.ProfileListViewModel>();
+        services.AddTransient<ViewModels.Profile.ProfileViewModel>();
+        services.AddTransient<ViewModels.Profile.ProfileSettingsViewModel>(provider =>
+            new ViewModels.Profile.ProfileSettingsViewModel(
+                provider.GetRequiredService<INotificationService>(),
+                provider.GetRequiredService<LocalizationService>()));
+        services.AddTransient<ViewModels.Profile.ProfileChartViewModel>();
+        services.AddTransient<ViewModels.Profile.AccelerationFormulaSettingsViewModel>();
+        services.AddTransient<ViewModels.Profile.AccelerationLUTSettingsViewModel>();
+        services.AddTransient<ViewModels.Profile.AccelerationProfileSettingsViewModel>();
+        services.AddTransient<ViewModels.Profile.AnisotropyProfileSettingsViewModel>();
+        services.AddTransient<ViewModels.Profile.CoalescionProfileSettingsViewModel>();
+        services.AddTransient<ViewModels.Profile.HiddenProfileSettingsViewModel>();
+
+        // Mapping ViewModels
+        services.AddTransient<ViewModels.Mapping.MappingsPageViewModel>();
+        services.AddTransient<ViewModels.Mapping.MappingViewModel>();
+        services.AddTransient<ViewModels.Mapping.MappingListElementViewModel>();
+
+        // Settings ViewModels
+        services.AddTransient<SettingsPageViewModel>();
+        services.AddTransient<ViewModels.Settings.GeneralSettingsViewModel>();
+        services.AddTransient<ViewModels.Settings.SupportViewModel>();
+
+        // Control ViewModels
+        services.AddTransient<ViewModels.Controls.DualColumnLabelFieldViewModel>(provider =>
+            new ViewModels.Controls.DualColumnLabelFieldViewModel(
+                provider.GetRequiredService<LocalizationService>()));
+        services.AddTransient<ViewModels.Controls.EditableFieldViewModel>();
+    }
+
+    protected static Bootstrapper BootstrapBackEnd()
     {
         return new Bootstrapper()
         {
@@ -114,7 +224,8 @@ public partial class App : Application
                         GroupsToProfiles = new DATA.Mapping.GroupsToProfilesMapping()
                         {
                             { "Logitech Mice", "Favorite" },
-                            { "Testing", "Testing" },
+                            { "Testing", "Default" },
+                            { "Default", "Default" },
                         },
                     },
                     new DATA.Mapping() {
@@ -127,6 +238,130 @@ public partial class App : Application
                     },
                 ],
             },
+            SettingsToLoad = new DATA.Settings()
+            {
+                ShowToastNotifications = true,
+                ShowConfirmModals = true,
+                Theme = "Dark",
+                Language = "ja-JP"
+            },
         };
+    }
+
+    private async Task ShowAlphaBuildWarningAsync()
+    {
+        var modalService = Services?.GetService<IModalService>();
+        if (modalService != null)
+        {
+            var warningView = new Views.Controls.AlphaBuildWarningView();
+            await modalService.ShowDialogAsync<bool>(warningView);
+        }
+    }
+
+    public static void OpenBugReportUrl()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://github.com/RawAccelOfficial/rawaccel/issues",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to open bug report URL: {ex.Message}");
+        }
+    }
+
+    public static void OpenDiscordUrl()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://discord.gg/7pQh8zH",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to open Discord URL: {ex.Message}");
+        }
+    }
+
+    /* 
+     * This was originally intended to preload libraries that cause stutter 
+     * but it seems to not have much effect. Will leave it here for now.
+     * 
+     * Could also do these
+     * System.Runtime.Intrinsics
+     * System.Text.Json
+     * System.Text.Encodings.Web
+     * System.Text.Encoding.Extensions
+     * System.IO.Pipelines
+    */
+    private async Task PreloadLibrariesAsync()
+    {
+        try
+        {
+            Debug.WriteLine("[PRELOAD] Starting library preload...");
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    _ = typeof(LiveChartsCore.SkiaSharpView.Avalonia.CartesianChart).Assembly;
+
+                    _ = typeof(SkiaSharp.HarfBuzz.SKShaper).Assembly;
+
+                    _ = typeof(SkiaSharp.SKCanvas).Assembly;
+
+                    _ = typeof(LiveChartsCore.CartesianChart<>).Assembly;
+
+                    _ = typeof(Avalonia.Controls.ItemsRepeater).Assembly;
+                    
+                    _ = typeof(System.Security.Cryptography.MD5).Assembly;
+                    
+                    _ = typeof(Avalonia.Media.Imaging.Bitmap).Assembly;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[PRELOAD] Library loading failed: {ex.Message}");
+                }
+            });
+
+            Debug.WriteLine("[PRELOAD] All libraries preloaded successfully");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[PRELOAD] Preload task failed: {ex.Message}");
+        }
+    }
+
+    private void ApplyStartupSettings()
+    {
+        try
+        {
+            var settingsService = Services?.GetService<ISettingsService>();
+            var localizationService = Services?.GetService<LocalizationService>();
+            var themeService = Services?.GetService<IThemeService>();
+
+            if (settingsService != null && localizationService != null)
+            {
+                // Apply language setting from backend
+                localizationService.ChangeLanguage(settingsService.Language);
+            }
+
+            if (themeService != null)
+            {
+                // Apply theme setting from backend
+                themeService.ApplyThemeFromSettings();
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[STARTUP] Failed to apply startup settings: {ex.Message}");
+        }
     }
 }
