@@ -24,7 +24,7 @@ namespace userspace_backend.Model.ProfileComponents
         public const string DomainXDIKey = $"{nameof(AnisotropyModel)}.{nameof(DomainX)}";
         public const string DomainYDIKey = $"{nameof(AnisotropyModel)}.{nameof(DomainY)}";
         public const string RangeXDIKey = $"{nameof(AnisotropyModel)}.{nameof(RangeX)}";
-        public const string RangeYDIKey = $"{nameof(AnisotropyModel)}.{nameof(RangeYDIKey)}";
+        public const string RangeYDIKey = $"{nameof(AnisotropyModel)}.{nameof(RangeY)}";
         public const string LPNormDIKey = $"{nameof(AnisotropyModel)}.{nameof(LPNorm)}";
         public const string CombineXYComponentsDIKey = $"{nameof(AnisotropyModel)}.{nameof(CombineXYComponents)}";
 
