@@ -579,6 +579,7 @@ namespace userspace_backend
             services.AddSingleton<DevicesReaderWriter>();
             services.AddSingleton<MappingsReaderWriter>();
             services.AddSingleton<ProfileReaderWriter>();
+            services.AddSingleton<SettingsReaderWriter>();
 
             #endregion IO Layer
 
