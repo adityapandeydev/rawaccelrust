@@ -19,7 +19,8 @@ using userinterface.ViewModels.Mapping;
 using userinterface.ViewModels.Profile;
 using userinterface.ViewModels.Settings;
 using userinterface.Views;
-using BE = userspace_backend;
+using IBackEnd = userspace_backend.IBackEnd;
+using BE = userspace_backend.Model;
 
 namespace userinterface.ViewModels;
 
