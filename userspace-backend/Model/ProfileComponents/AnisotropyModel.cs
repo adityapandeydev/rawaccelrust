@@ -75,6 +75,8 @@ namespace userspace_backend.Model.ProfileComponents
 
         protected override bool TryMapEditableSettingsFromData(Anisotropy data)
         {
+            if (data == null) return false;
+
             return DomainX.TryUpdateModelDirectly(data.Domain.X)
                 & DomainY.TryUpdateModelDirectly(data.Domain.Y)
                 & RangeX.TryUpdateModelDirectly(data.Range.X)
