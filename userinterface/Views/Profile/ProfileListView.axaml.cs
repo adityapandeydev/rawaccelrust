@@ -26,7 +26,7 @@ public partial class ProfileListView : UserControl, INotifyPropertyChanged
     private readonly List<Border> allItems = [];
     private Panel? profileContainer;
     private readonly BE.ProfilesModel profilesModel;
-    private BE.ProfileModel? selectedProfile;
+    private BE.IProfileModel? selectedProfile;
 
     private int GetProfileCount() => allItems.Count - 1;
     private readonly IAnimationStateService animationStateService;
@@ -559,7 +559,7 @@ public partial class ProfileListView : UserControl, INotifyPropertyChanged
         UpdateDeleteButtonStates();
     }
 
-    public void SetSelectedProfile(BE.ProfileModel? profile, bool updateViewModel = true)
+    public void SetSelectedProfile(BE.IProfileModel? profile, bool updateViewModel = true)
     {
         if (selectedProfile == profile) return;
 
@@ -593,7 +593,7 @@ public partial class ProfileListView : UserControl, INotifyPropertyChanged
         }
     }
 
-    public BE.ProfileModel? GetSelectedProfile()
+    public BE.IProfileModel? GetSelectedProfile()
     {
         return selectedProfile;
     }
