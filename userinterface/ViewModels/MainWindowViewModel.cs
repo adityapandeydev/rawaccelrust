@@ -37,12 +37,12 @@ public partial class MainWindowViewModel : ViewModelBase, INotifyPropertyChanged
     private readonly ProfileListViewModel profileListView;
     private readonly ToastViewModel toastViewModel;
 
-    private readonly BE.IBackEnd backEnd;
+    private readonly IBackEnd backEnd;
     private readonly IThemeService themeService;
     private readonly ISettingsService settingsService;
     private readonly FrameTimerService frameTimer;
 
-    public MainWindowViewModel(BE.IBackEnd backEnd, IThemeService themeService, ISettingsService settingsService, FrameTimerService frameTimer)
+    public MainWindowViewModel(IBackEnd backEnd, IThemeService themeService, ISettingsService settingsService, FrameTimerService frameTimer)
     {
         this.backEnd = backEnd ?? throw new ArgumentNullException(nameof(backEnd));
         this.themeService = themeService ?? throw new ArgumentNullException(nameof(themeService));
@@ -75,7 +75,7 @@ public partial class MainWindowViewModel : ViewModelBase, INotifyPropertyChanged
 
     public ToastViewModel ToastViewModel => toastViewModel;
 
-    protected BE.IBackEnd BackEnd => backEnd;
+    protected IBackEnd BackEnd => backEnd;
 
     public ICommand ApplyCommand { get; }
 
