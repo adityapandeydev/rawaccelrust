@@ -29,6 +29,8 @@ namespace userspace_backend.Model
     {
         ReadOnlyObservableCollection<IProfileModel> Profiles { get; }
 
+        IProfileModel? DefaultProfile { get; }
+
         bool TryGetProfile(string name, out IProfileModel? profile);
 
         bool TryAddNewDefaultProfile(string name);
@@ -46,6 +48,8 @@ namespace userspace_backend.Model
         }
 
         public ReadOnlyObservableCollection<IProfileModel> Profiles => Elements;
+
+        public IProfileModel? DefaultProfile => Elements.FirstOrDefault(p => p.Name.ModelValue == "default");
 
         public bool TryGetProfile(string name, out IProfileModel? profile) => TryGetElement(name, out profile);
 

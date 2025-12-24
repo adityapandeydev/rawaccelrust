@@ -78,9 +78,10 @@ namespace userinterface.ViewModels.Profile
             int currentIndex = Profiles.IndexOf(newProfile);
             if (currentIndex >= 0 && currentIndex != insertPosition)
             {
-                Profiles.RemoveAt(currentIndex);
-                if (currentIndex < insertPosition) insertPosition--;
-                Profiles.Insert(insertPosition, newProfile);
+                // TODO: Implement profile reordering through profilesModel methods
+                // Profiles.RemoveAt(currentIndex);
+                // if (currentIndex < insertPosition) insertPosition--;
+                // Profiles.Insert(insertPosition, newProfile);
             }
         }
 
@@ -108,13 +109,14 @@ namespace userinterface.ViewModels.Profile
             var profileName = GenerateProfileName();
             if (!profilesModel.TryAddNewDefaultProfile(profileName)) return false;
 
+            // TODO: Implement profile reordering through profilesModel methods
             // Move the newly added profile to the specified position
-            var newProfile = profilesModel.Profiles[^1];
-            profilesModel.Profiles.RemoveAt(profilesModel.Profiles.Count - 1);
+            // var newProfile = profilesModel.Profiles[^1];
+            // profilesModel.Profiles.RemoveAt(profilesModel.Profiles.Count - 1);
 
             // Ensure position is within bounds
-            int clampedPosition = Math.Max(1, Math.Min(position, profilesModel.Profiles.Count));
-            profilesModel.Profiles.Insert(clampedPosition, newProfile);
+            // int clampedPosition = Math.Max(1, Math.Min(position, profilesModel.Profiles.Count));
+            // profilesModel.Profiles.Insert(clampedPosition, newProfile);
 
             return true;
         }

@@ -133,10 +133,10 @@ public partial class MainWindowViewModel : ViewModelBase, INotifyPropertyChanged
         Console.WriteLine($"SelectPage called with: {page}");
         SelectedPage = page;
         IsProfilesExpanded = page == NavigationPage.Profiles;
-        
+
         if (page == NavigationPage.Profiles && profileListView.SelectedProfile == null)
         {
-            var defaultProfile = backEnd.Profiles.Profiles.FirstOrDefault(p => p == BE.Model.ProfilesModel.DefaultProfile);
+            var defaultProfile = backEnd.Profiles.DefaultProfile;
             if (defaultProfile != null)
             {
                 profileListView.SelectedProfile = defaultProfile;
@@ -146,7 +146,7 @@ public partial class MainWindowViewModel : ViewModelBase, INotifyPropertyChanged
                 profileListView.SelectedProfile = backEnd.Profiles.Profiles[0];
             }
         }
-        
+
         UpdateNavigationButtonSelection(page);
     }
     
@@ -179,10 +179,10 @@ public partial class MainWindowViewModel : ViewModelBase, INotifyPropertyChanged
 
         SelectedPage = page;
         IsProfilesExpanded = page == NavigationPage.Profiles;
-        
+
         if (page == NavigationPage.Profiles && profileListView.SelectedProfile == null)
         {
-            var defaultProfile = backEnd.Profiles.Profiles.FirstOrDefault(p => p == BE.Model.ProfilesModel.DefaultProfile);
+            var defaultProfile = backEnd.Profiles.DefaultProfile;
             if (defaultProfile != null)
             {
                 profileListView.SelectedProfile = defaultProfile;
@@ -241,7 +241,7 @@ public partial class MainWindowViewModel : ViewModelBase, INotifyPropertyChanged
         settingsService.Theme = newTheme;
     }
     
-    private void OnProfileSelected(BE.Model.ProfileModel selectedProfile)
+    private void OnProfileSelected(BE.IProfileModel selectedProfile)
     {
         if (selectedProfile != null && SelectedPage != NavigationPage.Profiles)
         {
