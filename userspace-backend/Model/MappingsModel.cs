@@ -9,7 +9,7 @@ using DATA = userspace_backend.Data;
 
 namespace userspace_backend.Model
 {
-    public interface IMappingsModel : IEditableSettingsCollectionSpecific<DATA.MappingSet>
+    public interface IMappingsModel : IEditableSettingsCollectionV2
     {
         ObservableCollection<MappingModel> Mappings { get; }
 

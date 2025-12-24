@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using userinterface.Commands;
 using userspace_backend;
+using IBackEnd = userspace_backend.IBackEnd;
 using BE = userspace_backend.Model;
 
 namespace userinterface.ViewModels.Profile
@@ -37,7 +38,7 @@ namespace userinterface.ViewModels.Profile
             }
         }
 
-        public ProfileListViewModel(BE.IBackEnd backEnd)
+        public ProfileListViewModel(IBackEnd backEnd)
         {
             profilesModel = backEnd?.Profiles ?? throw new System.ArgumentNullException(nameof(backEnd));
             AddProfileCommand = new RelayCommand(TryAddProfile);

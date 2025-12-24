@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using userinterface.Interfaces;
 using userinterface.Services;
+using IBackEnd = userspace_backend.IBackEnd;
 using BE = userspace_backend.Model;
 
 namespace userinterface.ViewModels.Profile
@@ -23,7 +24,7 @@ namespace userinterface.ViewModels.Profile
 
         public ProfilesPageViewModel(
             INotificationService notificationService,
-            BE.IBackEnd backEnd,
+            IBackEnd backEnd,
             ProfileListViewModel profileListView,
             IViewModelFactory viewModelFactory)
         {
