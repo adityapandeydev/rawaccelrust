@@ -9,6 +9,8 @@ namespace userspace_backend.Model.AccelDefinitions
 {
     public interface IAccelerationModel : IEditableSettingsSelector<AccelerationDefinitionType, Acceleration>
     {
+        IEditableSettingSpecific<AccelerationDefinitionType> DefinitionType { get; }
+
         IAnisotropyModel Anisotropy { get; }
 
         ICoalescionModel Coalescion { get; }
@@ -30,6 +32,8 @@ namespace userspace_backend.Model.AccelDefinitions
             Anisotropy = anisotropy;
             Coalescion = coalescion;
         }
+
+        public IEditableSettingSpecific<AccelerationDefinitionType> DefinitionType => Selection;
 
         public IAnisotropyModel Anisotropy { get; set; }
 

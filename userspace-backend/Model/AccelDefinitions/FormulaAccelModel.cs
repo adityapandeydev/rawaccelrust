@@ -13,6 +13,7 @@ namespace userspace_backend.Model.AccelDefinitions
 {
     public interface IFormulaAccelModel: IEditableSettingsSelector<AccelerationFormulaType, FormulaAccel>
     {
+        IEditableSettingSpecific<bool> Gain { get; }
     }
 
     public class FormulaAccelModel : 

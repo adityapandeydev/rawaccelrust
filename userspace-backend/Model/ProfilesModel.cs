@@ -27,6 +27,13 @@ namespace userspace_backend.Model
 {
     public interface IProfilesModel : IEditableSettingsList<IProfileModel, DATA.Profile>
     {
+        ReadOnlyObservableCollection<IProfileModel> Profiles { get; }
+
+        bool TryGetProfile(string name, out IProfileModel? profile);
+
+        bool TryAddNewDefaultProfile(string name);
+
+        bool RemoveProfile(IProfileModel profile);
     }
 
     public class ProfilesModel : EditableSettingsList<IProfileModel, DATA.Profile>, IProfilesModel
@@ -37,6 +44,24 @@ namespace userspace_backend.Model
             : base(serviceProvider, [], [])
         {
         }
+
+        public ReadOnlyObservableCollection<IProfileModel> Profiles => Elements;
+
+        public bool TryGetProfile(string name, out IProfileModel? profile) => TryGetElement(name, out profile);
+
+        public bool TryAddNewDefaultProfile(string name)
+        {
+            if (ContainsElementWithName(name))
+            {
+                return false;
+            }
+
+            IProfileModel newProfile = GenerateDefaultElement(name);
+            AddElement(newProfile);
+            return true;
+        }
+
+        public bool RemoveProfile(IProfileModel profile) => TryRemoveElement(profile);
 
         protected override string DefaultNameTemplate => "Profile";
 
