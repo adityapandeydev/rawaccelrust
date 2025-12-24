@@ -11,7 +11,9 @@ using static userspace_backend.Data.Profiles.Accel.FormulaAccel;
 
 namespace userspace_backend.Model.AccelDefinitions
 {
-    public interface IFormulaAccelModel: IAccelDefinitionModelSpecific<FormulaAccel>
+    public interface IFormulaAccelModel:
+        IAccelDefinitionModelSpecific<FormulaAccel>,
+        IEditableSettingsSelector<AccelerationFormulaType, FormulaAccel>
     {
         IEditableSettingSpecific<AccelerationFormulaType> FormulaType { get; }
 
