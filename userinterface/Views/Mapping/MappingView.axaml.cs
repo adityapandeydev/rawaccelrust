@@ -22,9 +22,9 @@ namespace userinterface.Views.Mapping
 
             if (DataContext is MappingViewModel viewModel)
             {
-                viewModel.PropertyChanged += (s, e) =>
+                viewModel.PropertyChanged += (s, args) =>
                 {
-                    if (e.PropertyName == nameof(MappingViewModel.IsActiveMapping))
+                    if (args.PropertyName == nameof(MappingViewModel.IsActiveMapping))
                     {
                         UpdateActivationIndicator();
                     }
@@ -48,7 +48,7 @@ namespace userinterface.Views.Mapping
             if (e.AddedItems.Count > 0
                 && DataContext is MappingViewModel viewModel)
             {
-                DeviceGroupSelectorToAddMapping.ItemsSource = Enumerable.Empty<DeviceGroupModel>();
+                DeviceGroupSelectorToAddMapping.ItemsSource = Enumerable.Empty<string>();
                 viewModel.HandleAddMappingSelection(e);
                 DeviceGroupSelectorToAddMapping.ItemsSource = viewModel.MappingBE.DeviceGroupsStillUnmapped;
 

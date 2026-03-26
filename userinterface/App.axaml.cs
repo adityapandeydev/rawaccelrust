@@ -17,7 +17,7 @@ using userinterface.ViewModels.Controls;
 using userinterface.ViewModels.Settings;
 using userinterface.Views;
 using userspace_backend;
-using Windows.System;
+using userspace_backend.IO;
 using DATA = userspace_backend.Data;
 
 namespace userinterface;
@@ -35,10 +35,8 @@ public partial class App : Application
     {
         var services = new ServiceCollection();
 
-        // Register logging
         services.AddLogging(builder =>
         {
-            // Change this to be "LogLevel.Debug" if you want to see logs.
 #if DEBUG
             builder.AddDebug();
             builder.SetMinimumLevel(LogLevel.Warning);
@@ -47,7 +45,16 @@ public partial class App : Application
 #endif
         });
 
-        // Register services
+        string settingsDirectory = System.AppDomain.CurrentDomain.BaseDirectory;
+        services.AddSingleton<IBackEndLoader>(sp =>
+        {
+            var devicesRW = sp.GetRequiredService<DevicesReaderWriter>();
+            var mappingsRW = sp.GetRequiredService<MappingsReaderWriter>();
+            var profileRW = sp.GetRequiredService<ProfileReaderWriter>();
+            var settingsRW = sp.GetRequiredService<SettingsReaderWriter>();
+            return new BackEndLoader(settingsDirectory, devicesRW, mappingsRW, profileRW, settingsRW);
+        });
+
         services.AddSingleton<INotificationService>(provider =>
             new NotificationService(provider.GetRequiredService<LocalizationService>(), provider.GetRequiredService<ISettingsService>()));
         services.AddSingleton<IModalService>(provider =>
@@ -59,25 +66,15 @@ public partial class App : Application
         services.AddSingleton<FrameTimerService>();
         services.AddSingleton<PreviewChartRenderer>();
         services.AddSingleton<IAnimationStateService, AnimationStateService>();
-
-        // Register backend services
-        services.AddSingleton<Bootstrapper>(provider => BootstrapBackEnd());
-        services.AddSingleton<BackEnd>(provider =>
-        {
-            var bootstrapper = provider.GetRequiredService<Bootstrapper>();
-            var backEnd = new BackEnd(bootstrapper);
-            backEnd.Load();
-            return backEnd;
-        });
-
-        // Register settings service that depends on backend
         services.AddSingleton<ISettingsService, SettingsService>();
 
         RegisterViewModels(services);
 
-        Services = services.BuildServiceProvider();
+        Services = BackEndComposer.Compose(services);
 
-        // Apply settings from backend after services are built
+        IBackEnd backEnd = Services.GetRequiredService<IBackEnd>();
+        backEnd.Load();
+
         ApplyStartupSettings();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -119,7 +116,7 @@ public partial class App : Application
         // Main ViewModels
         services.AddSingleton<MainWindowViewModel>(provider =>
             new MainWindowViewModel(
-                provider.GetRequiredService<BackEnd>(),
+                provider.GetRequiredService<IBackEnd>(),
                 provider.GetRequiredService<IThemeService>(),
                 provider.GetRequiredService<ISettingsService>(),
                 provider.GetRequiredService<FrameTimerService>()));
@@ -128,12 +125,12 @@ public partial class App : Application
         // Device ViewModels
         services.AddTransient<ViewModels.Device.DevicesPageViewModel>(provider =>
             new ViewModels.Device.DevicesPageViewModel(
-                provider.GetRequiredService<BackEnd>(),
+                provider.GetRequiredService<IBackEnd>(),
                 provider.GetRequiredService<IModalService>(),
                 provider.GetRequiredService<LocalizationService>()));
         services.AddTransient<ViewModels.Device.DevicesListViewModel>(provider =>
             new ViewModels.Device.DevicesListViewModel(
-                provider.GetRequiredService<BackEnd>().Devices,
+                provider.GetRequiredService<IBackEnd>().Devices,
                 provider.GetRequiredService<IModalService>(),
                 provider.GetRequiredService<LocalizationService>()));
         services.AddTransient<ViewModels.Device.DeviceGroupsViewModel>();
@@ -178,7 +175,12 @@ public partial class App : Application
     {
         return new Bootstrapper()
         {
-            BackEndLoader = new BackEndLoader(System.AppDomain.CurrentDomain.BaseDirectory),
+            BackEndLoader = new BackEndLoader(
+                System.AppDomain.CurrentDomain.BaseDirectory,
+                new DevicesReaderWriter(),
+                new MappingsReaderWriter(),
+                new ProfileReaderWriter(),
+                new SettingsReaderWriter()),
             DevicesToLoad =
             [
                 new DATA.Device() { Name = "Superlight 2", DPI = 32000, HWID = @"HID\VID_046D&PID_C54D&MI_00", PollingRate = 1000, DeviceGroup = "Logitech Mice" },

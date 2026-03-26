@@ -7,7 +7,7 @@ namespace userinterface.ViewModels.Device
 {
     public partial class DeviceGroupViewModel : ViewModelBase
     {
-        public DeviceGroupViewModel(BE.DeviceGroupModel deviceGroupBE, BE.DeviceGroups deviceGroupsBE, bool isDefault = false)
+        public DeviceGroupViewModel(string deviceGroupBE, BE.DeviceGroups deviceGroupsBE, bool isDefault = false)
         {
             DeviceGroupBE = deviceGroupBE;
             DeviceGroupsBE = deviceGroupsBE;
@@ -17,7 +17,7 @@ namespace userinterface.ViewModels.Device
                 () => DeleteSelf());
         }
 
-        public BE.DeviceGroupModel DeviceGroupBE { get; }
+        public string DeviceGroupBE { get; }
 
         protected BE.DeviceGroups DeviceGroupsBE { get; }
 

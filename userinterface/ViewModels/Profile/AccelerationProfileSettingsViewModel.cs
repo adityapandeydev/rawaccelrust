@@ -24,18 +24,21 @@ namespace userinterface.ViewModels.Profile
         [ObservableProperty]
         public bool areAccelSettingsVisible;
 
-        public AccelerationProfileSettingsViewModel(BE.AccelerationModel accelerationBE, INotificationService notificationService, LocalizationService localizationService)
+        public AccelerationProfileSettingsViewModel(BE.IAccelerationModel accelerationBE, INotificationService notificationService, LocalizationService localizationService)
         {
             AccelerationBE = accelerationBE;
-            AccelerationFormulaSettings = new AccelerationFormulaSettingsViewModel(accelerationBE.FormulaAccel, notificationService);
-            AccelerationLUTSettings = new AccelerationLUTSettingsViewModel(accelerationBE.LookupTableAccel);
+            AccelerationFormulaSettings = new AccelerationFormulaSettingsViewModel(
+                accelerationBE.GetSelectable(BEData.AccelerationDefinitionType.Formula) as BE.IFormulaAccelModel, notificationService);
+            AccelerationLUTSettings = new AccelerationLUTSettingsViewModel(
+                accelerationBE.GetSelectable(BEData.AccelerationDefinitionType.LookupTable) as BE.ILookupTableDefinitionModel);
             AnisotropySettings = new AnisotropyProfileSettingsViewModel(accelerationBE.Anisotropy, localizationService);
             CoalescionSettings = new CoalescionProfileSettingsViewModel(accelerationBE.Coalescion);
-            AccelerationBE.DefinitionType.AutoUpdateFromInterface = true;
-            AccelerationBE.DefinitionType.PropertyChanged += OnDefinitionTypeChanged;
+            // TODO: editable settings composition
+            AccelerationBE.Selection.AutoUpdateFromInterface = true;
+            AccelerationBE.Selection.PropertyChanged += OnDefinitionTypeChanged;
         }
 
-        public BE.AccelerationModel AccelerationBE { get; }
+        public BE.IAccelerationModel AccelerationBE { get; }
 
         public static ObservableCollection<string> DefinitionTypesLocal => DefinitionTypes;
 
@@ -51,9 +54,9 @@ namespace userinterface.ViewModels.Profile
 
         private void OnDefinitionTypeChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AccelerationBE.DefinitionType.CurrentValidatedValue))
+            if (e.PropertyName == nameof(AccelerationBE.Selection.ModelValue))
             {
-                AreAccelSettingsVisible = true;
+                AreAccelSettingsVisible = AccelerationBE.Selection.ModelValue != BEData.AccelerationDefinitionType.None;
             }
         }
     }

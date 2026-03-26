@@ -1,9 +1,9 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using Microsoft.Extensions.DependencyInjection;
 using userspace_backend.Common;
 using userspace_backend.Display;
 using userspace_backend.Model.AccelDefinitions;
@@ -13,27 +13,74 @@ using DATA = userspace_backend.Data;
 
 namespace userspace_backend.Model
 {
-    public class ProfileModel : EditableSettingsCollection<DATA.Profile>
+    public interface IProfileModel : IEditableSettingsCollectionSpecific<DATA.Profile>
     {
-        public ProfileModel(DATA.Profile dataObject, IModelValueValidator<string> nameValidator) : base(dataObject)
+        IEditableSettingSpecific<string> Name { get; }
+
+        IEditableSettingSpecific<int> OutputDPI { get; }
+
+        IEditableSettingSpecific<double> YXRatio { get; }
+
+        IAccelerationModel Acceleration { get; }
+
+        IHiddenModel Hidden { get; }
+
+        ICurvePreview XCurvePreview { get; }
+
+        ICurvePreview YCurvePreview { get; }
+
+        [Obsolete("Use XCurvePreview instead")]
+        ICurvePreview CurvePreview { get; }
+
+        string CurrentNameForDisplay { get; }
+
+        Profile CurrentValidatedDriverProfile { get; }
+    }
+
+    public class ProfileModel : NamedEditableSettingsCollection<DATA.Profile>, IProfileModel
+    {
+        public const string NameDIKey = $"{nameof(ProfileModel)}.{nameof(Name)}";
+        public const string OutputDPIDIKey = $"{nameof(ProfileModel)}.{nameof(OutputDPI)}";
+        public const string YXRatioDIKey = $"{nameof(ProfileModel)}.{nameof(YXRatio)}";
+
+        public ProfileModel(
+            [FromKeyedServices(NameDIKey)]IEditableSettingSpecific<string> name,
+            [FromKeyedServices(OutputDPIDIKey)]IEditableSettingSpecific<int> outputDPI,
+            [FromKeyedServices(YXRatioDIKey)]IEditableSettingSpecific<double> yxRatio,
+            IAccelerationModel acceleration,
+            IHiddenModel hidden,
+            ICurvePreview xCurvePreview,
+            ICurvePreview yCurvePreview
+            ) : base(name, [outputDPI, yxRatio], [acceleration, hidden])
         {
-            NameValidator = nameValidator;
-            XCurvePreview = new CurvePreview();
-            YCurvePreview = new CurvePreview();
+            OutputDPI = outputDPI;
+            YXRatio = yxRatio;
+            Acceleration = acceleration;
+            Hidden = hidden;
+            XCurvePreview = xCurvePreview;
+            YCurvePreview = yCurvePreview;
+
+            // Name and Output DPI do not need to generate a new curve preview
+            Name!.PropertyChanged += AnyNonPreviewPropertyChangedEventHandler;
+            OutputDPI.PropertyChanged += AnyNonPreviewPropertyChangedEventHandler;
+
+            // The rest of settings should generate a new curve preview
+            YXRatio.PropertyChanged += AnyCurvePreviewPropertyChangedEventHandler;
+            Acceleration.AnySettingChanged += AnyCurveSettingCollectionChangedEventHandler;
+            Hidden.AnySettingChanged += AnyCurveSettingCollectionChangedEventHandler;
+
             RecalculateDriverDataAndCurvePreview();
         }
 
-        public string CurrentNameForDisplay => Name.CurrentValidatedValue;
+        public string CurrentNameForDisplay => Name.ModelValue;
 
-        public EditableSetting<string> Name { get; set; }
+        public IEditableSettingSpecific<int> OutputDPI { get; set; }
 
-        public EditableSetting<int> OutputDPI { get; set; }
+        public IEditableSettingSpecific<double> YXRatio { get; set; }
 
-        public EditableSetting<double> YXRatio { get; set; }
+        public IAccelerationModel Acceleration { get; set; }
 
-        public AccelerationModel Acceleration { get; set; }
-
-        public HiddenModel Hidden { get; set; }
+        public IHiddenModel Hidden { get; set; }
 
         public Profile CurrentValidatedDriverProfile { get; protected set; }
 
@@ -60,7 +107,7 @@ namespace userspace_backend.Model
 
         protected void AnyNonPreviewPropertyChangedEventHandler(object? send, PropertyChangedEventArgs e)
         {
-            if (string.Equals(e.PropertyName, nameof(EditableSetting<string>.CurrentValidatedValue)))
+            if (string.Equals(e.PropertyName, nameof(IEditableSettingSpecific<IComparable>.ModelValue)))
             {
                 RecalculateDriverData();
             }
@@ -68,7 +115,7 @@ namespace userspace_backend.Model
 
         protected void AnyCurvePreviewPropertyChangedEventHandler(object? send, PropertyChangedEventArgs e)
         {
-            if (string.Equals(e.PropertyName, nameof(EditableSetting<string>.CurrentValidatedValue)))
+            if (string.Equals(e.PropertyName, nameof(IEditableSettingSpecific<IComparable>.ModelValue)))
             {
                 RecalculateDriverDataAndCurvePreview();
             }
@@ -111,49 +158,17 @@ namespace userspace_backend.Model
             }).ToList();
         }
 
-        protected override IEnumerable<IEditableSetting> EnumerateEditableSettings()
+        protected override bool TryMapEditableSettingsFromData(DATA.Profile data)
         {
-            return [Name, OutputDPI, YXRatio];
+            return Name.TryUpdateModelDirectly(data.Name)
+                & OutputDPI.TryUpdateModelDirectly(data.OutputDPI)
+                & YXRatio.TryUpdateModelDirectly(data.YXRatio);
         }
 
-        protected override IEnumerable<IEditableSettingsCollection> EnumerateEditableSettingsCollections()
+        protected override bool TryMapEditableSettingsCollectionsFromData(DATA.Profile data)
         {
-            return [Acceleration, Hidden];
-        }
-
-        protected override void InitEditableSettingsAndCollections(DATA.Profile dataObject)
-        {
-           Name = new EditableSetting<string>(
-                displayName: "Name",
-                initialValue: dataObject.Name,
-                parser: UserInputParsers.StringParser,
-                validator: NameValidator);
-
-            OutputDPI = new EditableSetting<int>(
-                displayName: "Output DPI",
-                initialValue: dataObject.OutputDPI,
-                parser: UserInputParsers.IntParser,
-                validator: ModelValueValidators.DefaultIntValidator,
-                localizationKey: "ProfileOutputDPI");
-
-            YXRatio = new EditableSetting<double>(
-                displayName: "Y/X Ratio",
-                initialValue: dataObject.YXRatio,
-                parser: UserInputParsers.DoubleParser,
-                validator: ModelValueValidators.DefaultDoubleValidator,
-                localizationKey: "ProfileYXRatio");
-
-            Acceleration = new AccelerationModel(dataObject.Acceleration);
-            Hidden = new HiddenModel(dataObject.Hidden);
-
-            // Name and Output DPI do not need to generate a new curve preview
-            Name.PropertyChanged += AnyNonPreviewPropertyChangedEventHandler;
-
-            // The rest of settings should generate a new curve preview
-            OutputDPI.PropertyChanged += AnyCurvePreviewPropertyChangedEventHandler;
-            YXRatio.PropertyChanged += AnyCurvePreviewPropertyChangedEventHandler;
-            Acceleration.AnySettingChanged += AnyCurveSettingCollectionChangedEventHandler;
-            Hidden.AnySettingChanged += AnyCurveSettingCollectionChangedEventHandler;
+            return Acceleration.TryMapFromData(data.Acceleration)
+                & Hidden.TryMapFromData(data.Hidden);
         }
     }
 }

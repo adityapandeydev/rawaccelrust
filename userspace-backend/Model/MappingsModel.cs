@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
@@ -8,13 +9,35 @@ using DATA = userspace_backend.Data;
 
 namespace userspace_backend.Model
 {
-    public class MappingsModel : EditableSettingsCollection<DATA.MappingSet>
+    public interface IMappingsModel : IEditableSettingsCollectionV2
+    {
+        ObservableCollection<MappingModel> Mappings { get; }
+
+        int ActiveMappingIndex { get; }
+
+        MappingModel GetMappingToSetActive();
+
+        MappingModel? GetActiveMapping();
+
+        bool SetActiveMapping(MappingModel mapping);
+
+        bool SetActiveMappingByIndex(int index);
+
+        bool TryGetMapping(string name, out MappingModel? mapping);
+
+        bool TryAddMapping(DATA.Mapping? mappingToAdd = null);
+
+        bool RemoveMapping(MappingModel mapping);
+    }
+
+    public class MappingsModel : EditableSettingsCollection<DATA.MappingSet>, IMappingsModel
     {
         private int activeMappingIndex;
 
-        public MappingsModel(DATA.MappingSet dataObject, DeviceGroups deviceGroups, ProfilesModel profiles)
+        public MappingsModel(DATA.MappingSet dataObject, DeviceGroups deviceGroups, IProfilesModel profiles, IServiceProvider serviceProvider)
             : base(dataObject)
         {
+            ServiceProvider = serviceProvider;
             DeviceGroups = deviceGroups;
             Profiles = profiles;
             NameValidator = new MappingNameValidator(this);
@@ -38,9 +61,11 @@ namespace userspace_backend.Model
             }
         }
 
+        protected IServiceProvider ServiceProvider { get; }
+
         protected DeviceGroups DeviceGroups { get; }
 
-        protected ProfilesModel Profiles { get; }
+        protected IProfilesModel Profiles { get; }
 
         protected MappingNameValidator NameValidator { get; }
 
@@ -154,7 +179,15 @@ namespace userspace_backend.Model
                 return false;
             }
 
-            MappingModel mapping = new MappingModel(mappingToAdd, NameValidator, DeviceGroups, Profiles);
+            // Create Name setting for the mapping
+            var nameSetting = new EditableSettingV2<string>(
+                displayName: "Name",
+                initialValue: mappingToAdd.Name,
+                parser: ServiceProvider.GetRequiredService<IUserInputParser<string>>(),
+                validator: NameValidator);
+
+            // Construct MappingModel with DI pattern
+            MappingModel mapping = new MappingModel(nameSetting, NameValidator, DeviceGroups, Profiles, mappingToAdd);
             Mappings.Add(mapping);
             EnsureActiveMappingExists();
             return true;
@@ -202,7 +235,7 @@ namespace userspace_backend.Model
             return [];
         }
 
-        protected override IEnumerable<IEditableSettingsCollection> EnumerateEditableSettingsCollections()
+        protected override IEnumerable<IEditableSettingsCollectionV2> EnumerateEditableSettingsCollections()
         {
             return Mappings;
         }

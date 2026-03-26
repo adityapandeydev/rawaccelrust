@@ -273,7 +273,7 @@
                                  Width="280">
 							<ListBox.ItemTemplate>
 								<DataTemplate>
-									<TextBlock Text="{Binding CurrentValidatedValue}"/>
+									<TextBlock Text="{Binding}"/>
 								</DataTemplate>
 							</ListBox.ItemTemplate>
 						</ListBox>

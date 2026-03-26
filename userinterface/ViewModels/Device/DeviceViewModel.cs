@@ -13,7 +13,7 @@ namespace userinterface.ViewModels.Device
     {
         private readonly IModalService modalService;
 
-        public DeviceViewModel(BE.DeviceModel deviceBE, BE.DevicesModel devicesBE, IModalService modalService, LocalizationService localizationService, bool isDefault = false, Func<DeviceViewModel, Task>? animatedDeleteCallback = null)
+        public DeviceViewModel(BE.IDeviceModel deviceBE, BE.DevicesModel devicesBE, IModalService modalService, LocalizationService localizationService, bool isDefault = false, Func<DeviceViewModel, Task>? animatedDeleteCallback = null)
         {
             DeviceBE = deviceBE;
             DevicesBE = devicesBE;
@@ -37,7 +37,7 @@ namespace userinterface.ViewModels.Device
             DeleteCommand = new RelayCommand(async () => await DeleteWithAnimation());
         }
 
-        internal BE.DeviceModel DeviceBE { get; }
+        internal BE.IDeviceModel DeviceBE { get; }
 
         internal BE.DevicesModel DevicesBE { get; }
 
@@ -99,7 +99,8 @@ namespace userinterface.ViewModels.Device
 
         public void DeleteSelf()
         {
-            DevicesBE.RemoveDevice(DeviceBE);
+            bool success = DevicesBE.TryRemoveElement(DeviceBE);
+            System.Diagnostics.Debug.Assert(success);
         }
     }
 }
