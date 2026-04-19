@@ -95,8 +95,8 @@
 
 					<Button Classes="AddButton"
 							HorizontalAlignment="Center"
-							Command="{Binding AddDeviceCommand}"
-							Content="{ext:Localized DeviceAddDevice}"/>
+							Command="{Binding ReloadDevicesCommand}"
+							Content="Reload"/>
 				</StackPanel>
 			</Border>
 		</ScrollViewer>

@@ -298,6 +298,7 @@ namespace userspace_backend.Model.EditableSettings
             }
 
             UpdateModeValue(data);
+            SetInterfaceToModel();
             return true;
         }
     }

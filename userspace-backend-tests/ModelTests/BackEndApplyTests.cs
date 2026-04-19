@@ -39,10 +39,29 @@ namespace userspace_backend_tests.ModelTests
             }
         }
 
-        private static IBackEnd BuildBackEndWithDefaults()
+        private sealed class StubSystemDevicesRetriever : ISystemDevicesRetriever
+        {
+            public IList<ISystemDevice> Devices { get; set; } = new List<ISystemDevice>();
+
+            public IList<ISystemDevice> GetSystemDevices() => Devices;
+        }
+
+        private sealed class StubSystemDevice : ISystemDevice
+        {
+            public string Name { get; init; } = string.Empty;
+            public string HWID { get; init; } = string.Empty;
+        }
+
+        private static IBackEnd BuildBackEndWithDefaults(IList<ISystemDevice>? systemDevices = null)
         {
             var services = new ServiceCollection();
             services.AddSingleton<IBackEndLoader>(new StubBackEndLoader());
+            // Register the stub BEFORE Compose; Compose uses TryAddSingleton so our stub wins.
+            services.AddSingleton<ISystemDevicesRetriever>(new StubSystemDevicesRetriever
+            {
+                Devices = systemDevices ?? new List<ISystemDevice>(),
+            });
+
             var sp = BackEndComposer.Compose(services);
             var backEnd = sp.GetRequiredService<IBackEnd>();
             backEnd.Load();
@@ -112,6 +131,114 @@ namespace userspace_backend_tests.ModelTests
             var cfg = BuildActiveDriverConfig(backEnd);
             Assert.AreEqual(3200, cfg.devices[0].config.dpi);
             Assert.AreEqual(500, cfg.devices[0].config.pollingRate);
+        }
+
+        [TestMethod]
+        public void ImportSystemDevices_CreatesOneDevicePerSystemDevice()
+        {
+            var systemDevices = new List<ISystemDevice>
+            {
+                new StubSystemDevice { Name = "Logitech G Pro",    HWID = @"HID\VID_046D&PID_C54D&MI_00" },
+                new StubSystemDevice { Name = "Razer DeathAdder",  HWID = @"HID\VID_1532&PID_0084" },
+            };
+
+            var backEnd = BuildBackEndWithDefaults(systemDevices);
+            backEnd.ImportSystemDevices();
+
+            // EnsureDefaultDeviceExists skipped the "Default" placeholder because system devices
+            // were present, so the only devices in the list should be the imported ones.
+            Assert.AreEqual(2, backEnd.Devices.Elements.Count);
+
+            var imported = backEnd.Devices.Elements
+                .Select(d => (d.Name.ModelValue, d.HardwareID.ModelValue))
+                .ToList();
+            CollectionAssert.Contains(imported, ("Logitech G Pro",   @"HID\VID_046D&PID_C54D&MI_00"));
+            CollectionAssert.Contains(imported, ("Razer DeathAdder", @"HID\VID_1532&PID_0084"));
+
+            foreach (var d in backEnd.Devices.Elements)
+            {
+                Assert.AreEqual(DeviceGroups.DefaultDeviceGroup, d.DeviceGroup.ModelValue,
+                    "Imported devices should default to the Default device group.");
+            }
+        }
+
+        [TestMethod]
+        public void ImportSystemDevices_SkipsDevicesAlreadyPresentByHwid()
+        {
+            var systemDevices = new List<ISystemDevice>
+            {
+                new StubSystemDevice { Name = "Preloaded Mouse", HWID = @"HID\VID_9999&PID_0001" },
+            };
+
+            var backEnd = BuildBackEndWithDefaults(systemDevices);
+            backEnd.ImportSystemDevices();
+            Assert.AreEqual(1, backEnd.Devices.Elements.Count);
+
+            // Re-import with the same system device — should be a no-op.
+            backEnd.ImportSystemDevices();
+            Assert.AreEqual(1, backEnd.Devices.Elements.Count,
+                "Repeated ImportSystemDevices calls must not create duplicates when HWID already matches.");
+        }
+
+        [TestMethod]
+        public void ReloadSystemDevices_RemovesDisconnectedAndAddsNew()
+        {
+            var initial = new List<ISystemDevice>
+            {
+                new StubSystemDevice { Name = "Mouse A", HWID = @"HID\VID_AAAA" },
+                new StubSystemDevice { Name = "Mouse B", HWID = @"HID\VID_BBBB" },
+            };
+
+            var services = new ServiceCollection();
+            services.AddSingleton<IBackEndLoader>(new StubBackEndLoader());
+            var retrieverStub = new StubSystemDevicesRetriever { Devices = initial };
+            services.AddSingleton<ISystemDevicesRetriever>(retrieverStub);
+
+            var sp = BackEndComposer.Compose(services);
+            var backEnd = sp.GetRequiredService<IBackEnd>();
+            backEnd.Load();
+            backEnd.ImportSystemDevices();
+            Assert.AreEqual(2, backEnd.Devices.Elements.Count);
+
+            // Simulate: Mouse A unplugged, Mouse C plugged in.
+            retrieverStub.Devices = new List<ISystemDevice>
+            {
+                new StubSystemDevice { Name = "Mouse B", HWID = @"HID\VID_BBBB" },
+                new StubSystemDevice { Name = "Mouse C", HWID = @"HID\VID_CCCC" },
+            };
+
+            backEnd.ReloadSystemDevices();
+
+            var hwids = backEnd.Devices.Elements
+                .Select(d => d.HardwareID.ModelValue)
+                .ToList();
+            CollectionAssert.AreEquivalent(
+                new[] { @"HID\VID_BBBB", @"HID\VID_CCCC" },
+                hwids);
+        }
+
+        [TestMethod]
+        public void ImportSystemDevices_SyncsInterfaceValueSoUiReflectsRealValues()
+        {
+            // Regression: EditableSettingV2.TryUpdateModelDirectly used to update ModelValue
+            // but not InterfaceValue. The UI binds to InterfaceValue via EditableFieldViewModel,
+            // so imported devices showed the DI placeholder ("name", "hwid") even though
+            // ModelValue was correct. Guard against that by asserting both properties update.
+            var systemDevices = new List<ISystemDevice>
+            {
+                new StubSystemDevice { Name = "RealMouseName", HWID = @"HID\VID_1234&PID_5678" },
+            };
+
+            var backEnd = BuildBackEndWithDefaults(systemDevices);
+            backEnd.ImportSystemDevices();
+
+            var imported = backEnd.Devices.Elements.Single();
+            Assert.AreEqual("RealMouseName",                   imported.Name.ModelValue);
+            Assert.AreEqual("RealMouseName",                   imported.Name.InterfaceValue,
+                "InterfaceValue must mirror ModelValue so the UI shows the imported Name.");
+            Assert.AreEqual(@"HID\VID_1234&PID_5678",          imported.HardwareID.ModelValue);
+            Assert.AreEqual(@"HID\VID_1234&PID_5678",          imported.HardwareID.InterfaceValue,
+                "InterfaceValue must mirror ModelValue so the UI shows the imported HWID.");
         }
     }
 }

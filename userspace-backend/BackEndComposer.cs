@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
 using DATA = userspace_backend.Data;
 using userspace_backend.Display;
@@ -19,8 +20,8 @@ namespace userspace_backend
     {
         public static IServiceProvider Compose(IServiceCollection services)
         {
-            services.AddSingleton<ISystemDevicesRetriever, SystemDevicesRetriever>();
-            services.AddSingleton<ISystemDevicesProvider, SystemDevicesProvider>();
+            services.TryAddSingleton<ISystemDevicesRetriever, SystemDevicesRetriever>();
+            services.TryAddSingleton<ISystemDevicesProvider, SystemDevicesProvider>();
 
             #region Parsers
 

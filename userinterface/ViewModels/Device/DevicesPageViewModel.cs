@@ -10,23 +10,23 @@ namespace userinterface.ViewModels.Device
     {
         private DevicesListViewModel? devicesList;
         private DeviceGroupsViewModel? deviceGroups;
-        private readonly BE.DevicesModel devicesModel;
+        private readonly IBackEnd backEnd;
         private readonly IModalService modalService;
         private readonly LocalizationService localizationService;
 
         public DevicesPageViewModel(IBackEnd backEnd, IModalService modalService, LocalizationService localizationService)
         {
-            devicesModel = backEnd?.Devices ?? throw new ArgumentNullException(nameof(backEnd));
+            this.backEnd = backEnd ?? throw new ArgumentNullException(nameof(backEnd));
             this.modalService = modalService;
             this.localizationService = localizationService;
         }
 
         public DevicesListViewModel DevicesList =>
-            devicesList ??= new DevicesListViewModel(devicesModel, modalService, localizationService);
+            devicesList ??= new DevicesListViewModel(backEnd, modalService, localizationService);
 
         public DeviceGroupsViewModel DeviceGroups =>
-            deviceGroups ??= new DeviceGroupsViewModel(devicesModel.DeviceGroups);
+            deviceGroups ??= new DeviceGroupsViewModel(backEnd.Devices.DeviceGroups);
 
-        protected BE.DevicesModel DevicesModel => devicesModel;
+        protected BE.DevicesModel DevicesModel => backEnd.Devices;
     }
 }

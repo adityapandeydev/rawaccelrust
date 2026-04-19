@@ -16,6 +16,10 @@ namespace userspace_backend
 
         void Apply();
 
+        void ImportSystemDevices();
+
+        void ReloadSystemDevices();
+
         DevicesModel Devices { get; }
 
         MappingsModel Mappings { get; }
@@ -103,17 +107,72 @@ namespace userspace_backend
 
         protected void EnsureDefaultDeviceExists()
         {
-            // If no devices exist, create a default device
-            if (Devices.Elements.Count == 0)
+            if (Devices.Elements.Count > 0)
             {
-                var defaultDevice = ServiceProvider.GetRequiredService<IDeviceModel>();
-                defaultDevice.Name.TryUpdateModelDirectly("Default");
-                defaultDevice.HardwareID.TryUpdateModelDirectly("DEFAULT_DEVICE_ID");
-                defaultDevice.DeviceGroup.TryUpdateModelDirectly(DeviceGroups.DefaultDeviceGroup);
-                // DPI, PollRate, and Ignore already have sensible defaults from DI (1000, 1000, false)
-
-                Devices.TryInsert(0, defaultDevice);
+                return;
             }
+
+            // When the OS reports connected input devices, skip the placeholder:
+            // ImportSystemDevices will populate real devices instead.
+            if (Devices.SystemDevices.SystemDevices.Count > 0)
+            {
+                return;
+            }
+
+            var defaultDevice = ServiceProvider.GetRequiredService<IDeviceModel>();
+            defaultDevice.Name.TryUpdateModelDirectly("Default");
+            defaultDevice.HardwareID.TryUpdateModelDirectly("DEFAULT_DEVICE_ID");
+            defaultDevice.DeviceGroup.TryUpdateModelDirectly(DeviceGroups.DefaultDeviceGroup);
+            // DPI, PollRate, and Ignore already have sensible defaults from DI (1000, 1000, false)
+
+            Devices.TryInsert(0, defaultDevice);
+        }
+
+        public void ImportSystemDevices()
+        {
+            foreach (var systemDevice in Devices.SystemDevices.SystemDevices)
+            {
+                if (string.IsNullOrEmpty(systemDevice.HWID))
+                {
+                    continue;
+                }
+
+                bool alreadyPresent = Devices.Elements.Any(d =>
+                    string.Equals(d.HardwareID.ModelValue, systemDevice.HWID, StringComparison.OrdinalIgnoreCase));
+                if (alreadyPresent)
+                {
+                    continue;
+                }
+
+                var device = ServiceProvider.GetRequiredService<IDeviceModel>();
+                device.Name.TryUpdateModelDirectly(systemDevice.Name);
+                device.HardwareID.TryUpdateModelDirectly(systemDevice.HWID);
+                device.DeviceGroup.TryUpdateModelDirectly(DeviceGroups.DefaultDeviceGroup);
+                // DPI / PollRate / Ignore keep their DI-provided defaults.
+                Devices.TryAdd(device);
+            }
+        }
+
+        public void ReloadSystemDevices()
+        {
+            Devices.SystemDevices.RefreshSystemDevices();
+
+            var connectedHwids = new HashSet<string>(
+                Devices.SystemDevices.SystemDevices
+                    .Select(sd => sd.HWID ?? string.Empty)
+                    .Where(h => !string.IsNullOrEmpty(h)),
+                StringComparer.OrdinalIgnoreCase);
+
+            var toRemove = Devices.Elements
+                .Where(d => !connectedHwids.Contains(d.HardwareID.ModelValue ?? string.Empty))
+                .ToList();
+
+            foreach (var device in toRemove)
+            {
+                Devices.TryRemoveElement(device);
+            }
+
+            ImportSystemDevices();
         }
 
         protected void EnsureDefaultProfileExists()

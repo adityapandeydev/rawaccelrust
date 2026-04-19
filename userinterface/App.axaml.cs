@@ -74,6 +74,7 @@ public partial class App : Application
 
         IBackEnd backEnd = Services.GetRequiredService<IBackEnd>();
         backEnd.Load();
+        backEnd.ImportSystemDevices();
 
         ApplyStartupSettings();
 
@@ -130,7 +131,7 @@ public partial class App : Application
                 provider.GetRequiredService<LocalizationService>()));
         services.AddTransient<ViewModels.Device.DevicesListViewModel>(provider =>
             new ViewModels.Device.DevicesListViewModel(
-                provider.GetRequiredService<IBackEnd>().Devices,
+                provider.GetRequiredService<IBackEnd>(),
                 provider.GetRequiredService<IModalService>(),
                 provider.GetRequiredService<LocalizationService>()));
         services.AddTransient<ViewModels.Device.DeviceGroupsViewModel>();
