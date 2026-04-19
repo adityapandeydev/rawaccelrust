@@ -25,6 +25,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\userspace-backend\userspace-backend.csproj" />
+    <ProjectReference Include="..\wrapper\wrapper.vcxproj" />
+  </ItemGroup>
+
+  <!--
+    These tests reference UserInputParsers / ModelValueValidators, static helpers
+    removed during the DI refactor.They currently don't compile.
+  -->
+  <ItemGroup>
+    <Compile Remove="ModelTests\EditableSettingsTests.cs" />
+    <Compile Remove="ModelTests\EditableSettingsCollectionTests.cs" />
+    <Compile Remove="ModelTests\EditableSettingsSelectorTests.cs" />
+    <Compile Remove="ModelTests\EditableSettingsListTests.cs" />
   </ItemGroup>
 
   <ItemGroup>

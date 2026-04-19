@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using userspace_backend.Data.Profiles;
@@ -161,14 +162,67 @@ namespace userspace_backend
         {
             try
             {
-                // WriteToDriver();
+                LogDriverConfigDryRun();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return;
+                TryAppendDryRunLog($"ERROR building DriverConfig: {ex}");
             }
 
             WriteSettingsToDisk();
+        }
+
+        private void LogDriverConfigDryRun()
+        {
+            MappingModel? mappingToApply = Mappings.GetMappingToSetActive();
+            if (mappingToApply == null)
+            {
+                TryAppendDryRunLog("no active mapping to apply");
+                return;
+            }
+
+            DriverConfig config = MapToDriverConfig(mappingToApply);
+            int profileCount = config.profiles?.Count ?? 0;
+            int deviceCount = config.devices?.Count ?? 0;
+
+            TryAppendDryRunLog(
+                $"active mapping = {mappingToApply.Name?.ModelValue ?? "<unnamed>"}, " +
+                $"profiles = {profileCount}, devices = {deviceCount}");
+
+            if (config.profiles != null)
+            {
+                foreach (Profile p in config.profiles)
+                {
+                    TryAppendDryRunLog(
+                        $"  profile: name={p.name} outputDPI={p.outputDPI} yxRatio={p.yxOutputDPIRatio} " +
+                        $"rotation={p.rotation} snap={p.snap} inputSpeedCap={p.maximumSpeed} " +
+                        $"accelModeX={p.argsX.mode} accelModeY={p.argsY.mode}");
+                }
+            }
+
+            if (config.devices != null)
+            {
+                foreach (DeviceSettings d in config.devices)
+                {
+                    TryAppendDryRunLog(
+                        $"  device: id={d.id} name={d.name} profile={d.profile} " +
+                        $"disable={d.config.disable} dpi={d.config.dpi} pollingRate={d.config.pollingRate}");
+                }
+            }
+        }
+
+        private static void TryAppendDryRunLog(string message)
+        {
+            try
+            {
+                string dir = Path.Combine(AppContext.BaseDirectory, "logs");
+                Directory.CreateDirectory(dir);
+                string path = Path.Combine(dir, "apply-dryrun.log");
+                File.AppendAllText(path, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}");
+            }
+            catch
+            {
+            }
         }
 
         protected void WriteSettingsToDisk()
@@ -195,7 +249,7 @@ namespace userspace_backend
             }
         }
 
-        protected DriverConfig MapToDriverConfig(MappingModel mappingModel)
+        protected internal DriverConfig MapToDriverConfig(MappingModel mappingModel)
         {
             IEnumerable<DeviceSettings> configDevices = MapToDriverDevices(mappingModel);
             IEnumerable<Profile> configProfiles = MapToDriverProfiles(mappingModel);
