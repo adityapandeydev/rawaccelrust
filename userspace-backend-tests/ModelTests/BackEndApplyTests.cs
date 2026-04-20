@@ -4,8 +4,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using userspace_backend;
+using userspace_backend.Data.Profiles;
+using userspace_backend.Data.Profiles.Accel;
 using userspace_backend.IO;
 using userspace_backend.Model;
+using userspace_backend.Model.AccelDefinitions;
+using userspace_backend.Model.AccelDefinitions.Formula;
 using DATA = userspace_backend.Data;
 
 namespace userspace_backend_tests.ModelTests
@@ -76,6 +80,75 @@ namespace userspace_backend_tests.ModelTests
             var mapping = concrete.Mappings.GetMappingToSetActive();
             Assert.IsNotNull(mapping, "No active mapping found; EnsureDefaultMappingExists should have seeded one.");
             return concrete.MapToDriverConfig(mapping);
+        }
+
+        [TestMethod]
+        public void EnsureDefaultMapping_FreshInstall_CreatesMappingWithDefaultEntry()
+        {
+            var backEnd = BuildBackEndWithDefaults();
+
+            Assert.IsTrue(
+                backEnd.Mappings.TryGetMapping("Default", out MappingModel? mapping) && mapping != null,
+                "A Default mapping should exist after Load on a fresh install.");
+            Assert.AreEqual(
+                1, mapping!.IndividualMappings.Count,
+                "Fresh Default mapping must contain exactly one DefaultDeviceGroup -> Default entry.");
+            Assert.AreEqual(DeviceGroups.DefaultDeviceGroup, mapping.IndividualMappings[0].DeviceGroup);
+            Assert.AreEqual("Default", mapping.IndividualMappings[0].Profile.Name.ModelValue);
+
+            var cfg = BuildActiveDriverConfig(backEnd);
+            Assert.AreEqual(1, cfg.profiles.Count);
+            Assert.AreEqual(1, cfg.devices.Count);
+        }
+
+        [TestMethod]
+        public void EnsureDefaultMapping_StaleEmptyMapping_SelfHealsWithDefaultEntry()
+        {
+            // Simulate stale mappings.json: {"Mappings":[{"Name":"Default","GroupsToProfiles":{}}],"ActiveMappingIndex":0}
+            var staleLoader = new StaleMappingBackEndLoader();
+            var services = new ServiceCollection();
+            services.AddSingleton<IBackEndLoader>(staleLoader);
+            services.AddSingleton<ISystemDevicesRetriever>(new StubSystemDevicesRetriever());
+            var sp = BackEndComposer.Compose(services);
+            var backEnd = sp.GetRequiredService<IBackEnd>();
+            backEnd.Load();
+
+            Assert.IsTrue(
+                backEnd.Mappings.TryGetMapping("Default", out MappingModel? mapping) && mapping != null,
+                "Default mapping should still be present after loading stale empty state.");
+            Assert.AreEqual(
+                1, mapping!.IndividualMappings.Count,
+                "Stale empty Default mapping must self-heal to one DefaultDeviceGroup -> Default entry.");
+
+            var cfg = BuildActiveDriverConfig(backEnd);
+            Assert.AreEqual(1, cfg.profiles.Count);
+            Assert.AreEqual(1, cfg.devices.Count);
+        }
+
+        private sealed class StaleMappingBackEndLoader : IBackEndLoader
+        {
+            public IEnumerable<DATA.Device> LoadDevices() => Array.Empty<DATA.Device>();
+
+            public DATA.MappingSet LoadMappings() => new DATA.MappingSet
+            {
+                Mappings = new[]
+                {
+                    new DATA.Mapping
+                    {
+                        Name = "Default",
+                        GroupsToProfiles = new DATA.Mapping.GroupsToProfilesMapping(),
+                    },
+                },
+                ActiveMappingIndex = 0,
+            };
+
+            public IEnumerable<DATA.Profile> LoadProfiles() => Array.Empty<DATA.Profile>();
+            public DATA.Settings? LoadSettings() => null;
+            public void WriteSettingsToDisk(
+                IEnumerable<IDeviceModel> devices,
+                MappingsModel mappings,
+                IEnumerable<IProfileModel> profiles) { }
+            public void WriteSettings(DATA.Settings settings) { }
         }
 
         [TestMethod]
@@ -215,6 +288,47 @@ namespace userspace_backend_tests.ModelTests
             CollectionAssert.AreEquivalent(
                 new[] { @"HID\VID_BBBB", @"HID\VID_CCCC" },
                 hwids);
+        }
+
+        [TestMethod]
+        public void Apply_ProfileCurveCoefficientEdit_FlowsIntoDriverConfig()
+        {
+            // Regression for the "stale curve on Apply" bug: editing a coefficient inside
+            // the currently-selected curve sub-model (Formula -> Classic -> Acceleration)
+            // must propagate through EditableSettingsSelector.AnySettingChanged up to
+            // ProfileModel.RecalculateDriverData so CurrentValidatedDriverProfile refreshes
+            // before BackEnd.MapToDriverConfig reads it.
+            var backEnd = BuildBackEndWithDefaults();
+            var profile = backEnd.Profiles.Elements[0];
+
+            Assert.IsTrue(
+                profile.Acceleration.DefinitionType.TryUpdateModelDirectly(
+                    Acceleration.AccelerationDefinitionType.Formula),
+                "Flipping DefinitionType to Formula should succeed.");
+
+            var formulaAccel = (FormulaAccelModel)profile.Acceleration.GetSelectable(
+                Acceleration.AccelerationDefinitionType.Formula);
+
+            Assert.IsTrue(
+                formulaAccel.FormulaType.TryUpdateModelDirectly(
+                    FormulaAccel.AccelerationFormulaType.Classic),
+                "Flipping FormulaType to Classic should succeed.");
+
+            var classic = (ClassicAccelerationDefinitionModel)formulaAccel.GetSelectable(
+                FormulaAccel.AccelerationFormulaType.Classic);
+
+            const double expectedAcceleration = 0.123;
+            Assert.IsTrue(
+                classic.Acceleration.TryUpdateModelDirectly(expectedAcceleration),
+                "Classic.Acceleration update should succeed.");
+
+            var cfg = BuildActiveDriverConfig(backEnd);
+            Assert.AreEqual(AccelMode.classic, cfg.profiles[0].argsX.mode,
+                "DriverConfig should reflect the chosen Classic formula.");
+            Assert.AreEqual(expectedAcceleration, cfg.profiles[0].argsX.acceleration,
+                "DriverConfig should reflect the tweaked Classic.Acceleration coefficient. " +
+                "If this fails with the default coefficient, EditableSettingsSelector is not " +
+                "propagating nested sub-model changes up to ProfileModel.");
         }
 
         [TestMethod]

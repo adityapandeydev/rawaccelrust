@@ -1,5 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
 using System;
+using userspace_backend.Logging;
 
 namespace userspace_backend.Model.EditableSettings
 {
@@ -146,11 +148,18 @@ namespace userspace_backend.Model.EditableSettings
             if (!Validator.Validate(data))
             {
                 UpdateInterfaceValue();
+                EditableSettingLog.Logger.LogDebug(
+                    "Setting '{Name}' ({Type}) [v1] rejected direct update: value {Value} failed validation",
+                    DisplayName, typeof(T).Name, data);
                 return false;
             }
 
+            T previous = ModelValue;
             UpdatedModeValue(data);
             UpdateInterfaceValue();
+            EditableSettingLog.Logger.LogDebug(
+                "Setting '{Name}' ({Type}) [v1] changed: {Old} -> {New}",
+                DisplayName, typeof(T).Name, previous, data);
             return true;
         }
     }
@@ -238,11 +247,17 @@ namespace userspace_backend.Model.EditableSettings
 
             if (string.IsNullOrEmpty(InterfaceValue))
             {
+                EditableSettingLog.Logger.LogDebug(
+                    "Setting '{Name}' ({Type}) commit skipped: InterfaceValue is empty",
+                    DisplayName, typeof(T).Name);
                 return false;
             }
 
             if (!Parser.TryParse(InterfaceValue.Trim(), out T parsedValue))
             {
+                EditableSettingLog.Logger.LogDebug(
+                    "Setting '{Name}' ({Type}) commit rejected: parser could not parse '{Value}'",
+                    DisplayName, typeof(T).Name, InterfaceValue);
                 return false;
             }
 
@@ -294,11 +309,18 @@ namespace userspace_backend.Model.EditableSettings
             if (!Validator.Validate(data))
             {
                 editedInterfaceNeedsReset = true;
+                EditableSettingLog.Logger.LogDebug(
+                    "Setting '{Name}' ({Type}) rejected direct update: value {Value} failed validation",
+                    DisplayName, typeof(T).Name, data);
                 return false;
             }
 
+            T previous = ModelValue;
             UpdateModeValue(data);
             SetInterfaceToModel();
+            EditableSettingLog.Logger.LogDebug(
+                "Setting '{Name}' ({Type}) changed: {Old} -> {New}",
+                DisplayName, typeof(T).Name, previous, data);
             return true;
         }
     }

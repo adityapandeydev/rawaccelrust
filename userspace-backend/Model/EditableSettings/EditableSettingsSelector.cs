@@ -84,7 +84,15 @@ namespace userspace_backend.Model.EditableSettings
             foreach (T value in Enum.GetValues(typeof(T)))
             {
                 string key = EditableSettingsSelectorHelper.GetSelectionKey(value);
-                SelectionLookup.Add(value, serviceProvider.GetRequiredKeyedService<IEditableSettingsCollectionSpecific<U>>(key));
+                var subModel = serviceProvider.GetRequiredKeyedService<IEditableSettingsCollectionSpecific<U>>(key);
+                SelectionLookup.Add(value, subModel);
+
+                // Bubble AnySettingChanged from every sub-model up through this selector so
+                // enclosing models (e.g. ProfileModel) recompute derived state when nested
+                // parameters change. Without this, editing a curve coefficient inside the
+                // currently-selected sub-model never propagates and CurrentValidatedDriverProfile
+                // stays stale until the top-level Selection itself changes.
+                subModel.AnySettingChanged += EditableSettingsCollectionChangedEventHandler;
             }
         }
 

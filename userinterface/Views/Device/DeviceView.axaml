@@ -74,6 +74,7 @@
                                    VerticalAlignment="Stretch"
                                    IsExpanded="False"
                                    IsExpanderEnabled="{Binding IsExpanderEnabled}"
+                                   PersistenceKey="{Binding PersistenceKey}"
                                    Classes.DisabledExpander="{Binding !IsExpanderEnabled}">
 		<controls:EditableExpanderView.Header>
 			<Grid ColumnDefinitions="2*,*,*,2*"

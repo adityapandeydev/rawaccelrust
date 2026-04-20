@@ -16,8 +16,11 @@ using userinterface.ViewModels;
 using userinterface.ViewModels.Controls;
 using userinterface.ViewModels.Settings;
 using userinterface.Views;
+using System.IO;
+using System.Runtime.InteropServices;
 using userspace_backend;
 using userspace_backend.IO;
+using userspace_backend.Logging;
 using DATA = userspace_backend.Data;
 
 namespace userinterface;
@@ -31,17 +34,31 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
     }
 
+#if DEBUG
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllocConsole();
+#endif
+
     public override void OnFrameworkInitializationCompleted()
     {
+#if DEBUG
+        // Attach a console so backend ILogger output is visible alongside the UI window.
+        AllocConsole();
+#endif
+
         var services = new ServiceCollection();
 
+        string logFilePath = Path.Combine(AppContext.BaseDirectory, "logs", "backend.log");
         services.AddLogging(builder =>
         {
+            builder.AddConsole();
+            builder.AddProvider(new FileLoggerProvider(logFilePath));
 #if DEBUG
             builder.AddDebug();
-            builder.SetMinimumLevel(LogLevel.Warning);
+            builder.SetMinimumLevel(LogLevel.Debug);
 #else
-            builder.SetMinimumLevel(LogLevel.Warning);
+            builder.SetMinimumLevel(LogLevel.Information);
 #endif
         });
 
@@ -71,6 +88,11 @@ public partial class App : Application
         RegisterViewModels(services);
 
         Services = BackEndComposer.Compose(services);
+
+        // Wire the ambient EditableSetting logger so every profile-tree
+        // commit (Output DPI, Y/X ratio, acceleration type, curve coefficients,
+        // hidden fields...) produces a log line.
+        EditableSettingLog.Configure(Services.GetRequiredService<ILoggerFactory>());
 
         IBackEnd backEnd = Services.GetRequiredService<IBackEnd>();
         backEnd.Load();

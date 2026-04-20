@@ -54,7 +54,8 @@
 
 	<controls:EditableExpanderView Header="{ext:Localized ProfileSectionAcceleration}"
                                    HorizontalAlignment="Stretch"
-                                   Margin="0,0,0,12">
+                                   Margin="0,0,0,12"
+                                   PersistenceKey="Profile:Acceleration">
 		<controls:EditableExpanderView.ExpanderContent>
 			<StackPanel Orientation="Vertical" Margin="16" Spacing="12" x:Name="MainStackPanel">
 				<!-- The DualColumnLabelField, Anistropy, and Coalescion Views will all be added in code-behind -->

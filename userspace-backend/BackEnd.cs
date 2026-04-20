@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using userspace_backend.Data.Profiles;
 using userspace_backend.IO;
 using userspace_backend.Model;
@@ -31,18 +32,22 @@ namespace userspace_backend
 
     public class BackEnd : IBackEnd
     {
+        private readonly ILogger<BackEnd> logger;
+
         public BackEnd(
             IBackEndLoader backEndLoader,
             IProfilesModel profilesModel,
             DevicesModel devicesModel,
             MappingsModel mappingsModel,
-            IServiceProvider serviceProvider)
+            IServiceProvider serviceProvider,
+            ILogger<BackEnd>? logger = null)
         {
             BackEndLoader = backEndLoader;
             Devices = devicesModel;
             Mappings = mappingsModel;
             Profiles = profilesModel;
             ServiceProvider = serviceProvider;
+            this.logger = logger ?? NullLogger<BackEnd>.Instance;
         }
 
         public DevicesModel Devices { get; set; }
@@ -188,29 +193,27 @@ namespace userspace_backend
 
         protected void EnsureDefaultMappingExists()
         {
-            // If no mappings exist, create a default mapping
-            if (Mappings.Mappings.Count == 0)
+            // Ensure a Default mapping object exists in the list.
+            if (!Mappings.TryGetMapping("Default", out _))
             {
-                var defaultMapping = new DATA.Mapping
+                Mappings.TryAddMapping(new DATA.Mapping
                 {
                     Name = "Default",
-                    GroupsToProfiles = new DATA.Mapping.GroupsToProfilesMapping
-                    {
-                        { DeviceGroups.DefaultDeviceGroup, "Default" }
-                    }
-                };
-
-                if (Mappings.TryAddMapping(defaultMapping))
-                {
-                    // Set this as the active mapping
-                    if (Mappings.TryGetMapping("Default", out MappingModel? mapping) && mapping != null)
-                    {
-                        mapping.SetActive = true;
-                    }
-                }
+                    GroupsToProfiles = new DATA.Mapping.GroupsToProfilesMapping(),
+                });
             }
 
-            // Ensure at least one mapping has SetActive = true
+            // Explicitly wire the DefaultDeviceGroup -> "Default" profile entry.
+            // Idempotent via MappingModel.TryAddMapping's duplicate guard, so a
+            // freshly-created Default mapping AND a stale mapping that loaded
+            // with empty GroupsToProfiles both end up with one entry routing
+            // the default group to the default profile.
+            if (Mappings.TryGetMapping("Default", out MappingModel? defaultMapping) && defaultMapping != null)
+            {
+                defaultMapping.TryAddMapping(DeviceGroups.DefaultDeviceGroup, "Default");
+            }
+
+            // Ensure at least one mapping is active.
             if (Mappings.GetMappingToSetActive() == null && Mappings.Mappings.Count > 0)
             {
                 Mappings.Mappings[0].SetActive = true;
@@ -219,43 +222,65 @@ namespace userspace_backend
 
         public void Apply()
         {
+            logger.LogInformation("Apply clicked");
+
+            MappingModel? mappingToApply = Mappings.GetMappingToSetActive();
+            if (mappingToApply == null)
+            {
+                logger.LogWarning("Apply: no active mapping to apply");
+                WriteSettingsToDisk();
+                return;
+            }
+
+            DriverConfig? config = null;
             try
             {
-                LogDriverConfigDryRun();
+                config = MapToDriverConfig(mappingToApply);
+                LogDriverConfigSummary(mappingToApply, config);
+                LogDriverConfigJson(config);
             }
             catch (Exception ex)
             {
-                TryAppendDryRunLog($"ERROR building DriverConfig: {ex}");
+                logger.LogError(ex, "Apply: error building DriverConfig");
+            }
+
+            if (config != null)
+            {
+                try
+                {
+                    config.Activate();
+                    logger.LogInformation("Apply: driver.Activate() succeeded");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Apply: driver.Activate() failed");
+                }
             }
 
             WriteSettingsToDisk();
         }
 
-        private void LogDriverConfigDryRun()
+        private void LogDriverConfigSummary(MappingModel mapping, DriverConfig config)
         {
-            MappingModel? mappingToApply = Mappings.GetMappingToSetActive();
-            if (mappingToApply == null)
-            {
-                TryAppendDryRunLog("no active mapping to apply");
-                return;
-            }
-
-            DriverConfig config = MapToDriverConfig(mappingToApply);
             int profileCount = config.profiles?.Count ?? 0;
             int deviceCount = config.devices?.Count ?? 0;
 
-            TryAppendDryRunLog(
-                $"active mapping = {mappingToApply.Name?.ModelValue ?? "<unnamed>"}, " +
-                $"profiles = {profileCount}, devices = {deviceCount}");
+            logger.LogInformation(
+                "Apply: active mapping = {Mapping}, profiles = {ProfileCount}, devices = {DeviceCount}",
+                mapping.Name?.ModelValue ?? "<unnamed>",
+                profileCount,
+                deviceCount);
 
             if (config.profiles != null)
             {
                 foreach (Profile p in config.profiles)
                 {
-                    TryAppendDryRunLog(
-                        $"  profile: name={p.name} outputDPI={p.outputDPI} yxRatio={p.yxOutputDPIRatio} " +
-                        $"rotation={p.rotation} snap={p.snap} inputSpeedCap={p.maximumSpeed} " +
-                        $"accelModeX={p.argsX.mode} accelModeY={p.argsY.mode}");
+                    logger.LogInformation(
+                        "  profile: name={Name} outputDPI={OutputDPI} yxRatio={YxRatio} rotation={Rotation} " +
+                        "snap={Snap} inputSpeedCap={InputSpeedCap} accelModeX={AccelModeX} accelModeY={AccelModeY} " +
+                        "accelX={AccelX}",
+                        p.name, p.outputDPI, p.yxOutputDPIRatio, p.rotation, p.snap,
+                        p.maximumSpeed, p.argsX.mode, p.argsY.mode, p.argsX.acceleration);
                 }
             }
 
@@ -263,24 +288,25 @@ namespace userspace_backend
             {
                 foreach (DeviceSettings d in config.devices)
                 {
-                    TryAppendDryRunLog(
-                        $"  device: id={d.id} name={d.name} profile={d.profile} " +
-                        $"disable={d.config.disable} dpi={d.config.dpi} pollingRate={d.config.pollingRate}");
+                    logger.LogInformation(
+                        "  device: id={Id} name={Name} profile={Profile} disable={Disable} dpi={Dpi} pollingRate={PollingRate}",
+                        d.id, d.name, d.profile, d.config.disable, d.config.dpi, d.config.pollingRate);
                 }
             }
         }
 
-        private static void TryAppendDryRunLog(string message)
+        private void LogDriverConfigJson(DriverConfig config)
         {
             try
             {
-                string dir = Path.Combine(AppContext.BaseDirectory, "logs");
-                Directory.CreateDirectory(dir);
-                string path = Path.Combine(dir, "apply-dryrun.log");
-                File.AppendAllText(path, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}");
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(
+                    config,
+                    Newtonsoft.Json.Formatting.Indented);
+                logger.LogDebug("Apply: DriverConfig JSON{NewLine}{Json}", Environment.NewLine, json);
             }
-            catch
+            catch (Exception ex)
             {
+                logger.LogWarning(ex, "Apply: could not serialize DriverConfig to JSON");
             }
         }
 
@@ -292,20 +318,6 @@ namespace userspace_backend
                 Profiles.Elements);
 
             BackEndLoader.WriteSettings(Settings);
-        }
-
-        protected void WriteToDriver()
-        {
-            MappingModel mappingToApply = Mappings.GetMappingToSetActive();
-            DriverConfig config = MapToDriverConfig(mappingToApply);
-            try
-            {
-                config.Activate();
-            }
-            catch (Exception)
-            {
-                // Log this once logging is added
-            }
         }
 
         protected internal DriverConfig MapToDriverConfig(MappingModel mappingModel)

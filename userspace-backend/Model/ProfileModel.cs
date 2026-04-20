@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using userspace_backend.Common;
 using userspace_backend.Display;
 using userspace_backend.Model.AccelDefinitions;
@@ -43,6 +45,8 @@ namespace userspace_backend.Model
         public const string OutputDPIDIKey = $"{nameof(ProfileModel)}.{nameof(OutputDPI)}";
         public const string YXRatioDIKey = $"{nameof(ProfileModel)}.{nameof(YXRatio)}";
 
+        private readonly ILogger<ProfileModel> logger;
+
         public ProfileModel(
             [FromKeyedServices(NameDIKey)]IEditableSettingSpecific<string> name,
             [FromKeyedServices(OutputDPIDIKey)]IEditableSettingSpecific<int> outputDPI,
@@ -50,9 +54,11 @@ namespace userspace_backend.Model
             IAccelerationModel acceleration,
             IHiddenModel hidden,
             ICurvePreview xCurvePreview,
-            ICurvePreview yCurvePreview
+            ICurvePreview yCurvePreview,
+            ILogger<ProfileModel>? logger = null
             ) : base(name, [outputDPI, yxRatio], [acceleration, hidden])
         {
+            this.logger = logger ?? NullLogger<ProfileModel>.Instance;
             OutputDPI = outputDPI;
             YXRatio = yxRatio;
             Acceleration = acceleration;
@@ -109,6 +115,7 @@ namespace userspace_backend.Model
         {
             if (string.Equals(e.PropertyName, nameof(IEditableSettingSpecific<IComparable>.ModelValue)))
             {
+                logger.LogDebug("Non-preview ModelValue changed on {Sender}", send?.GetType().Name);
                 RecalculateDriverData();
             }
         }
@@ -117,12 +124,14 @@ namespace userspace_backend.Model
         {
             if (string.Equals(e.PropertyName, nameof(IEditableSettingSpecific<IComparable>.ModelValue)))
             {
+                logger.LogDebug("Curve-preview ModelValue changed on {Sender}", send?.GetType().Name);
                 RecalculateDriverDataAndCurvePreview();
             }
         }
 
         protected void AnyCurveSettingCollectionChangedEventHandler(object? sender, EventArgs e)
         {
+            logger.LogDebug("Curve-setting collection changed: {Sender}", sender?.GetType().Name);
             // All settings collections currently require curve preview to be re-generated
             RecalculateDriverDataAndCurvePreview();
         }
@@ -130,6 +139,12 @@ namespace userspace_backend.Model
         protected void RecalculateDriverData()
         {
             CurrentValidatedDriverProfile = DriverHelpers.MapProfileModelToDriver(this);
+            logger.LogDebug(
+                "RecalculateDriverData for profile {Name}: outputDPI={OutputDPI} argsX.mode={Mode} argsX.accel={Accel}",
+                Name?.ModelValue ?? "<unnamed>",
+                CurrentValidatedDriverProfile.outputDPI,
+                CurrentValidatedDriverProfile.argsX.mode,
+                CurrentValidatedDriverProfile.argsX.acceleration);
         }
 
         protected void RecalculateDriverDataAndCurvePreview()

@@ -51,7 +51,8 @@
 		</Style>
 	</UserControl.Styles>
 
-	<controls:EditableExpanderView Header="{ext:Localized ProfileSectionCoalescion}" HorizontalAlignment="Stretch" Margin="0,0,0,12">
+	<controls:EditableExpanderView Header="{ext:Localized ProfileSectionCoalescion}" HorizontalAlignment="Stretch" Margin="0,0,0,12"
+                                   PersistenceKey="Profile:Coalescion">
 		<controls:EditableExpanderView.ExpanderContent>
 			<StackPanel Orientation="Vertical" Margin="16" Spacing="12" x:Name="MainStackPanel">
 				<!-- The DualColumnLabelFieldView will be added in code-behind -->
