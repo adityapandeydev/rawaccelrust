@@ -18,6 +18,8 @@ using userinterface.ViewModels.Settings;
 using userinterface.Views;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
 using userspace_backend;
 using userspace_backend.IO;
 using userspace_backend.Logging;
@@ -38,6 +40,44 @@ public partial class App : Application
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool AllocConsole();
+
+    // Win32 constants for CreateFile.
+    private const uint GENERIC_WRITE = 0x40000000u;
+    private const uint GENERIC_READ = 0x80000000u;
+    private const uint FILE_SHARE_WRITE = 0x00000002u;
+    private const uint FILE_SHARE_READ = 0x00000001u;
+    private const uint OPEN_EXISTING = 3u;
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateFile(
+        string lpFileName,
+        uint dwDesiredAccess,
+        uint dwShareMode,
+        IntPtr lpSecurityAttributes,
+        uint dwCreationDisposition,
+        uint dwFlagsAndAttributes,
+        IntPtr hTemplateFile);
+
+    private static void AttachConsoleStreams()
+    {
+        // After AllocConsole, open CONOUT$ / CONIN$ directly. Bypasses the CLR's cached
+        // Stream.Null for Console.Out that was set when we started as a WinExe with no
+        // attached console. Console.SetOut with a writer over CONOUT$ is the canonical
+        // workaround for GUI-process logging.
+        var stdoutPtr = CreateFile("CONOUT$", GENERIC_WRITE, FILE_SHARE_WRITE, IntPtr.Zero,
+            OPEN_EXISTING, 0, IntPtr.Zero);
+        if (stdoutPtr != IntPtr.Zero && stdoutPtr.ToInt64() != -1)
+        {
+            var handle = new SafeFileHandle(stdoutPtr, ownsHandle: true);
+            var stream = new FileStream(handle, FileAccess.Write);
+            var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+            {
+                AutoFlush = true,
+            };
+            Console.SetOut(writer);
+            Console.SetError(writer);
+        }
+    }
 #endif
 
     public override void OnFrameworkInitializationCompleted()
@@ -45,6 +85,8 @@ public partial class App : Application
 #if DEBUG
         // Attach a console so backend ILogger output is visible alongside the UI window.
         AllocConsole();
+        AttachConsoleStreams();
+        Console.WriteLine("[DEBUG] console attached for backend logging");
 #endif
 
         var services = new ServiceCollection();
