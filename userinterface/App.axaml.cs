@@ -162,6 +162,20 @@ public partial class App : Application
 
             desktop.MainWindow = mainWindow;
 
+            // Persist backend state to disk on normal shutdown so edits survive restart
+            // without requiring an explicit Apply.
+            desktop.ShutdownRequested += (_, _) =>
+            {
+                try
+                {
+                    backEnd.SaveToDisk();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[SHUTDOWN] SaveToDisk failed: {ex.Message}");
+                }
+            };
+
             // Preload libraries that cause first-page stutter
             _ = PreloadLibrariesAsync();
 

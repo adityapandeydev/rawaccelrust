@@ -17,6 +17,8 @@ namespace userspace_backend
 
         void Apply();
 
+        void SaveToDisk();
+
         void ImportSystemDevices();
 
         void ReloadSystemDevices();
@@ -318,6 +320,19 @@ namespace userspace_backend
                 Profiles.Elements);
 
             BackEndLoader.WriteSettings(Settings);
+        }
+
+        public void SaveToDisk()
+        {
+            try
+            {
+                logger.LogInformation("SaveToDisk requested (no driver write)");
+                WriteSettingsToDisk();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "SaveToDisk failed");
+            }
         }
 
         protected internal DriverConfig MapToDriverConfig(MappingModel mappingModel)
