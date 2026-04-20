@@ -87,10 +87,6 @@ namespace userinterface.Views.Controls
             var keys = LocalizationKeys?.ToList() ?? new List<string>();
             var values = EnumValues?.ToList() ?? new List<string>();
 
-            // Remember the currently-selected EnumValue so it survives the Clear/re-add below;
-            // otherwise the auto-select-first-item path silently resets the selection to
-            // whatever happens to be index 0, which propagates through binding handlers and
-            // overwrites backend state on every RefreshItems().
             var priorEnumValue = (SelectedItem as LocalizedComboItem)?.EnumValue;
 
             localizedItems.Clear();

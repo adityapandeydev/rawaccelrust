@@ -13,11 +13,9 @@ internal sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        // Install global exception sinks BEFORE Avalonia starts so a crash during
-        // startup or on a worker thread still gets written to logs/crash.log before
-        // the process exits. This is belt-and-suspenders on top of the ILogger-based
-        // backend logger, which can miss exceptions that never cross the ILogger path
-        // (e.g. native faults in C++/CLI wrapper, chart rendering, etc.).
+        // This is for crash logging. It Installs global exception sinks BEFORE 
+        // Avalonia starts so a crash during startup or on a worker thread should still get 
+        // written to logs/crash.log before the process exits.
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             WriteCrashLog("AppDomain.UnhandledException", e.ExceptionObject as Exception);
 

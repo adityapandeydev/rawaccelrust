@@ -131,9 +131,6 @@ public partial class App : Application
 
         Services = BackEndComposer.Compose(services);
 
-        // Wire the ambient EditableSetting logger so every profile-tree
-        // commit (Output DPI, Y/X ratio, acceleration type, curve coefficients,
-        // hidden fields...) produces a log line.
         EditableSettingLog.Configure(Services.GetRequiredService<ILoggerFactory>());
 
         IBackEnd backEnd = Services.GetRequiredService<IBackEnd>();

@@ -39,9 +39,7 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
         AvaloniaProperty.Register<EditableExpanderView, bool>(nameof(IsExpanderEnabled), true);
 
     // A non-empty key causes the expander's open/closed state to persist across
-    // control teardowns (e.g., navigating away from a page and back). Keys are
-    // application-wide; choose something that uniquely identifies this expander's
-    // role (e.g., "Profile:Acceleration", "Device:{hwid}").
+    // control teardowns.
     public static readonly StyledProperty<string?> PersistenceKeyProperty =
         AvaloniaProperty.Register<EditableExpanderView, string?>(nameof(PersistenceKey));
 

@@ -205,11 +205,7 @@ namespace userspace_backend
                 });
             }
 
-            // Explicitly wire the DefaultDeviceGroup -> "Default" profile entry.
-            // Idempotent via MappingModel.TryAddMapping's duplicate guard, so a
-            // freshly-created Default mapping AND a stale mapping that loaded
-            // with empty GroupsToProfiles both end up with one entry routing
-            // the default group to the default profile.
+            // Explicitly wire the DefaultDeviceGroup to "Default" profile entry.
             if (Mappings.TryGetMapping("Default", out MappingModel? defaultMapping) && defaultMapping != null)
             {
                 defaultMapping.TryAddMapping(DeviceGroups.DefaultDeviceGroup, "Default");

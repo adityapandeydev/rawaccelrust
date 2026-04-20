@@ -6,11 +6,6 @@ using Microsoft.Extensions.Logging;
 
 namespace userspace_backend.Logging
 {
-    /// <summary>
-    /// Minimal ILoggerProvider that appends formatted log entries to a single
-    /// file. Thread-safe via a shared lock. No rotation, no size cap — this is
-    /// a diagnostic aid, not production telemetry.
-    /// </summary>
     public sealed class FileLoggerProvider : ILoggerProvider
     {
         private readonly string filePath;

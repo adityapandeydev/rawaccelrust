@@ -17,11 +17,6 @@ namespace userinterface.ViewModels.Profile
 
         protected BE.IProfileModel ProfileModelBE { get; private set; } = null!;
 
-        /// <summary>
-        /// The backend profile this VM wraps. Used by ProfilesPageViewModel to
-        /// match clicks by reference (name-based matching was fragile / silently fell
-        /// back to the first VM on miss, causing the content area not to swap).
-        /// </summary>
         public BE.IProfileModel? BackEndModel => ProfileModelBE;
 
         public string CurrentName => ProfileModelBE?.Name.CurrentValidatedValue ?? string.Empty;

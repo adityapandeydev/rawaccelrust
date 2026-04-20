@@ -45,11 +45,6 @@ namespace userinterface.ViewModels.Profile
 
             profileListView.SelectedProfileChanged += OnProfileSelectionChanged;
 
-            // Keep our VM list in sync as the backend profiles collection changes.
-            // Without this, profiles added/removed after this VM was constructed
-            // (e.g. user clicks "Add Profile") never get a corresponding VM here,
-            // so clicking them in the list has no matching target and the main
-            // content area refuses to swap.
             if (profilesModel.Profiles is INotifyCollectionChanged notifier)
             {
                 notifier.CollectionChanged += OnProfilesCollectionChanged;
@@ -145,11 +140,6 @@ namespace userinterface.ViewModels.Profile
                 return;
             }
 
-            // Reference-based match: ProfileViewModels were built from the same
-            // IProfilesModel.Profiles collection that the click handler just
-            // produced, so reference equality is unambiguous. Name-based matching
-            // used to silently fall back to ProfileViewModels[0] on any miss,
-            // which hid a broken selection as "content never swaps".
             var match = ProfileViewModels.FirstOrDefault(p => ReferenceEquals(p.BackEndModel, currentProfile));
             if (match != null)
             {
