@@ -35,9 +35,11 @@ namespace userspace_backend
     public class BackEnd : IBackEnd
     {
         private readonly ILogger<BackEnd> logger;
+        private readonly IDriverConfigActivator driverConfigActivator;
 
         public BackEnd(
             IBackEndLoader backEndLoader,
+            IDriverConfigActivator driverConfigActivator,
             IProfilesModel profilesModel,
             DevicesModel devicesModel,
             MappingsModel mappingsModel,
@@ -45,6 +47,7 @@ namespace userspace_backend
             ILogger<BackEnd>? logger = null)
         {
             BackEndLoader = backEndLoader;
+            this.driverConfigActivator = driverConfigActivator;
             Devices = devicesModel;
             Mappings = mappingsModel;
             Profiles = profilesModel;
@@ -246,7 +249,7 @@ namespace userspace_backend
             {
                 try
                 {
-                    config.Activate();
+                    driverConfigActivator.Write(config);
                     logger.LogInformation("Apply: driver.Activate() succeeded");
                 }
                 catch (Exception ex)
@@ -331,7 +334,7 @@ namespace userspace_backend
             }
         }
 
-        protected internal DriverConfig MapToDriverConfig(MappingModel mappingModel)
+        protected DriverConfig MapToDriverConfig(MappingModel mappingModel)
         {
             IEnumerable<DeviceSettings> configDevices = MapToDriverDevices(mappingModel);
             IEnumerable<Profile> configProfiles = MapToDriverProfiles(mappingModel);

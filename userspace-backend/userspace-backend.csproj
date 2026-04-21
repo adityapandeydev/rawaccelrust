@@ -21,8 +21,4 @@
     <ProjectReference Include="..\wrapper\wrapper.vcxproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="userspace-backend-tests" />
-  </ItemGroup>
-
 </Project>

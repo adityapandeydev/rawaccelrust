@@ -56,7 +56,20 @@ namespace userspace_backend_tests.ModelTests
             public string HWID { get; init; } = string.Empty;
         }
 
-        private static IBackEnd BuildBackEndWithDefaults(IList<ISystemDevice>? systemDevices = null)
+        private sealed class CapturingDriverConfigActivator : IDriverConfigActivator
+        {
+            public DriverConfig? CapturedConfig { get; private set; }
+            public int WriteCount { get; private set; }
+
+            public void Write(DriverConfig config)
+            {
+                CapturedConfig = config;
+                WriteCount++;
+            }
+        }
+
+        private static (IBackEnd backEnd, CapturingDriverConfigActivator activator) BuildBackEndWithDefaults(
+            IList<ISystemDevice>? systemDevices = null)
         {
             var services = new ServiceCollection();
             services.AddSingleton<IBackEndLoader>(new StubBackEndLoader());
@@ -65,27 +78,26 @@ namespace userspace_backend_tests.ModelTests
             {
                 Devices = systemDevices ?? new List<ISystemDevice>(),
             });
+            var activator = new CapturingDriverConfigActivator();
+            services.AddSingleton<IDriverConfigActivator>(activator);
 
             var sp = BackEndComposer.Compose(services);
             var backEnd = sp.GetRequiredService<IBackEnd>();
             backEnd.Load();
-            return backEnd;
+            return (backEnd, activator);
         }
 
-        private static DriverConfig BuildActiveDriverConfig(IBackEnd backEnd)
+        private static DriverConfig ApplyAndCapture(IBackEnd backEnd, CapturingDriverConfigActivator activator)
         {
-            // MapToDriverConfig is `protected internal`; visible via
-            // [InternalsVisibleTo("userspace-backend-tests")] on userspace-backend.
-            var concrete = (BackEnd)backEnd;
-            var mapping = concrete.Mappings.GetMappingToSetActive();
-            Assert.IsNotNull(mapping, "No active mapping found; EnsureDefaultMappingExists should have seeded one.");
-            return concrete.MapToDriverConfig(mapping);
+            backEnd.Apply();
+            Assert.IsNotNull(activator.CapturedConfig, "Apply should have written a DriverConfig to the activator.");
+            return activator.CapturedConfig!;
         }
 
         [TestMethod]
         public void EnsureDefaultMapping_FreshInstall_CreatesMappingWithDefaultEntry()
         {
-            var backEnd = BuildBackEndWithDefaults();
+            var (backEnd, activator) = BuildBackEndWithDefaults();
 
             Assert.IsTrue(
                 backEnd.Mappings.TryGetMapping("Default", out MappingModel? mapping) && mapping != null,
@@ -96,7 +108,7 @@ namespace userspace_backend_tests.ModelTests
             Assert.AreEqual(DeviceGroups.DefaultDeviceGroup, mapping.IndividualMappings[0].DeviceGroup);
             Assert.AreEqual("Default", mapping.IndividualMappings[0].Profile.Name.ModelValue);
 
-            var cfg = BuildActiveDriverConfig(backEnd);
+            var cfg = ApplyAndCapture(backEnd, activator);
             Assert.AreEqual(1, cfg.profiles.Count);
             Assert.AreEqual(1, cfg.devices.Count);
         }
@@ -109,6 +121,8 @@ namespace userspace_backend_tests.ModelTests
             var services = new ServiceCollection();
             services.AddSingleton<IBackEndLoader>(staleLoader);
             services.AddSingleton<ISystemDevicesRetriever>(new StubSystemDevicesRetriever());
+            var activator = new CapturingDriverConfigActivator();
+            services.AddSingleton<IDriverConfigActivator>(activator);
             var sp = BackEndComposer.Compose(services);
             var backEnd = sp.GetRequiredService<IBackEnd>();
             backEnd.Load();
@@ -120,7 +134,7 @@ namespace userspace_backend_tests.ModelTests
                 1, mapping!.IndividualMappings.Count,
                 "Stale empty Default mapping must self-heal to one DefaultDeviceGroup -> Default entry.");
 
-            var cfg = BuildActiveDriverConfig(backEnd);
+            var cfg = ApplyAndCapture(backEnd, activator);
             Assert.AreEqual(1, cfg.profiles.Count);
             Assert.AreEqual(1, cfg.devices.Count);
         }
@@ -154,8 +168,8 @@ namespace userspace_backend_tests.ModelTests
         [TestMethod]
         public void Apply_DefaultState_ProducesOneProfileAndOneDevice()
         {
-            var backEnd = BuildBackEndWithDefaults();
-            var cfg = BuildActiveDriverConfig(backEnd);
+            var (backEnd, activator) = BuildBackEndWithDefaults();
+            var cfg = ApplyAndCapture(backEnd, activator);
 
             Assert.AreEqual(1, cfg.profiles.Count, "Expected exactly one profile in the DriverConfig.");
             Assert.AreEqual(1, cfg.devices.Count, "Expected exactly one device in the DriverConfig.");
@@ -169,8 +183,8 @@ namespace userspace_backend_tests.ModelTests
         [TestMethod]
         public void Apply_DefaultState_DeviceReferencesDefaultProfileByName()
         {
-            var backEnd = BuildBackEndWithDefaults();
-            var cfg = BuildActiveDriverConfig(backEnd);
+            var (backEnd, activator) = BuildBackEndWithDefaults();
+            var cfg = ApplyAndCapture(backEnd, activator);
 
             var device = cfg.devices[0];
             var profile = cfg.profiles[0];
@@ -183,25 +197,25 @@ namespace userspace_backend_tests.ModelTests
         [TestMethod]
         public void Apply_ProfileOutputDpiEdit_FlowsIntoDriverConfig()
         {
-            var backEnd = BuildBackEndWithDefaults();
+            var (backEnd, activator) = BuildBackEndWithDefaults();
             var profile = backEnd.Profiles.Elements[0];
 
             Assert.IsTrue(profile.OutputDPI.TryUpdateModelDirectly(1600), "OutputDPI update should succeed.");
 
-            var cfg = BuildActiveDriverConfig(backEnd);
+            var cfg = ApplyAndCapture(backEnd, activator);
             Assert.AreEqual(1600, cfg.profiles[0].outputDPI);
         }
 
         [TestMethod]
         public void Apply_DeviceDpiEdit_DoesNotAffectPollingRate()
         {
-            var backEnd = BuildBackEndWithDefaults();
+            var (backEnd, activator) = BuildBackEndWithDefaults();
             var device = backEnd.Devices.Elements[0];
 
             Assert.IsTrue(device.DPI.TryUpdateModelDirectly(3200), "DPI update should succeed.");
             Assert.IsTrue(device.PollRate.TryUpdateModelDirectly(500), "PollRate update should succeed.");
 
-            var cfg = BuildActiveDriverConfig(backEnd);
+            var cfg = ApplyAndCapture(backEnd, activator);
             Assert.AreEqual(3200, cfg.devices[0].config.dpi);
             Assert.AreEqual(500, cfg.devices[0].config.pollingRate);
         }
@@ -215,7 +229,7 @@ namespace userspace_backend_tests.ModelTests
                 new StubSystemDevice { Name = "Razer DeathAdder",  HWID = @"HID\VID_1532&PID_0084" },
             };
 
-            var backEnd = BuildBackEndWithDefaults(systemDevices);
+            var (backEnd, _) = BuildBackEndWithDefaults(systemDevices);
             backEnd.ImportSystemDevices();
 
             // EnsureDefaultDeviceExists skipped the "Default" placeholder because system devices
@@ -243,7 +257,7 @@ namespace userspace_backend_tests.ModelTests
                 new StubSystemDevice { Name = "Preloaded Mouse", HWID = @"HID\VID_9999&PID_0001" },
             };
 
-            var backEnd = BuildBackEndWithDefaults(systemDevices);
+            var (backEnd, _) = BuildBackEndWithDefaults(systemDevices);
             backEnd.ImportSystemDevices();
             Assert.AreEqual(1, backEnd.Devices.Elements.Count);
 
@@ -266,6 +280,7 @@ namespace userspace_backend_tests.ModelTests
             services.AddSingleton<IBackEndLoader>(new StubBackEndLoader());
             var retrieverStub = new StubSystemDevicesRetriever { Devices = initial };
             services.AddSingleton<ISystemDevicesRetriever>(retrieverStub);
+            services.AddSingleton<IDriverConfigActivator>(new CapturingDriverConfigActivator());
 
             var sp = BackEndComposer.Compose(services);
             var backEnd = sp.GetRequiredService<IBackEnd>();
@@ -297,8 +312,8 @@ namespace userspace_backend_tests.ModelTests
             // the currently-selected curve sub-model (Formula -> Classic -> Acceleration)
             // must propagate through EditableSettingsSelector.AnySettingChanged up to
             // ProfileModel.RecalculateDriverData so CurrentValidatedDriverProfile refreshes
-            // before BackEnd.MapToDriverConfig reads it.
-            var backEnd = BuildBackEndWithDefaults();
+            // before BackEnd.Apply() reads it via MapToDriverConfig.
+            var (backEnd, activator) = BuildBackEndWithDefaults();
             var profile = backEnd.Profiles.Elements[0];
 
             Assert.IsTrue(
@@ -322,7 +337,7 @@ namespace userspace_backend_tests.ModelTests
                 classic.Acceleration.TryUpdateModelDirectly(expectedAcceleration),
                 "Classic.Acceleration update should succeed.");
 
-            var cfg = BuildActiveDriverConfig(backEnd);
+            var cfg = ApplyAndCapture(backEnd, activator);
             Assert.AreEqual(AccelMode.classic, cfg.profiles[0].argsX.mode,
                 "DriverConfig should reflect the chosen Classic formula.");
             Assert.AreEqual(expectedAcceleration, cfg.profiles[0].argsX.acceleration,
@@ -343,7 +358,7 @@ namespace userspace_backend_tests.ModelTests
                 new StubSystemDevice { Name = "RealMouseName", HWID = @"HID\VID_1234&PID_5678" },
             };
 
-            var backEnd = BuildBackEndWithDefaults(systemDevices);
+            var (backEnd, _) = BuildBackEndWithDefaults(systemDevices);
             backEnd.ImportSystemDevices();
 
             var imported = backEnd.Devices.Elements.Single();

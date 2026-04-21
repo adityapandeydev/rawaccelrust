@@ -588,6 +588,8 @@ namespace userspace_backend
 
             services.AddSingleton<IProfilesModel, ProfilesModel>();
 
+            services.TryAddSingleton<IDriverConfigActivator, DriverConfigActivator>();
+
             services.AddSingleton<IBackEnd, BackEnd>();
 
             #endregion BackEnd
