@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using userspace_backend.Data.Profiles;
 using userspace_backend.IO;
 using userspace_backend.Model;
@@ -15,6 +17,12 @@ namespace userspace_backend
 
         void Apply();
 
+        void SaveToDisk();
+
+        void ImportSystemDevices();
+
+        void ReloadSystemDevices();
+
         DevicesModel Devices { get; }
 
         MappingsModel Mappings { get; }
@@ -26,18 +34,25 @@ namespace userspace_backend
 
     public class BackEnd : IBackEnd
     {
+        private readonly ILogger<BackEnd> logger;
+        private readonly IDriverConfigActivator driverConfigActivator;
+
         public BackEnd(
             IBackEndLoader backEndLoader,
+            IDriverConfigActivator driverConfigActivator,
             IProfilesModel profilesModel,
             DevicesModel devicesModel,
             MappingsModel mappingsModel,
-            IServiceProvider serviceProvider)
+            IServiceProvider serviceProvider,
+            ILogger<BackEnd>? logger = null)
         {
             BackEndLoader = backEndLoader;
+            this.driverConfigActivator = driverConfigActivator;
             Devices = devicesModel;
             Mappings = mappingsModel;
             Profiles = profilesModel;
             ServiceProvider = serviceProvider;
+            this.logger = logger ?? NullLogger<BackEnd>.Instance;
         }
 
         public DevicesModel Devices { get; set; }
@@ -102,17 +117,72 @@ namespace userspace_backend
 
         protected void EnsureDefaultDeviceExists()
         {
-            // If no devices exist, create a default device
-            if (Devices.Elements.Count == 0)
+            if (Devices.Elements.Count > 0)
             {
-                var defaultDevice = ServiceProvider.GetRequiredService<IDeviceModel>();
-                defaultDevice.Name.TryUpdateModelDirectly("Default");
-                defaultDevice.HardwareID.TryUpdateModelDirectly("DEFAULT_DEVICE_ID");
-                defaultDevice.DeviceGroup.TryUpdateModelDirectly(DeviceGroups.DefaultDeviceGroup);
-                // DPI, PollRate, and Ignore already have sensible defaults from DI (1000, 1000, false)
-
-                Devices.TryInsert(0, defaultDevice);
+                return;
             }
+
+            // When the OS reports connected input devices, skip the placeholder:
+            // ImportSystemDevices will populate real devices instead.
+            if (Devices.SystemDevices.SystemDevices.Count > 0)
+            {
+                return;
+            }
+
+            var defaultDevice = ServiceProvider.GetRequiredService<IDeviceModel>();
+            defaultDevice.Name.TryUpdateModelDirectly("Default");
+            defaultDevice.HardwareID.TryUpdateModelDirectly("DEFAULT_DEVICE_ID");
+            defaultDevice.DeviceGroup.TryUpdateModelDirectly(DeviceGroups.DefaultDeviceGroup);
+            // DPI, PollRate, and Ignore already have sensible defaults from DI (1000, 1000, false)
+
+            Devices.TryInsert(0, defaultDevice);
+        }
+
+        public void ImportSystemDevices()
+        {
+            foreach (var systemDevice in Devices.SystemDevices.SystemDevices)
+            {
+                if (string.IsNullOrEmpty(systemDevice.HWID))
+                {
+                    continue;
+                }
+
+                bool alreadyPresent = Devices.Elements.Any(d =>
+                    string.Equals(d.HardwareID.ModelValue, systemDevice.HWID, StringComparison.OrdinalIgnoreCase));
+                if (alreadyPresent)
+                {
+                    continue;
+                }
+
+                var device = ServiceProvider.GetRequiredService<IDeviceModel>();
+                device.Name.TryUpdateModelDirectly(systemDevice.Name);
+                device.HardwareID.TryUpdateModelDirectly(systemDevice.HWID);
+                device.DeviceGroup.TryUpdateModelDirectly(DeviceGroups.DefaultDeviceGroup);
+                // DPI / PollRate / Ignore keep their DI-provided defaults.
+                Devices.TryAdd(device);
+            }
+        }
+
+        public void ReloadSystemDevices()
+        {
+            Devices.SystemDevices.RefreshSystemDevices();
+
+            var connectedHwids = new HashSet<string>(
+                Devices.SystemDevices.SystemDevices
+                    .Select(sd => sd.HWID ?? string.Empty)
+                    .Where(h => !string.IsNullOrEmpty(h)),
+                StringComparer.OrdinalIgnoreCase);
+
+            var toRemove = Devices.Elements
+                .Where(d => !connectedHwids.Contains(d.HardwareID.ModelValue ?? string.Empty))
+                .ToList();
+
+            foreach (var device in toRemove)
+            {
+                Devices.TryRemoveElement(device);
+            }
+
+            ImportSystemDevices();
         }
 
         protected void EnsureDefaultProfileExists()
@@ -128,29 +198,23 @@ namespace userspace_backend
 
         protected void EnsureDefaultMappingExists()
         {
-            // If no mappings exist, create a default mapping
-            if (Mappings.Mappings.Count == 0)
+            // Ensure a Default mapping object exists in the list.
+            if (!Mappings.TryGetMapping("Default", out _))
             {
-                var defaultMapping = new DATA.Mapping
+                Mappings.TryAddMapping(new DATA.Mapping
                 {
                     Name = "Default",
-                    GroupsToProfiles = new DATA.Mapping.GroupsToProfilesMapping
-                    {
-                        { DeviceGroups.DefaultDeviceGroup, "Default" }
-                    }
-                };
-
-                if (Mappings.TryAddMapping(defaultMapping))
-                {
-                    // Set this as the active mapping
-                    if (Mappings.TryGetMapping("Default", out MappingModel? mapping) && mapping != null)
-                    {
-                        mapping.SetActive = true;
-                    }
-                }
+                    GroupsToProfiles = new DATA.Mapping.GroupsToProfilesMapping(),
+                });
             }
 
-            // Ensure at least one mapping has SetActive = true
+            // Explicitly wire the DefaultDeviceGroup to "Default" profile entry.
+            if (Mappings.TryGetMapping("Default", out MappingModel? defaultMapping) && defaultMapping != null)
+            {
+                defaultMapping.TryAddMapping(DeviceGroups.DefaultDeviceGroup, "Default");
+            }
+
+            // Ensure at least one mapping is active.
             if (Mappings.GetMappingToSetActive() == null && Mappings.Mappings.Count > 0)
             {
                 Mappings.Mappings[0].SetActive = true;
@@ -159,16 +223,92 @@ namespace userspace_backend
 
         public void Apply()
         {
-            try
+            logger.LogInformation("Apply clicked");
+
+            MappingModel? mappingToApply = Mappings.GetMappingToSetActive();
+            if (mappingToApply == null)
             {
-                // WriteToDriver();
-            }
-            catch (Exception)
-            {
+                logger.LogWarning("Apply: no active mapping to apply");
+                WriteSettingsToDisk();
                 return;
             }
 
+            DriverConfig? config = null;
+            try
+            {
+                config = MapToDriverConfig(mappingToApply);
+                LogDriverConfigSummary(mappingToApply, config);
+                LogDriverConfigJson(config);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Apply: error building DriverConfig");
+            }
+
+            if (config != null)
+            {
+                try
+                {
+                    driverConfigActivator.Write(config);
+                    logger.LogInformation("Apply: driver.Activate() succeeded");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Apply: driver.Activate() failed");
+                }
+            }
+
             WriteSettingsToDisk();
+        }
+
+        private void LogDriverConfigSummary(MappingModel mapping, DriverConfig config)
+        {
+            int profileCount = config.profiles?.Count ?? 0;
+            int deviceCount = config.devices?.Count ?? 0;
+
+            logger.LogInformation(
+                "Apply: active mapping = {Mapping}, profiles = {ProfileCount}, devices = {DeviceCount}",
+                mapping.Name?.ModelValue ?? "<unnamed>",
+                profileCount,
+                deviceCount);
+
+            if (config.profiles != null)
+            {
+                foreach (Profile p in config.profiles)
+                {
+                    logger.LogInformation(
+                        "  profile: name={Name} outputDPI={OutputDPI} yxRatio={YxRatio} rotation={Rotation} " +
+                        "snap={Snap} inputSpeedCap={InputSpeedCap} accelModeX={AccelModeX} accelModeY={AccelModeY} " +
+                        "accelX={AccelX}",
+                        p.name, p.outputDPI, p.yxOutputDPIRatio, p.rotation, p.snap,
+                        p.maximumSpeed, p.argsX.mode, p.argsY.mode, p.argsX.acceleration);
+                }
+            }
+
+            if (config.devices != null)
+            {
+                foreach (DeviceSettings d in config.devices)
+                {
+                    logger.LogInformation(
+                        "  device: id={Id} name={Name} profile={Profile} disable={Disable} dpi={Dpi} pollingRate={PollingRate}",
+                        d.id, d.name, d.profile, d.config.disable, d.config.dpi, d.config.pollingRate);
+                }
+            }
+        }
+
+        private void LogDriverConfigJson(DriverConfig config)
+        {
+            try
+            {
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(
+                    config,
+                    Newtonsoft.Json.Formatting.Indented);
+                logger.LogDebug("Apply: DriverConfig JSON{NewLine}{Json}", Environment.NewLine, json);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Apply: could not serialize DriverConfig to JSON");
+            }
         }
 
         protected void WriteSettingsToDisk()
@@ -181,17 +321,16 @@ namespace userspace_backend
             BackEndLoader.WriteSettings(Settings);
         }
 
-        protected void WriteToDriver()
+        public void SaveToDisk()
         {
-            MappingModel mappingToApply = Mappings.GetMappingToSetActive();
-            DriverConfig config = MapToDriverConfig(mappingToApply);
             try
             {
-                config.Activate();
+                logger.LogInformation("SaveToDisk requested (no driver write)");
+                WriteSettingsToDisk();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log this once logging is added
+                logger.LogError(ex, "SaveToDisk failed");
             }
         }
 

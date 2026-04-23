@@ -6,6 +6,7 @@ using System.Windows.Input;
 using userinterface.Commands;
 using userinterface.Services;
 using userinterface.Views.Device;
+using userspace_backend;
 using BE = userspace_backend.Model;
 
 namespace userinterface.ViewModels.Device
@@ -15,18 +16,20 @@ namespace userinterface.ViewModels.Device
         private DevicesListView? devicesListView;
         private readonly IModalService modalService;
         private readonly LocalizationService localizationService;
+        private readonly IBackEnd backEnd;
 
-        public DevicesListViewModel(BE.DevicesModel devicesBE, IModalService modalService, LocalizationService localizationService)
+        public DevicesListViewModel(IBackEnd backEnd, IModalService modalService, LocalizationService localizationService)
         {
-            DevicesBE = devicesBE;
+            this.backEnd = backEnd;
+            DevicesBE = backEnd.Devices;
             this.modalService = modalService;
             this.localizationService = localizationService;
             DeviceViews = [];
             UpdateDeviceViews();
             ((INotifyCollectionChanged)DevicesBE.Elements).CollectionChanged += DevicesCollectionChanged;
 
-            AddDeviceCommand = new RelayCommand(
-                () => TryAddDevice());
+            ReloadDevicesCommand = new RelayCommand(
+                () => ReloadDevices());
         }
 
         protected BE.DevicesModel DevicesBE { get; }
@@ -35,7 +38,7 @@ namespace userinterface.ViewModels.Device
 
         public ObservableCollection<DeviceViewModel> DeviceViews { get; }
 
-        public ICommand AddDeviceCommand { get; }
+        public ICommand ReloadDevicesCommand { get; }
 
         public void SetView(DevicesListView view)
         {
@@ -94,6 +97,6 @@ namespace userinterface.ViewModels.Device
             }
         }
 
-        public bool TryAddDevice() => DevicesBE.TryAddNewDefault();
+        public void ReloadDevices() => backEnd.ReloadSystemDevices();
     }
 }

@@ -38,6 +38,14 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
     public static readonly StyledProperty<bool> IsExpanderEnabledProperty =
         AvaloniaProperty.Register<EditableExpanderView, bool>(nameof(IsExpanderEnabled), true);
 
+    // A non-empty key causes the expander's open/closed state to persist across
+    // control teardowns.
+    public static readonly StyledProperty<string?> PersistenceKeyProperty =
+        AvaloniaProperty.Register<EditableExpanderView, string?>(nameof(PersistenceKey));
+
+    private static readonly Dictionary<string, bool> PersistedExpansionStates = new();
+    private bool initialPersistedStateApplied;
+
     private int AngleValue;
     private CancellationTokenSource? HoverDelayCancellationTokenSource;
     private bool IsDisposedValue;
@@ -74,6 +82,12 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
         set => SetValue(IsExpanderEnabledProperty, value);
     }
 
+    public string? PersistenceKey
+    {
+        get => GetValue(PersistenceKeyProperty);
+        set => SetValue(PersistenceKeyProperty, value);
+    }
+
     public int Angle
     {
         get => AngleValue;
@@ -85,6 +99,25 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
         InitializeComponent();
 
         this.PropertyChanged += OnSelfPropertyChanged;
+        Loaded += OnExpanderLoaded;
+    }
+
+    private void OnExpanderLoaded(object? sender, RoutedEventArgs e)
+    {
+        // Apply persisted state once bindings have resolved (PersistenceKey is
+        // usually bound to a VM property and isn't available in the constructor).
+        if (initialPersistedStateApplied)
+        {
+            return;
+        }
+
+        var key = PersistenceKey;
+        if (!string.IsNullOrEmpty(key) && PersistedExpansionStates.TryGetValue(key, out bool stored))
+        {
+            IsExpanded = stored;
+        }
+
+        initialPersistedStateApplied = true;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -98,6 +131,14 @@ public partial class EditableExpanderView : UserControl, INotifyPropertyChanged,
         else if (change.Property == IsExpandedProperty)
         {
             UpdateExpandedState();
+
+            // Persist toggles only after the initial hydration so we don't stomp on
+            // storage with a default/XAML value during construction.
+            var key = PersistenceKey;
+            if (initialPersistedStateApplied && !string.IsNullOrEmpty(key))
+            {
+                PersistedExpansionStates[key] = (bool)change.NewValue!;
+            }
         }
     }
 

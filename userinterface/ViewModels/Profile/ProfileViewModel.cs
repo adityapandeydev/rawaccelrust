@@ -17,6 +17,8 @@ namespace userinterface.ViewModels.Profile
 
         protected BE.IProfileModel ProfileModelBE { get; private set; } = null!;
 
+        public BE.IProfileModel? BackEndModel => ProfileModelBE;
+
         public string CurrentName => ProfileModelBE?.Name.CurrentValidatedValue ?? string.Empty;
 
         public ProfileSettingsViewModel Settings { get; private set; } = null!;

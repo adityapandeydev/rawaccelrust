@@ -16,8 +16,13 @@ using userinterface.ViewModels;
 using userinterface.ViewModels.Controls;
 using userinterface.ViewModels.Settings;
 using userinterface.Views;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
 using userspace_backend;
 using userspace_backend.IO;
+using userspace_backend.Logging;
 using DATA = userspace_backend.Data;
 
 namespace userinterface;
@@ -31,17 +36,71 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
     }
 
+#if DEBUG
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllocConsole();
+
+    // Win32 constants for CreateFile.
+    private const uint GENERIC_WRITE = 0x40000000u;
+    private const uint GENERIC_READ = 0x80000000u;
+    private const uint FILE_SHARE_WRITE = 0x00000002u;
+    private const uint FILE_SHARE_READ = 0x00000001u;
+    private const uint OPEN_EXISTING = 3u;
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateFile(
+        string lpFileName,
+        uint dwDesiredAccess,
+        uint dwShareMode,
+        IntPtr lpSecurityAttributes,
+        uint dwCreationDisposition,
+        uint dwFlagsAndAttributes,
+        IntPtr hTemplateFile);
+
+    private static void AttachConsoleStreams()
+    {
+        // After AllocConsole, open CONOUT$ / CONIN$ directly. Bypasses the CLR's cached
+        // Stream.Null for Console.Out that was set when we started as a WinExe with no
+        // attached console. Console.SetOut with a writer over CONOUT$ is the canonical
+        // workaround for GUI-process logging.
+        var stdoutPtr = CreateFile("CONOUT$", GENERIC_WRITE, FILE_SHARE_WRITE, IntPtr.Zero,
+            OPEN_EXISTING, 0, IntPtr.Zero);
+        if (stdoutPtr != IntPtr.Zero && stdoutPtr.ToInt64() != -1)
+        {
+            var handle = new SafeFileHandle(stdoutPtr, ownsHandle: true);
+            var stream = new FileStream(handle, FileAccess.Write);
+            var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+            {
+                AutoFlush = true,
+            };
+            Console.SetOut(writer);
+            Console.SetError(writer);
+        }
+    }
+#endif
+
     public override void OnFrameworkInitializationCompleted()
     {
+#if DEBUG
+        // Attach a console so backend ILogger output is visible alongside the UI window.
+        AllocConsole();
+        AttachConsoleStreams();
+        Console.WriteLine("[DEBUG] console attached for backend logging");
+#endif
+
         var services = new ServiceCollection();
 
+        string logFilePath = Path.Combine(AppContext.BaseDirectory, "logs", "backend.log");
         services.AddLogging(builder =>
         {
+            builder.AddConsole();
+            builder.AddProvider(new FileLoggerProvider(logFilePath));
 #if DEBUG
             builder.AddDebug();
-            builder.SetMinimumLevel(LogLevel.Warning);
+            builder.SetMinimumLevel(LogLevel.Debug);
 #else
-            builder.SetMinimumLevel(LogLevel.Warning);
+            builder.SetMinimumLevel(LogLevel.Information);
 #endif
         });
 
@@ -72,8 +131,11 @@ public partial class App : Application
 
         Services = BackEndComposer.Compose(services);
 
+        EditableSettingLog.Configure(Services.GetRequiredService<ILoggerFactory>());
+
         IBackEnd backEnd = Services.GetRequiredService<IBackEnd>();
         backEnd.Load();
+        backEnd.ImportSystemDevices();
 
         ApplyStartupSettings();
 
@@ -96,6 +158,20 @@ public partial class App : Application
             }
 
             desktop.MainWindow = mainWindow;
+
+            // Persist backend state to disk on normal shutdown so edits survive restart
+            // without requiring an explicit Apply.
+            desktop.ShutdownRequested += (_, _) =>
+            {
+                try
+                {
+                    backEnd.SaveToDisk();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[SHUTDOWN] SaveToDisk failed: {ex.Message}");
+                }
+            };
 
             // Preload libraries that cause first-page stutter
             _ = PreloadLibrariesAsync();
@@ -130,7 +206,7 @@ public partial class App : Application
                 provider.GetRequiredService<LocalizationService>()));
         services.AddTransient<ViewModels.Device.DevicesListViewModel>(provider =>
             new ViewModels.Device.DevicesListViewModel(
-                provider.GetRequiredService<IBackEnd>().Devices,
+                provider.GetRequiredService<IBackEnd>(),
                 provider.GetRequiredService<IModalService>(),
                 provider.GetRequiredService<LocalizationService>()));
         services.AddTransient<ViewModels.Device.DeviceGroupsViewModel>();

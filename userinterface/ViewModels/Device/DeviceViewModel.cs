@@ -43,6 +43,8 @@ namespace userinterface.ViewModels.Device
 
         public bool IsDefaultDevice { get; }
 
+        public string PersistenceKey => $"Device:{DeviceBE.HardwareID.ModelValue}";
+
         private Func<DeviceViewModel, Task>? AnimatedDeleteCallback { get; }
 
         public NamedEditableFieldViewModel NameField { get; set; }

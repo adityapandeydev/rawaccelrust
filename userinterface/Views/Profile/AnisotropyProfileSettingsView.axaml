@@ -43,7 +43,8 @@
 		</Style>
 	</UserControl.Styles>
 
-	<controls:EditableExpanderView Header="{ext:Localized ProfileSectionAnisotropy}">
+	<controls:EditableExpanderView Header="{ext:Localized ProfileSectionAnisotropy}"
+                                   PersistenceKey="Profile:Anisotropy">
 		<controls:EditableExpanderView.ExpanderContent>
 			<StackPanel Margin="16" Spacing="16">
 

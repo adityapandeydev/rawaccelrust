@@ -87,6 +87,8 @@ namespace userinterface.Views.Controls
             var keys = LocalizationKeys?.ToList() ?? new List<string>();
             var values = EnumValues?.ToList() ?? new List<string>();
 
+            var priorEnumValue = (SelectedItem as LocalizedComboItem)?.EnumValue;
+
             localizedItems.Clear();
 
             if (keys.Count == 0 || values.Count == 0 || keys.Count != values.Count)
@@ -102,8 +104,13 @@ namespace userinterface.Views.Controls
                 });
             }
 
-            // Auto-select first item if nothing is selected
-            if (localizedItems.Count > 0 && SelectedItem == null)
+            // Prefer restoring the prior selection; fall back to first item when there was none.
+            if (priorEnumValue != null)
+            {
+                SelectedItem = localizedItems.FirstOrDefault(it => it.EnumValue == priorEnumValue)
+                    ?? localizedItems[0];
+            }
+            else if (SelectedItem == null)
             {
                 SelectedItem = localizedItems[0];
             }

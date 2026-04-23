@@ -74,9 +74,10 @@
                                    VerticalAlignment="Stretch"
                                    IsExpanded="False"
                                    IsExpanderEnabled="{Binding IsExpanderEnabled}"
+                                   PersistenceKey="{Binding PersistenceKey}"
                                    Classes.DisabledExpander="{Binding !IsExpanderEnabled}">
 		<controls:EditableExpanderView.Header>
-			<Grid ColumnDefinitions="2*,*,*,2*,Auto"
+			<Grid ColumnDefinitions="2*,*,*,2*"
                   HorizontalAlignment="Stretch"
                   Background="Transparent"
                   Margin="8,4">
@@ -98,14 +99,6 @@
                                 HorizontalAlignment="Left"
                                 Content="{Binding DeviceGroup}"
                                 IsEnabled="{Binding IsExpanderEnabled}" />
-
-				<Button Grid.Column="4"
-                        Classes="DeleteButton"
-                        Margin="8,0,0,0"
-                        IsEnabled="{Binding !IsDefaultDevice}"
-                        Click="OnDeleteButtonClick">
-					<PathIcon Data="{StaticResource delete_regular}" Width="16" Height="16" />
-				</Button>
 			</Grid>
 		</controls:EditableExpanderView.Header>
 

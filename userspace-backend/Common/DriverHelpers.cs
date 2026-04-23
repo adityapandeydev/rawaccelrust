@@ -13,6 +13,7 @@ namespace userspace_backend.Common
         {
             return new Profile()
             {
+                name = model.Name.ModelValue,
                 outputDPI = model.OutputDPI.ModelValue,
                 yxOutputDPIRatio = model.YXRatio.ModelValue,
                 argsX = model.Acceleration.MapToDriver(),
