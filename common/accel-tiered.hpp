@@ -5,7 +5,7 @@
 
 namespace rawaccel {
 
-    struct multistage_base {
+    struct tiered_base {
         static double evaluate(double x, const accel_args& args)
         {
             if (x <= 0) return args.speed1;
@@ -28,16 +28,16 @@ namespace rawaccel {
         }
     };
 
-    template <bool Gain> struct multistage;
+    template <bool Gain> struct tiered;
 
     template<>
-    struct multistage<LEGACY> : multistage_base {
-        multistage(const accel_args&) {}
+    struct tiered<LEGACY> : tiered_base {
+        tiered(const accel_args&) {}
 
         double operator()(double x, const accel_args& args) const
         {
             double y = evaluate(x, args);
-            // In legacy mode for MultiStage, we treat the curve as velocity (output speed)
+            // In legacy mode for Tiered, we treat the curve as velocity (output speed)
             // So we divide by input speed to get the multiplier
             if (x > 0) return y / x;
             return y;
@@ -45,8 +45,8 @@ namespace rawaccel {
     };
 
     template<>
-    struct multistage<GAIN> : multistage_base {
-        multistage(const accel_args&) {}
+    struct tiered<GAIN> : tiered_base {
+        tiered(const accel_args&) {}
 
         double operator()(double x, const accel_args& args) const
         {

@@ -34,7 +34,7 @@ namespace rawaccel {
         synchronous,
         power,
         lookup,
-        multistage,
+        tiered,
         noaccel
     };
 
