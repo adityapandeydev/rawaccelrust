@@ -1,12 +1,13 @@
 pub mod models;
 pub mod driver;
 pub mod config;
+pub mod math;
 
 #[tauri::command]
 fn apply_settings(settings_json: String) -> Result<(), String> {
     let app_config: config::AppConfig = serde_json::from_str(&settings_json)
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
-    
+        .map_err(|e| format!("Failed to parse settings JSON: {}", e))?;
+
     driver::apply_config(&app_config)
 }
 
