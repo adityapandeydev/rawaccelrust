@@ -34,6 +34,7 @@ namespace rawaccel {
         synchronous,
         power,
         lookup,
+        multistage,
         noaccel
     };
 
@@ -57,6 +58,13 @@ namespace rawaccel {
         double limit = 1.5;
         double sync_speed = 5;
         double smooth = 0.5;
+
+        double speed1 = 0;
+        double speed2 = 0;
+        double mid_cap = 1;
+        double speed3 = 0;
+        double speed4 = 0;
+        double final_cap = 1;
 
         vec2d cap = { 15, 1.5 };
         cap_mode cap_mode = cap_mode::out;
