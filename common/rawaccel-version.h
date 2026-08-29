@@ -1,7 +1,7 @@
 #pragma once
 
 #define RA_VER_MAJOR 1
-#define RA_VER_MINOR 7
+#define RA_VER_MINOR 8
 #define RA_VER_PATCH 0
 
 #define RA_OS "Win10+"
