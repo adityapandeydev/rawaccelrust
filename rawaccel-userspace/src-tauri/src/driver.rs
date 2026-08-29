@@ -5,70 +5,123 @@ use windows::core::{Error, HRESULT, PCWSTR};
 use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE};
 use windows::Win32::Storage::FileSystem::{CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL};
 use windows::Win32::System::IO::DeviceIoControl;
-use windows::core::w;
+use windows::Win32::Foundation::{HANDLE, GENERIC_READ, GENERIC_WRITE, CloseHandle};
+use windows::Win32::Storage::FileSystem::{CreateFileW, OPEN_EXISTING};
+use windows::core::PCWSTR;
 
-// IOCTL Definitions matching rawaccel-io-def.h
-const FILE_DEVICE_UNKNOWN: u32 = 0x22; // Not used directly, rawaccel uses 0x8888
-const RAWACCEL_DEVICE_TYPE: u32 = 0x8888;
-const METHOD_BUFFERED: u32 = 0;
-const FILE_ANY_ACCESS: u32 = 0;
+use crate::models::root::ra;
 
-const fn ctl_code(device_type: u32, function: u32, method: u32, access: u32) -> u32 {
-    (device_type << 16) | (access << 14) | (function << 2) | method
+const DEVICE_NAME: &str = r"\\.\rawaccel";
+
+// IOCTLs from rawaccel-io-def.h
+const IOCTL_READ: u32 = 0x22a000;
+const IOCTL_WRITE: u32 = 0x226004;
+const IOCTL_GET_VERSION: u32 = 0x22a008;
+
+pub fn open_driver() -> Result<HANDLE, String> {
+    let mut wide_name: Vec<u16> = DEVICE_NAME.encode_utf16().collect();
+    wide_name.push(0);
+
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(wide_name.as_ptr()),
+            GENERIC_READ.0 | GENERIC_WRITE.0,
+            0,
+            None,
+            OPEN_EXISTING,
+            0,
+            None,
+        )
+    };
+
+    if handle.is_invalid() {
+        Err(format!("Failed to open driver. Is RawAccel installed and running?"))
+    } else {
+        Ok(handle)
+    }
 }
 
-pub const IOCTL_READ: u32 = ctl_code(RAWACCEL_DEVICE_TYPE, 0x888, METHOD_BUFFERED, FILE_ANY_ACCESS);
-pub const IOCTL_WRITE: u32 = ctl_code(RAWACCEL_DEVICE_TYPE, 0x889, METHOD_BUFFERED, FILE_ANY_ACCESS);
-pub const IOCTL_GET_VERSION: u32 = ctl_code(RAWACCEL_DEVICE_TYPE, 0x88a, METHOD_BUFFERED, FILE_ANY_ACCESS);
+pub fn get_version() -> Result<(i32, i32, i32), String> {
+    let handle = open_driver()?;
+    let mut version = (0i32, 0i32, 0i32);
+    let mut bytes_returned = 0u32;
 
-pub struct DriverHandle(HANDLE);
+    let success = unsafe {
+        DeviceIoControl(
+            handle,
+            IOCTL_GET_VERSION,
+            None,
+            0,
+            Some(&mut version as *mut _ as *mut _),
+            size_of::<(i32, i32, i32)>() as u32,
+            Some(&mut bytes_returned),
+            None,
+        )
+    };
 
-impl DriverHandle {
-    pub fn open() -> windows::core::Result<Self> {
-        unsafe {
-            let handle = CreateFileW(
-                w!(r"\\.\rawaccel"),
-                0, // FILE_ANY_ACCESS (0) is used in the C++ wrapper
-                FILE_SHARE_READ | FILE_SHARE_WRITE,
-                None,
-                OPEN_EXISTING,
-                FILE_ATTRIBUTE_NORMAL,
-                HANDLE::default(),
-            )?;
+    unsafe { CloseHandle(handle); }
 
-            if handle.is_invalid() {
-                return Err(Error::from_hresult(HRESULT(-1))); // TODO: Proper error
-            }
-
-            Ok(Self(handle))
-        }
-    }
-
-    pub fn get_version(&self) -> windows::core::Result<[u32; 4]> {
-        let mut version: [u32; 4] = [0; 4];
-        let mut bytes_returned = 0;
-        
-        unsafe {
-            DeviceIoControl(
-                self.0,
-                IOCTL_GET_VERSION,
-                None,
-                0,
-                Some(version.as_mut_ptr() as *mut c_void),
-                (size_of::<u32>() * 4) as u32,
-                Some(&mut bytes_returned),
-                None,
-            )?;
-        }
-
+    if success.is_ok() && bytes_returned > 0 {
         Ok(version)
+    } else {
+        Err("Failed to get driver version".to_string())
     }
 }
 
-impl Drop for DriverHandle {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = CloseHandle(self.0);
+pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
+    let handle = open_driver()?;
+    
+    let num_profiles = config.profiles.len();
+    // For now assume 1 device
+    let num_devices = 1;
+    
+    let io_base_size = size_of::<ra::io_base>();
+    let modifier_data_size = size_of::<ra::modifier_settings>() * num_profiles;
+    let device_data_size = size_of::<ra::device_settings>() * num_devices;
+    
+    let total_size = io_base_size + modifier_data_size + device_data_size;
+    
+    let mut buffer = vec![0u8; total_size];
+    
+    unsafe {
+        let base_ptr = buffer.as_mut_ptr() as *mut ra::io_base;
+        
+        // Initialize base
+        (*base_ptr).modifier_data_size = num_profiles as u32;
+        (*base_ptr).device_data_size = num_devices as u32;
+        
+        let mod_ptr = (buffer.as_mut_ptr().add(io_base_size)) as *mut ra::modifier_settings;
+        for i in 0..num_profiles {
+            let settings = &mut *mod_ptr.add(i);
+            settings.prof = config.profiles[i].to_native();
+            crate::models::bridge_init_data(settings);
+        }
+        
+        let dev_ptr = (buffer.as_mut_ptr().add(io_base_size + modifier_data_size)) as *mut ra::device_settings;
+        for i in 0..num_devices {
+            let dev_settings = &mut *dev_ptr.add(i);
+            // Default device init
+            dev_settings.config = (*base_ptr).default_dev_cfg;
+        }
+        
+        let mut bytes_returned = 0;
+        let success = DeviceIoControl(
+            handle,
+            IOCTL_WRITE,
+            Some(buffer.as_ptr() as *const _),
+            total_size as u32,
+            None,
+            0,
+            Some(&mut bytes_returned),
+            None,
+        );
+        
+        CloseHandle(handle).ok();
+        
+        if success.is_ok() {
+            Ok(())
+        } else {
+            Err("Failed to write to driver via DeviceIoControl".to_string())
         }
     }
 }
