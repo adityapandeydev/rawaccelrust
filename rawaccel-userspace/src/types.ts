@@ -71,7 +71,7 @@ export interface Device {
 
 export const defaultAccelArgs = (): AccelArgs => ({
   mode: "noaccel",
-  gain: false,
+  gain: true,
   input_offset: 0,
   output_offset: 0,
   acceleration: 0,

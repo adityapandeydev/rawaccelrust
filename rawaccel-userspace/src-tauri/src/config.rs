@@ -27,47 +27,75 @@ pub struct AppProfile {
     pub speed_max: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct AppVec2D {
+    #[serde(default)]
     pub x: f64,
+    #[serde(default)]
     pub y: f64,
 }
 
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct AppSpeedArgs {
+    #[serde(default)]
     pub whole: bool,
+    #[serde(default)]
     pub lp_norm: f64,
+    #[serde(default)]
     pub input_speed_smooth_halflife: f64,
+    #[serde(default)]
     pub scale_smooth_halflife: f64,
+    #[serde(default)]
     pub output_speed_smooth_halflife: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct AppAccelArgs {
+    #[serde(default)]
     pub mode: String,
+    #[serde(default)]
     pub gain: bool,
+    #[serde(default)]
     pub input_offset: f64,
+    #[serde(default)]
     pub output_offset: f64,
+    #[serde(default)]
     pub acceleration: f64,
+    #[serde(default)]
     pub decay_rate: f64,
+    #[serde(default)]
     pub gamma: f64,
+    #[serde(default)]
     pub motivity: f64,
+    #[serde(default)]
     pub exponent_classic: f64,
+    #[serde(default)]
     pub scale: f64,
+    #[serde(default)]
     pub exponent_power: f64,
+    #[serde(default)]
     pub limit: f64,
+    #[serde(default)]
     pub sync_speed: f64,
+    #[serde(default)]
     pub smooth: f64,
-
+    #[serde(default)]
     pub cap: AppVec2D,
+    #[serde(default)]
     pub cap_mode: String,
+    #[serde(default)]
     pub length: i32,
 }
 
 impl AppProfile {
     pub fn to_native(&self) -> models::profile {
         let mut prof = models::profile::default();
+
+        let mut name_u16 = [0u16; models::MAX_NAME_LEN];
+        for (i, c) in self.name.encode_utf16().enumerate().take(models::MAX_NAME_LEN - 1) {
+            name_u16[i] = c;
+        }
+        prof.name = name_u16;
 
         prof.accel_x = self.accel_x.to_native();
         prof.accel_y = self.accel_y.to_native();
