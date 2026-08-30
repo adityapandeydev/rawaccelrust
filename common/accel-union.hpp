@@ -7,7 +7,7 @@
 #include "accel-natural.hpp"
 #include "accel-noaccel.hpp"
 #include "accel-power.hpp"
-#include "accel-tiered.hpp"
+// #include "accel-tiered.hpp"
 
 namespace rawaccel {
 
@@ -24,8 +24,8 @@ namespace rawaccel {
         power<LEGACY> power_l;
         activation_framework<GAIN> loglog_sigmoid_g;
         activation_framework<LEGACY> loglog_sigmoid_l;
-        tiered<GAIN> tiered_g;
-        tiered<LEGACY> tiered_l;
+        // tiered<GAIN> tiered_g;
+        // tiered<LEGACY> tiered_l;
 
         template <template <bool> class AccelTemplate, typename Visitor>
         auto visit_helper(Visitor vis, bool gain)
@@ -44,7 +44,7 @@ namespace rawaccel {
             case accel_mode::synchronous:   return visit_helper<activation_framework>(vis, args.gain);
             case accel_mode::power:         return visit_helper<power>(vis, args.gain);
             case accel_mode::lookup:        return vis(lut);
-            case accel_mode::tiered:        return visit_helper<tiered>(vis, args.gain);
+            // case accel_mode::tiered:        return visit_helper<tiered>(vis, args.gain);
             default:                        return vis(noaccel);
             }
         }
