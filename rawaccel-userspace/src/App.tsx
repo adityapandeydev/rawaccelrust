@@ -41,12 +41,31 @@ function App() {
       const profileJson = JSON.stringify({ profiles: [profile] });
       await invoke('apply_settings', { settingsJson: profileJson });
       console.log("Settings applied successfully!");
-      // Optionally show a success toast here if implemented
+      if (showToastNotifications) {
+          alert("Settings applied to driver!");
+      }
     } catch (error) {
       console.error("Failed to apply settings:", error);
-      // Optionally show an error toast here if implemented
+      alert("Error applying settings: " + error);
     }
   }
+
+  // Load settings on startup
+  useEffect(() => {
+    async function initSettings() {
+      try {
+        const result: string = await invoke('load_settings');
+        const parsed = JSON.parse(result);
+        if (parsed && parsed.profiles && parsed.profiles.length > 0) {
+            console.log("Loaded settings from backend:", parsed.profiles[0]);
+            setProfile(parsed.profiles[0]);
+        }
+      } catch (err) {
+        console.log("No settings loaded, using defaults.", err);
+      }
+    }
+    initSettings();
+  }, []);
 
   // State Update Helpers
   const updateProfile = (key: keyof Profile, value: any) => {

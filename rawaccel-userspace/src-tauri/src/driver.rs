@@ -11,9 +11,9 @@ use crate::models as ra;
 const DEVICE_NAME: &str = r"\\.\rawaccel";
 
 // IOCTLs defined in rawaccel-io-def.h
-const _IOCTL_READ: u32 = 0x22a000;
-const IOCTL_WRITE: u32 = 0x226004;
-const IOCTL_GET_VERSION: u32 = 0x22a008;
+const _IOCTL_READ: u32 = 0x88882220;
+const IOCTL_WRITE: u32 = 0x88882224;
+const IOCTL_GET_VERSION: u32 = 0x88882228;
 
 pub fn open_driver() -> Result<HANDLE, String> {
     let mut wide_name: Vec<u16> = DEVICE_NAME.encode_utf16().collect();
