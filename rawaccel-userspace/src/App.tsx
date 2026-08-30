@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Moon, Sun, Monitor, Layers, Activity, Plus, Save, Download, Upload, Mouse, Menu, X, Settings } from "lucide-react";
 import "./index.css";
 import { Profile, defaultProfile, AccelArgs } from "./types";
@@ -36,9 +37,14 @@ function App() {
 
   async function applySettings() {
     try {
-      console.log("Settings applied!", profile);
+      console.log("Applying Settings...", profile);
+      const profileJson = JSON.stringify({ profiles: [profile] });
+      await invoke('apply_settings', { settingsJson: profileJson });
+      console.log("Settings applied successfully!");
+      // Optionally show a success toast here if implemented
     } catch (error) {
-      console.error(error);
+      console.error("Failed to apply settings:", error);
+      // Optionally show an error toast here if implemented
     }
   }
 

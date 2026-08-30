@@ -14,7 +14,11 @@
       {
         "title": "rawaccel-userspace",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "fullscreen": false,
+        "maximized": true,
+        "minWidth": 1024,
+        "minHeight": 768
       }
     ],
     "security": {
