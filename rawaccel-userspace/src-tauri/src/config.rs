@@ -48,12 +48,18 @@ pub struct AppAccelArgs {
     pub limit: f64,
     pub sync_speed: f64,
     pub smooth: f64,
-    pub speed1: f64,
-    pub speed2: f64,
-    pub mid_cap: f64,
-    pub speed3: f64,
-    pub speed4: f64,
-    pub final_cap: f64,
+    // Tiered Mode Fields
+    pub t_type: String,
+    pub tiered_multiplier1: f64,
+    pub tiered_input_offset1: f64,
+    pub tiered_multiplier2: f64,
+    pub tiered_transition1: f64,
+    pub tiered_input_offset2: f64,
+    pub tiered_multiplier3: f64,
+    pub tiered_transition2: f64,
+    pub tiered_decay_rate1: f64,
+    pub tiered_decay_rate2: f64,
+    
     pub cap: [f64; 2],
     pub cap_mode: i32,
     pub length: i32,
@@ -106,14 +112,21 @@ impl AppAccelArgs {
         args.limit = self.limit;
         args.sync_speed = self.sync_speed;
         args.smooth = self.smooth;
-        args.speed1 = self.speed1;
-        args.speed2 = self.speed2;
-        args.mid_cap = self.mid_cap;
-        args.speed3 = self.speed3;
-        args.speed4 = self.speed4;
-        args.final_cap = self.final_cap;
+        args.tiered_multiplier1 = self.tiered_multiplier1;
+        args.tiered_input_offset1 = self.tiered_input_offset1;
+        args.tiered_multiplier2 = self.tiered_multiplier2;
+        args.tiered_transition1 = self.tiered_transition1;
+        args.tiered_input_offset2 = self.tiered_input_offset2;
+        args.tiered_multiplier3 = self.tiered_multiplier3;
+        args.tiered_transition2 = self.tiered_transition2;
+        args.tiered_decay_rate1 = self.tiered_decay_rate1;
+        args.tiered_decay_rate2 = self.tiered_decay_rate2;
         args.cap = models::vec2d { x: self.cap[0], y: self.cap[1] };
         args.cap_mode = unsafe { std::mem::transmute(self.cap_mode) };
+        args.t_type = match self.t_type.as_str() {
+            "natural" => models::tiered_type::natural,
+            _ => models::tiered_type::linear,
+        };
         args.length = self.length;
 
         args

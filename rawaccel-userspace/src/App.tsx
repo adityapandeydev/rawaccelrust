@@ -191,7 +191,7 @@ function App() {
                   </div>
 
                   {/* Shared Gain Checkbox - Beside Mode Selector */}
-                  {activeAccel.mode !== "noaccel" && activeAccel.mode !== "lookup" && activeAccel.mode !== "tiered" && (
+                  {activeAccel.mode !== "noaccel" && activeAccel.mode !== "lookup" && (
                     <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", whiteSpace: "nowrap" }}>
                       <input type="checkbox" checked={activeAccel.gain} onChange={e => updateAccel("gain", e.target.checked)} style={{ accentColor: "var(--color-primary)", width: "16px", height: "16px", margin: 0 }} />
                       <span style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--text-main)" }}>Gain</span>
@@ -436,38 +436,78 @@ function App() {
                         <label className="input-label">Type</label>
                         <CustomSelect
                           width="120px"
-                          value={activeAccel.gain ? "linear" : "natural"}
-                          onChange={(val) => updateAccel("gain", val === "linear")}
+                          value={activeAccel.t_type}
+                          onChange={(val) => updateAccel("t_type", val)}
                           options={[
                             { value: "linear", label: "Linear" },
                             { value: "natural", label: "Natural" }
                           ]}
                         />
                       </div>
-                      <div className="input-group">
-                        <label className="input-label">Speed 1</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.speed1} onChange={e => updateAccel("speed1", parseFloat(e.target.value))} step="0.1" />
-                      </div>
-                      <div className="input-group">
-                        <label className="input-label">Speed 2</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.speed2} onChange={e => updateAccel("speed2", parseFloat(e.target.value))} step="0.1" />
-                      </div>
-                      <div className="input-group">
-                        <label className="input-label">Mid Cap</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.mid_cap} onChange={e => updateAccel("mid_cap", parseFloat(e.target.value))} step="0.1" />
-                      </div>
-                      <div className="input-group">
-                        <label className="input-label">Speed 3</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.speed3} onChange={e => updateAccel("speed3", parseFloat(e.target.value))} step="0.1" />
-                      </div>
-                      <div className="input-group">
-                        <label className="input-label">Speed 4</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.speed4} onChange={e => updateAccel("speed4", parseFloat(e.target.value))} step="0.1" />
-                      </div>
-                      <div className="input-group">
-                        <label className="input-label">Final Cap</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.final_cap} onChange={e => updateAccel("final_cap", parseFloat(e.target.value))} step="0.1" />
-                      </div>
+                      
+                      {activeAccel.t_type === "linear" ? (
+                        <>
+                          <div className="input-group">
+                            <label className="input-label">Multiplier 1</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_multiplier1} onChange={e => updateAccel("tiered_multiplier1", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Input Offset 1</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_input_offset1} onChange={e => updateAccel("tiered_input_offset1", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Multiplier 2</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_multiplier2} onChange={e => updateAccel("tiered_multiplier2", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Transition 1</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_transition1} onChange={e => updateAccel("tiered_transition1", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Input Offset 2</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_input_offset2} onChange={e => updateAccel("tiered_input_offset2", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Multiplier 3</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_multiplier3} onChange={e => updateAccel("tiered_multiplier3", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Transition 2</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_transition2} onChange={e => updateAccel("tiered_transition2", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="input-group">
+                            <label className="input-label">Multiplier 1</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_multiplier1} onChange={e => updateAccel("tiered_multiplier1", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Input Offset 1</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_input_offset1} onChange={e => updateAccel("tiered_input_offset1", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Multiplier 2</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_multiplier2} onChange={e => updateAccel("tiered_multiplier2", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Decay Rate 1</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_decay_rate1} onChange={e => updateAccel("tiered_decay_rate1", parseFloat(e.target.value))} step="0.01" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Input Offset 2</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_input_offset2} onChange={e => updateAccel("tiered_input_offset2", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Multiplier 3</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_multiplier3} onChange={e => updateAccel("tiered_multiplier3", parseFloat(e.target.value))} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Decay Rate 2</label>
+                            <input type="number" className="input-field selectable" value={activeAccel.tiered_decay_rate2} onChange={e => updateAccel("tiered_decay_rate2", parseFloat(e.target.value))} step="0.01" />
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
 

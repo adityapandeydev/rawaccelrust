@@ -196,18 +196,7 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
               </>
             )}
             
-            {activeAccel.mode === "tiered" && (
-              <>
-                <div className="input-group">
-                  <label className="input-label">Speed 1 (Initial)</label>
-                  <input type="number" className="input-field" value={activeAccel.speed1} onChange={e => updateAccel("speed1", parseFloat(e.target.value))} step="0.1" />
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Mid Cap</label>
-                  <input type="number" className="input-field" value={activeAccel.mid_cap} onChange={e => updateAccel("mid_cap", parseFloat(e.target.value))} step="0.1" />
-                </div>
-              </>
-            )}
+
           </div>
           
           <div>
@@ -220,18 +209,7 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
               <input type="number" className="input-field" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: parseFloat(e.target.value) })} step="0.1" />
             </div>
 
-            {activeAccel.mode === "tiered" && (
-              <>
-                <div className="input-group">
-                  <label className="input-label">Speed 2 (Post Mid Cap)</label>
-                  <input type="number" className="input-field" value={activeAccel.speed2} onChange={e => updateAccel("speed2", parseFloat(e.target.value))} step="0.1" />
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Final Cap</label>
-                  <input type="number" className="input-field" value={activeAccel.final_cap} onChange={e => updateAccel("final_cap", parseFloat(e.target.value))} step="0.1" />
-                </div>
-              </>
-            )}
+
             
             <div style={{ marginTop: "1.5rem" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>

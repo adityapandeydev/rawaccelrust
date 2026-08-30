@@ -42,6 +42,17 @@ impl Default for cap_mode {
     fn default() -> Self { cap_mode::out }
 }
 
+#[repr(i32)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum tiered_type {
+    linear = 0,
+    natural = 1,
+}
+
+impl Default for tiered_type {
+    fn default() -> Self { tiered_type::linear }
+}
+
 // ── Math Primitives ──────────────────────────────────────────────────────
 
 #[repr(C)]
@@ -73,12 +84,17 @@ pub struct accel_args {
     pub sync_speed: f64,
     pub smooth: f64,
 
-    pub speed1: f64,
-    pub speed2: f64,
-    pub mid_cap: f64,
-    pub speed3: f64,
-    pub speed4: f64,
-    pub final_cap: f64,
+    // Tiered Mode Fields
+    pub t_type: tiered_type,
+    pub tiered_multiplier1: f64,
+    pub tiered_input_offset1: f64,
+    pub tiered_multiplier2: f64,
+    pub tiered_transition1: f64,
+    pub tiered_input_offset2: f64,
+    pub tiered_multiplier3: f64,
+    pub tiered_transition2: f64,
+    pub tiered_decay_rate1: f64,
+    pub tiered_decay_rate2: f64,
 
     pub cap: vec2d,
     pub cap_mode: cap_mode,
@@ -104,12 +120,16 @@ impl Default for accel_args {
             limit: 1.5,
             sync_speed: 5.0,
             smooth: 0.5,
-            speed1: 0.0,
-            speed2: 0.0,
-            mid_cap: 1.0,
-            speed3: 0.0,
-            speed4: 0.0,
-            final_cap: 1.0,
+            t_type: tiered_type::linear,
+            tiered_multiplier1: 1.0,
+            tiered_input_offset1: 0.0,
+            tiered_multiplier2: 1.5,
+            tiered_transition1: 10.0,
+            tiered_input_offset2: 15.0,
+            tiered_multiplier3: 2.0,
+            tiered_transition2: 25.0,
+            tiered_decay_rate1: 0.1,
+            tiered_decay_rate2: 0.1,
             cap: vec2d { x: 15.0, y: 1.5 },
             cap_mode: cap_mode::out,
             length: 0,
