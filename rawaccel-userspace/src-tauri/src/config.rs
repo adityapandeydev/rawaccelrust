@@ -8,20 +8,31 @@ pub struct AppConfig {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppProfile {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    pub domain_weights: AppVec2D,
+    pub range_weights: AppVec2D,
     pub accel_x: AppAccelArgs,
     pub accel_y: AppAccelArgs,
+    pub speed_processor_args: AppSpeedArgs,
+    pub output_dpi: f64,
+    pub yx_output_dpi_ratio: f64,
+    pub lr_output_dpi_ratio: f64,
+    pub ud_output_dpi_ratio: f64,
     pub degrees_rotation: f64,
     pub degrees_snap: f64,
     pub speed_min: f64,
     pub speed_max: f64,
-    pub lr_output_dpi_ratio: f64,
-    pub ud_output_dpi_ratio: f64,
-    pub range_weights: [f64; 2],
-    pub domain_weights: [f64; 2],
-    pub output_dpi: f64,
-    pub yx_output_dpi_ratio: f64,
-    pub speed_processor: AppSpeedArgs,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AppVec2D {
+    pub x: f64,
+    pub y: f64,
+}
+
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppSpeedArgs {
@@ -34,7 +45,7 @@ pub struct AppSpeedArgs {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppAccelArgs {
-    pub mode: i32,
+    pub mode: String,
     pub gain: bool,
     pub input_offset: f64,
     pub output_offset: f64,
@@ -49,8 +60,8 @@ pub struct AppAccelArgs {
     pub sync_speed: f64,
     pub smooth: f64,
 
-    pub cap: [f64; 2],
-    pub cap_mode: i32,
+    pub cap: AppVec2D,
+    pub cap_mode: String,
     pub length: i32,
 }
 
@@ -68,15 +79,15 @@ impl AppProfile {
         prof.ud_output_dpi_ratio = self.ud_output_dpi_ratio;
         prof.output_dpi = self.output_dpi;
         prof.yx_output_dpi_ratio = self.yx_output_dpi_ratio;
-        prof.range_weights = models::vec2d { x: self.range_weights[0], y: self.range_weights[1] };
-        prof.domain_weights = models::vec2d { x: self.domain_weights[0], y: self.domain_weights[1] };
+        prof.range_weights = models::vec2d { x: self.range_weights.x, y: self.range_weights.y };
+        prof.domain_weights = models::vec2d { x: self.domain_weights.x, y: self.domain_weights.y };
 
         prof.speed_processor_args = models::speed_args {
-            whole: self.speed_processor.whole,
-            lp_norm: self.speed_processor.lp_norm,
-            input_speed_smooth_halflife: self.speed_processor.input_speed_smooth_halflife,
-            scale_smooth_halflife: self.speed_processor.scale_smooth_halflife,
-            output_speed_smooth_halflife: self.speed_processor.output_speed_smooth_halflife,
+            whole: self.speed_processor_args.whole,
+            lp_norm: self.speed_processor_args.lp_norm,
+            input_speed_smooth_halflife: self.speed_processor_args.input_speed_smooth_halflife,
+            scale_smooth_halflife: self.speed_processor_args.scale_smooth_halflife,
+            output_speed_smooth_halflife: self.speed_processor_args.output_speed_smooth_halflife,
         };
 
         prof
@@ -87,7 +98,15 @@ impl AppAccelArgs {
     pub fn to_native(&self) -> models::accel_args {
         let mut args = models::accel_args::default();
 
-        args.mode = unsafe { std::mem::transmute(self.mode) };
+        args.mode = match self.mode.as_str() {
+            "classic" => models::accel_mode::classic,
+            "jump" => models::accel_mode::jump,
+            "natural" => models::accel_mode::natural,
+            "synchronous" => models::accel_mode::synchronous,
+            "power" => models::accel_mode::power,
+            "lookup" => models::accel_mode::lookup,
+            _ => models::accel_mode::noaccel,
+        };
         args.gain = self.gain;
         args.input_offset = self.input_offset;
         args.output_offset = self.output_offset;
@@ -101,9 +120,13 @@ impl AppAccelArgs {
         args.limit = self.limit;
         args.sync_speed = self.sync_speed;
         args.smooth = self.smooth;
-        args.cap = models::vec2d { x: self.cap[0], y: self.cap[1] };
-        args.cap_mode = unsafe { std::mem::transmute(self.cap_mode) };
-        args.length = self.length;
+        args.cap = models::vec2d { x: self.cap.x, y: self.cap.y };
+        args.cap_mode = match self.cap_mode.as_str() {
+            "in" => models::cap_mode::in_,
+            "io" => models::cap_mode::io,
+            _ => models::cap_mode::out,
+        };
+        args.length = 0;
 
         args
     }
