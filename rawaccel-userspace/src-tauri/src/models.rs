@@ -225,14 +225,23 @@ pub struct modifier_settings {
 // ── Device Structs ───────────────────────────────────────────────────────
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
 pub struct time_clamp {
     pub min: f64,
     pub max: f64,
 }
 
+impl Default for time_clamp {
+    fn default() -> Self {
+        Self {
+            min: 1000.0 / 8000.0 / 2.0, // DEFAULT_TIME_MIN
+            max: 100.0,                 // DEFAULT_TIME_MAX
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
 pub struct device_config {
     pub disable: bool,
     pub set_extra_info: bool,
@@ -240,6 +249,19 @@ pub struct device_config {
     pub dpi: i32,
     pub polling_rate: i32,
     pub clamp: time_clamp,
+}
+
+impl Default for device_config {
+    fn default() -> Self {
+        Self {
+            disable: false,
+            set_extra_info: false,
+            poll_time_lock: false,
+            dpi: 0,
+            polling_rate: 0,
+            clamp: time_clamp::default(),
+        }
+    }
 }
 
 #[repr(C)]

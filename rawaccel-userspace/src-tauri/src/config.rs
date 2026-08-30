@@ -4,7 +4,31 @@ use crate::models;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppConfig {
     pub profiles: Vec<AppProfile>,
+    #[serde(default)]
+    pub devices: Vec<AppDeviceConfig>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AppDeviceConfig {
+    pub id: String,
+    pub profile_id: Option<String>,
+    #[serde(default)]
+    pub disable: bool,
+    #[serde(default)]
+    pub set_extra_info: bool,
+    #[serde(default = "default_poll_time_lock")]
+    pub poll_time_lock: bool,
+    #[serde(default)]
+    pub dpi: u32,
+    #[serde(default)]
+    pub polling_rate: u32,
+    #[serde(default)]
+    pub clamp_min: f64,
+    #[serde(default)]
+    pub clamp_max: f64,
+}
+
+fn default_poll_time_lock() -> bool { false }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppProfile {
@@ -103,16 +127,16 @@ impl AppProfile {
         prof.degrees_snap = self.degrees_snap;
         prof.speed_min = self.speed_min;
         prof.speed_max = self.speed_max;
-        prof.lr_output_dpi_ratio = self.lr_output_dpi_ratio;
-        prof.ud_output_dpi_ratio = self.ud_output_dpi_ratio;
-        prof.output_dpi = self.output_dpi;
-        prof.yx_output_dpi_ratio = self.yx_output_dpi_ratio;
-        prof.range_weights = models::vec2d { x: self.range_weights.x, y: self.range_weights.y };
-        prof.domain_weights = models::vec2d { x: self.domain_weights.x, y: self.domain_weights.y };
+        prof.lr_output_dpi_ratio = if self.lr_output_dpi_ratio <= 0.0 { 1.0 } else { self.lr_output_dpi_ratio };
+        prof.ud_output_dpi_ratio = if self.ud_output_dpi_ratio <= 0.0 { 1.0 } else { self.ud_output_dpi_ratio };
+        prof.output_dpi = if self.output_dpi <= 0.0 { 1000.0 } else { self.output_dpi };
+        prof.yx_output_dpi_ratio = if self.yx_output_dpi_ratio <= 0.0 { 1.0 } else { self.yx_output_dpi_ratio };
+        prof.range_weights = models::vec2d { x: if self.range_weights.x < 0.0 { 1.0 } else { self.range_weights.x }, y: if self.range_weights.y < 0.0 { 1.0 } else { self.range_weights.y } };
+        prof.domain_weights = models::vec2d { x: if self.domain_weights.x <= 0.0 { 1.0 } else { self.domain_weights.x }, y: if self.domain_weights.y <= 0.0 { 1.0 } else { self.domain_weights.y } };
 
         prof.speed_processor_args = models::speed_args {
             whole: self.speed_processor_args.whole,
-            lp_norm: self.speed_processor_args.lp_norm,
+            lp_norm: if self.speed_processor_args.lp_norm <= 0.0 { 2.0 } else { self.speed_processor_args.lp_norm },
             input_speed_smooth_halflife: self.speed_processor_args.input_speed_smooth_halflife,
             scale_smooth_halflife: self.speed_processor_args.scale_smooth_halflife,
             output_speed_smooth_halflife: self.speed_processor_args.output_speed_smooth_halflife,
@@ -138,16 +162,16 @@ impl AppAccelArgs {
         args.gain = self.gain;
         args.input_offset = self.input_offset;
         args.output_offset = self.output_offset;
-        args.acceleration = self.acceleration;
-        args.decay_rate = self.decay_rate;
-        args.gamma = self.gamma;
-        args.motivity = self.motivity;
-        args.exponent_classic = self.exponent_classic;
-        args.scale = self.scale;
-        args.exponent_power = self.exponent_power;
-        args.limit = self.limit;
-        args.sync_speed = self.sync_speed;
-        args.smooth = self.smooth;
+        args.acceleration = if self.acceleration <= 0.0 { 0.001 } else { self.acceleration };
+        args.decay_rate = if self.decay_rate <= 0.0 { 0.1 } else { self.decay_rate };
+        args.gamma = if self.gamma <= 0.0 { 1.0 } else { self.gamma };
+        args.motivity = if self.motivity <= 1.0 { 1.5 } else { self.motivity };
+        args.exponent_classic = if self.exponent_classic <= 1.0 { 2.0 } else { self.exponent_classic };
+        args.scale = if self.scale <= 0.0 { 1.0 } else { self.scale };
+        args.exponent_power = if self.exponent_power <= 0.0 { 0.05 } else { self.exponent_power };
+        args.limit = if self.limit <= 0.0 { 2.0 } else { self.limit };
+        args.sync_speed = if self.sync_speed <= 0.0 { 5.0 } else { self.sync_speed };
+        args.smooth = if self.smooth < 0.0 || self.smooth > 1.0 { 0.0 } else { self.smooth };
         args.cap = models::vec2d { x: self.cap.x, y: self.cap.y };
         args.cap_mode = match self.cap_mode.as_str() {
             "in" => models::cap_mode::in_,

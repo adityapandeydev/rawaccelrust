@@ -68,8 +68,11 @@ pub fn get_version() -> Result<(i32, i32, i32), String> {
 pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
     let handle = open_driver()?;
 
+    let active_devices: Vec<_> = config.devices.iter()
+        .filter(|d| d.profile_id.is_some() && !d.disable)
+        .collect();
     let num_profiles = config.profiles.len();
-    let num_devices = 1;
+    let num_devices = active_devices.len();
 
     let io_base_size = size_of::<ra::io_base>();
     let modifier_data_size = size_of::<ra::modifier_settings>() * num_profiles;
@@ -80,9 +83,10 @@ pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
 
     unsafe {
         let base_ptr = buffer.as_mut_ptr() as *mut ra::io_base;
+        std::ptr::write(base_ptr, ra::io_base::default());
         (*base_ptr).modifier_data_size = num_profiles as u32;
         (*base_ptr).device_data_size = num_devices as u32;
-        (*base_ptr).default_dev_cfg.poll_time_lock = true;
+        (*base_ptr).default_dev_cfg.poll_time_lock = false;
 
         let mod_ptr = buffer.as_mut_ptr().add(io_base_size) as *mut ra::modifier_settings;
         for i in 0..num_profiles {
@@ -93,8 +97,30 @@ pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
 
         let dev_ptr = buffer.as_mut_ptr().add(io_base_size + modifier_data_size) as *mut ra::device_settings;
         for i in 0..num_devices {
+            let app_dev = active_devices[i];
             let dev = &mut *dev_ptr.add(i);
-            dev.config = (*base_ptr).default_dev_cfg;
+            
+            let profile_name = app_dev.profile_id.as_ref().unwrap();
+            for (idx, c) in profile_name.encode_utf16().enumerate().take(ra::MAX_NAME_LEN - 1) {
+                dev.profile[idx] = c;
+            }
+            
+            for (idx, c) in app_dev.id.encode_utf16().enumerate().take(ra::MAX_DEV_ID_LEN - 1) {
+                dev.id[idx] = c;
+            }
+
+            let def_clamp = (*base_ptr).default_dev_cfg.clamp;
+            dev.config = ra::device_config {
+                disable: app_dev.disable,
+                set_extra_info: app_dev.set_extra_info,
+                poll_time_lock: app_dev.poll_time_lock,
+                dpi: app_dev.dpi as i32,
+                polling_rate: app_dev.polling_rate as i32,
+                clamp: ra::time_clamp {
+                    min: if app_dev.clamp_min > 0.0 { app_dev.clamp_min } else { def_clamp.min },
+                    max: if app_dev.clamp_max > 0.0 { app_dev.clamp_max } else { def_clamp.max },
+                }
+            };
         }
 
         let mut bytes_returned = 0u32;
@@ -112,9 +138,12 @@ pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
         CloseHandle(handle).ok();
 
         if success.is_ok() {
+            println!("driver.rs: Successfully applied config.");
             Ok(())
         } else {
-            Err("Failed to write to driver via DeviceIoControl".to_string())
+            let err = windows::Win32::Foundation::GetLastError();
+            println!("driver.rs: DeviceIoControl failed with error {:?}", err);
+            Err(format!("Failed to write to driver via DeviceIoControl. Error code: {:?}", err))
         }
     }
 }
