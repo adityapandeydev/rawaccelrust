@@ -82,6 +82,7 @@ pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
         let base_ptr = buffer.as_mut_ptr() as *mut ra::io_base;
         (*base_ptr).modifier_data_size = num_profiles as u32;
         (*base_ptr).device_data_size = num_devices as u32;
+        (*base_ptr).default_dev_cfg.poll_time_lock = true;
 
         let mod_ptr = buffer.as_mut_ptr().add(io_base_size) as *mut ra::modifier_settings;
         for i in 0..num_profiles {

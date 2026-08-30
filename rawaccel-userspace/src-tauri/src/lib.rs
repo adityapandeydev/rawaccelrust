@@ -4,7 +4,6 @@ pub mod config;
 pub mod math;
 
 use std::fs;
-use std::path::PathBuf;
 
 #[tauri::command]
 fn apply_settings(settings_json: String) -> Result<(), String> {
