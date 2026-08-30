@@ -191,7 +191,7 @@ function App() {
                   </div>
 
                   {/* Shared Gain Checkbox - Beside Mode Selector */}
-                  {activeAccel.mode !== "noaccel" && activeAccel.mode !== "lookup" && (
+                  {activeAccel.mode !== "noaccel" && activeAccel.mode !== "lookup" && activeAccel.mode !== "tiered" && (
                     <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", whiteSpace: "nowrap" }}>
                       <input type="checkbox" checked={activeAccel.gain} onChange={e => updateAccel("gain", e.target.checked)} style={{ accentColor: "var(--color-primary)", width: "16px", height: "16px", margin: 0 }} />
                       <span style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--text-main)" }}>Gain</span>
@@ -432,6 +432,18 @@ function App() {
                   {/* ───────────────────────────────────────────────────────── */}
                   {activeAccel.mode === "tiered" && (
                     <>
+                      <div className="input-group">
+                        <label className="input-label">Type</label>
+                        <CustomSelect
+                          width="120px"
+                          value={activeAccel.gain ? "linear" : "natural"}
+                          onChange={(val) => updateAccel("gain", val === "linear")}
+                          options={[
+                            { value: "linear", label: "Linear" },
+                            { value: "natural", label: "Natural" }
+                          ]}
+                        />
+                      </div>
                       <div className="input-group">
                         <label className="input-label">Speed 1</label>
                         <input type="number" className="input-field selectable" value={activeAccel.speed1} onChange={e => updateAccel("speed1", parseFloat(e.target.value))} step="0.1" />
