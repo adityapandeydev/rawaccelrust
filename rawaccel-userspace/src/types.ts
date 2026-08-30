@@ -3,6 +3,23 @@ export interface Vec2D {
   y: number;
 }
 
+export interface DeviceConfig {
+  id: string;
+  disable: boolean;
+  set_extra_info: boolean;
+  poll_time_lock: boolean;
+  dpi: number;
+  polling_rate: number;
+  clamp_min: number;
+  clamp_max: number;
+  profile_id: string | null;
+}
+
+export interface Device {
+  id: string;
+  name: string;
+}
+
 export interface AccelArgs {
   mode: string; // "classic", "jump", "natural", "power", "synchronous", "lookup", "noaccel"
   gain: boolean;
@@ -48,23 +65,6 @@ export interface Profile {
   degrees_snap: number;
   speed_min: number;
   speed_max: number;
-}
-
-export interface DeviceConfig {
-  disable: boolean;
-  set_extra_info: boolean;
-  poll_time_lock: boolean;
-  dpi: number;
-  polling_rate: number;
-  clamp_min: number;
-  clamp_max: number;
-}
-
-export interface Device {
-  id: string;
-  name: string;
-  profile_id: string | null;
-  config: DeviceConfig;
 }
 
 // ── Default Generators ──────────────────────────────────────────────────

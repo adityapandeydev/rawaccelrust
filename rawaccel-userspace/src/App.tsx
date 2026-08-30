@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Moon, Sun, Monitor, Layers, Activity, Plus, Save, Download, Upload, Mouse, Menu, X, Settings } from "lucide-react";
 import "./index.css";
-import { Profile, defaultProfile, AccelArgs } from "./types";
+import { Profile, defaultProfile, AccelArgs, Device, DeviceConfig } from "./types";
 import { CurveGraph } from "./components/CurveGraph";
 import { CustomSelect } from "./components/CustomSelect";
 import { DevicesView } from "./components/DevicesView";
@@ -16,6 +16,9 @@ const safeParseFloat = (val: string) => {
 
 function App() {
   const [profile, setProfile] = useState<Profile>(defaultProfile());
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [deviceConfig, setDeviceConfig] = useState<DeviceConfig[]>([]);
+  
   const [activeTab, setActiveTab] = useState<"devices" | "mappings" | "profiles" | "settings">("profiles");
   const [theme, setTheme] = useState<"dark" | "light" | "system">("dark");
   const [language, setLanguage] = useState("en-US");
@@ -38,7 +41,10 @@ function App() {
   async function applySettings() {
     try {
       console.log("Applying Settings...", profile);
-      const profileJson = JSON.stringify({ profiles: [profile] });
+      const profileJson = JSON.stringify({ 
+        profiles: [profile],
+        devices: deviceConfig
+      });
       await invoke('apply_settings', { settingsJson: profileJson });
       console.log("Settings applied successfully!");
       if (showToastNotifications) {
@@ -54,14 +60,36 @@ function App() {
   useEffect(() => {
     async function initSettings() {
       try {
+        const sysDevices: Device[] = await invoke('get_devices');
+        setDevices(sysDevices);
+        console.log("Detected devices:", sysDevices);
+
         const result: string = await invoke('load_settings');
         const parsed = JSON.parse(result);
         if (parsed && parsed.profiles && parsed.profiles.length > 0) {
             console.log("Loaded settings from backend:", parsed.profiles[0]);
             setProfile(parsed.profiles[0]);
         }
-      } catch (err) {
-        console.log("No settings loaded, using defaults.", err);
+        if (parsed && parsed.devices) {
+            setDeviceConfig(parsed.devices);
+        } else {
+            // Auto map first device to default profile if none configured
+            if (sysDevices.length > 0) {
+                setDeviceConfig([{ 
+                  id: sysDevices[0].id, 
+                  profile_id: defaultProfile().name,
+                  disable: false,
+                  set_extra_info: false,
+                  poll_time_lock: false,
+                  dpi: 0,
+                  polling_rate: 0,
+                  clamp_min: 0,
+                  clamp_max: 0
+                }]);
+            }
+        }
+      } catch (error) {
+        console.error("Failed to load settings or devices on startup:", error);
       }
     }
     initSettings();
@@ -598,8 +626,13 @@ function App() {
           </div>
         )}
         
-        {activeTab === "devices" && <DevicesView />}
-        {activeTab === "mappings" && <MappingsView />}
+        {activeTab === "devices" && <DevicesView devices={devices} deviceConfig={deviceConfig} setDeviceConfig={setDeviceConfig} />}
+        {activeTab === "mappings" && <MappingsView 
+            devices={devices} 
+            deviceConfig={deviceConfig} 
+            setDeviceConfig={setDeviceConfig}
+            profiles={[profile.name]} 
+        />}
         
       </main>
     </div>
