@@ -197,8 +197,7 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
                 ))}
               </div>
             </div>
-            
-            {activeAccel.mode !== "tiered" && (
+            {activeAccel.mode !== "tiered" && activeAccel.mode !== "lookup" && activeAccel.mode !== "noaccel" && (
               <>
                 <div className="input-group">
                   <label className="input-label">Acceleration</label>
@@ -210,22 +209,62 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
                 </div>
               </>
             )}
-            
 
-          </div>
-          
-          <div>
-            <div className="input-group">
-              <label className="input-label">Cap X</label>
-              <NumberInput className="input-field" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
-            </div>
-            <div className="input-group">
-              <label className="input-label">Cap Y</label>
-              <NumberInput className="input-field" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
-            </div>
-
-
-            
+            {activeAccel.mode === "tiered" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div className="input-group">
+                  <label className="input-label">Type</label>
+                  <select className="input-field" value={activeAccel.t_type} onChange={e => updateAccel("t_type", e.target.value)}>
+                    <option value="linear">Linear</option>
+                    <option value="natural">Natural</option>
+                  </select>
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Multiplier 1</label>
+                  <NumberInput className="input-field" value={activeAccel.tiered_multiplier1} onChange={e => updateAccel("tiered_multiplier1", safeParseFloat(e.target.value))} step="0.1" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Input Offset 1</label>
+                  <NumberInput className="input-field" value={activeAccel.tiered_input_offset1} onChange={e => updateAccel("tiered_input_offset1", safeParseFloat(e.target.value))} step="0.1" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Multiplier 2</label>
+                  <NumberInput className="input-field" value={activeAccel.tiered_multiplier2} onChange={e => updateAccel("tiered_multiplier2", safeParseFloat(e.target.value))} step="0.1" />
+                </div>
+                {activeAccel.t_type === "linear" && (
+                  <div className="input-group">
+                    <label className="input-label">Transition 1</label>
+                    <NumberInput className="input-field" value={activeAccel.tiered_transition1} onChange={e => updateAccel("tiered_transition1", safeParseFloat(e.target.value))} step="0.1" />
+                  </div>
+                )}
+                {activeAccel.t_type === "natural" && (
+                  <div className="input-group">
+                    <label className="input-label">Decay Rate 1</label>
+                    <NumberInput className="input-field" value={activeAccel.tiered_decay_rate1} onChange={e => updateAccel("tiered_decay_rate1", safeParseFloat(e.target.value))} step="0.01" />
+                  </div>
+                )}
+                <div className="input-group">
+                  <label className="input-label">Input Offset 2</label>
+                  <NumberInput className="input-field" value={activeAccel.tiered_input_offset2} onChange={e => updateAccel("tiered_input_offset2", safeParseFloat(e.target.value))} step="0.1" />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Multiplier 3</label>
+                  <NumberInput className="input-field" value={activeAccel.tiered_multiplier3} onChange={e => updateAccel("tiered_multiplier3", safeParseFloat(e.target.value))} step="0.1" />
+                </div>
+                {activeAccel.t_type === "linear" && (
+                  <div className="input-group">
+                    <label className="input-label">Transition 2</label>
+                    <NumberInput className="input-field" value={activeAccel.tiered_transition2} onChange={e => updateAccel("tiered_transition2", safeParseFloat(e.target.value))} step="0.1" />
+                  </div>
+                )}
+                {activeAccel.t_type === "natural" && (
+                  <div className="input-group">
+                    <label className="input-label">Decay Rate 2</label>
+                    <NumberInput className="input-field" value={activeAccel.tiered_decay_rate2} onChange={e => updateAccel("tiered_decay_rate2", safeParseFloat(e.target.value))} step="0.01" />
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ marginTop: "1.5rem" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
                 <input type="checkbox" checked={activeAccel.gain} onChange={e => updateAccel("gain", e.target.checked)} style={{ accentColor: "var(--color-primary)", width: "16px", height: "16px" }} />
@@ -239,4 +278,6 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
     </div>
   );
 }
+
+
 

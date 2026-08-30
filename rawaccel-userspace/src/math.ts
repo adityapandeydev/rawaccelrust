@@ -8,7 +8,8 @@ export type Evaluator = (x: number) => number;
 
 export function createEvaluator(args: AccelArgs): Evaluator {
   switch (args.mode) {
-
+    case "tiered":
+      return createTieredEvaluator(args);
     case "linear":
       return createClassicEvaluator(args, true);
     case "classic":
@@ -317,6 +318,64 @@ function createClassicEvaluator(originalArgs: AccelArgs, isLinear: boolean): Eva
   }
 }
 
+// ── Tiered Mode ──────────────────────────────────────────────────────────
+
+function createTieredEvaluator(args: AccelArgs): Evaluator {
+  const evaluateBase = (x: number) => {
+    if (args.t_type === "natural") {
+      if (x <= args.tiered_input_offset1) return args.tiered_multiplier1;
+      
+      if (x < args.tiered_input_offset2) {
+        const offset_x = args.tiered_input_offset1 - x;
+        const limit = args.tiered_multiplier2 - args.tiered_multiplier1;
+        if (limit === 0) return args.tiered_multiplier1;
+        const decay = Math.exp((args.tiered_decay_rate1 / Math.abs(limit)) * offset_x);
+        return args.tiered_multiplier1 + limit * (1 - decay);
+      }
+      
+      let y_at_mid = args.tiered_multiplier1;
+      const offset_x_mid = args.tiered_input_offset1 - args.tiered_input_offset2;
+      const limit1 = args.tiered_multiplier2 - args.tiered_multiplier1;
+      if (limit1 !== 0) {
+        const decay_mid = Math.exp((args.tiered_decay_rate1 / Math.abs(limit1)) * offset_x_mid);
+        y_at_mid = args.tiered_multiplier1 + limit1 * (1 - decay_mid);
+      }
+      
+      const offset_x2 = args.tiered_input_offset2 - x;
+      const limit2 = args.tiered_multiplier3 - y_at_mid;
+      if (limit2 === 0) return y_at_mid;
+      const decay2 = Math.exp((args.tiered_decay_rate2 / Math.abs(limit2)) * offset_x2);
+      return y_at_mid + limit2 * (1 - decay2);
+    } else {
+      // Linear
+      if (x <= args.tiered_input_offset1) return args.tiered_multiplier1;
+      
+      if (x < args.tiered_transition1) {
+        const denom = args.tiered_transition1 - args.tiered_input_offset1;
+        if (denom <= 0) return args.tiered_multiplier2;
+        const t = (x - args.tiered_input_offset1) / denom;
+        return args.tiered_multiplier1 + t * (args.tiered_multiplier2 - args.tiered_multiplier1);
+      }
+      
+      if (x <= args.tiered_input_offset2) return args.tiered_multiplier2;
+      
+      if (x < args.tiered_transition2) {
+        const denom = args.tiered_transition2 - args.tiered_input_offset2;
+        if (denom <= 0) return args.tiered_multiplier3;
+        const t = (x - args.tiered_input_offset2) / denom;
+        return args.tiered_multiplier2 + t * (args.tiered_multiplier3 - args.tiered_multiplier2);
+      }
+      
+      return args.tiered_multiplier3;
+    }
+  };
+
+  return (x: number) => {
+    const y = evaluateBase(x);
+    if (args.gain) return y;
+    return x > 0 ? y / x : y;
+  };
+}
 
 // ── Graph Data Generation ───────────────────────────────────────────────
 

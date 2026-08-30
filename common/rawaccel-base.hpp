@@ -34,11 +34,17 @@ namespace rawaccel {
         synchronous,
         power,
         lookup,
+        tiered,
         noaccel
     };
 
     enum class cap_mode {
         io, in, out
+    };
+
+    enum class tiered_type {
+        linear,
+        natural
     };
 
     struct accel_args {
@@ -57,6 +63,18 @@ namespace rawaccel {
         double limit = 1.5;
         double sync_speed = 5;
         double smooth = 0.5;
+
+        // Tiered Mode specific parameters
+        tiered_type t_type = tiered_type::linear;
+        double tiered_multiplier1 = 1.0;
+        double tiered_input_offset1 = 0.0;
+        double tiered_multiplier2 = 1.5;
+        double tiered_transition1 = 10.0;
+        double tiered_input_offset2 = 15.0;
+        double tiered_multiplier3 = 2.0;
+        double tiered_transition2 = 25.0;
+        double tiered_decay_rate1 = 0.1;
+        double tiered_decay_rate2 = 0.1;
 
         vec2d cap = { 15, 1.5 };
         cap_mode cap_mode = cap_mode::out;

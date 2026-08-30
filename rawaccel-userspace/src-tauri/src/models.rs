@@ -22,11 +22,23 @@ pub enum accel_mode {
     synchronous = 3,
     power = 4,
     lookup = 5,
-    noaccel = 6,
+    tiered = 6,
+    noaccel = 7,
 }
 
 impl Default for accel_mode {
     fn default() -> Self { accel_mode::noaccel }
+}
+
+#[repr(i32)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum tiered_type {
+    linear = 0,
+    natural = 1,
+}
+
+impl Default for tiered_type {
+    fn default() -> Self { tiered_type::linear }
 }
 
 #[repr(i32)]
@@ -74,6 +86,19 @@ pub struct accel_args {
     pub sync_speed: f64,
     pub smooth: f64,
 
+    // Tiered Mode specific parameters
+    pub t_type: tiered_type,
+    pub tiered_multiplier1: f64,
+    pub tiered_input_offset1: f64,
+    pub tiered_multiplier2: f64,
+    pub tiered_transition1: f64,
+    pub tiered_input_offset2: f64,
+    pub tiered_multiplier3: f64,
+    pub tiered_transition2: f64,
+    pub tiered_decay_rate1: f64,
+    pub tiered_decay_rate2: f64,
+
+
 
 
     pub cap: vec2d,
@@ -100,6 +125,16 @@ impl Default for accel_args {
             limit: 1.5,
             sync_speed: 5.0,
             smooth: 0.5,
+            t_type: tiered_type::linear,
+            tiered_multiplier1: 1.0,
+            tiered_input_offset1: 0.0,
+            tiered_multiplier2: 1.5,
+            tiered_transition1: 10.0,
+            tiered_input_offset2: 15.0,
+            tiered_multiplier3: 2.0,
+            tiered_transition2: 25.0,
+            tiered_decay_rate1: 0.1,
+            tiered_decay_rate2: 0.1,
 
             cap: vec2d { x: 15.0, y: 1.5 },
             cap_mode: cap_mode::out,
@@ -286,3 +321,4 @@ pub struct io_base {
     pub modifier_data_size: u32,
     pub device_data_size: u32,
 }
+

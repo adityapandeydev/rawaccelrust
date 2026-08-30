@@ -269,6 +269,7 @@ function App() {
                         { value: "power", label: "Power" },
                         { value: "synchronous", label: "Synchronous" },
                         { value: "lookup", label: "Lookup Table" },
+                        { value: "tiered", label: "Tiered" },
                         { value: "noaccel", label: "Off" },
                       ]}
                     />
@@ -644,3 +645,4 @@ function App() {
 }
 
 export default App;
+

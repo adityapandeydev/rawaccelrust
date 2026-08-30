@@ -104,6 +104,26 @@ pub struct AppAccelArgs {
     #[serde(default)]
     pub smooth: f64,
     #[serde(default)]
+    pub t_type: String,
+    #[serde(default)]
+    pub tiered_multiplier1: f64,
+    #[serde(default)]
+    pub tiered_input_offset1: f64,
+    #[serde(default)]
+    pub tiered_multiplier2: f64,
+    #[serde(default)]
+    pub tiered_transition1: f64,
+    #[serde(default)]
+    pub tiered_input_offset2: f64,
+    #[serde(default)]
+    pub tiered_multiplier3: f64,
+    #[serde(default)]
+    pub tiered_transition2: f64,
+    #[serde(default)]
+    pub tiered_decay_rate1: f64,
+    #[serde(default)]
+    pub tiered_decay_rate2: f64,
+    #[serde(default)]
     pub cap: AppVec2D,
     #[serde(default)]
     pub cap_mode: String,
@@ -157,6 +177,7 @@ impl AppAccelArgs {
             "synchronous" => models::accel_mode::synchronous,
             "power" => models::accel_mode::power,
             "lookup" => models::accel_mode::lookup,
+            "tiered" => models::accel_mode::tiered,
             _ => models::accel_mode::noaccel,
         };
         args.gain = self.gain;
@@ -172,6 +193,19 @@ impl AppAccelArgs {
         args.limit = if self.limit <= 0.0 { 2.0 } else { self.limit };
         args.sync_speed = if self.sync_speed <= 0.0 { 5.0 } else { self.sync_speed };
         args.smooth = if self.smooth < 0.0 || self.smooth > 1.0 { 0.0 } else { self.smooth };
+        args.t_type = match self.t_type.as_str() {
+            "natural" => models::tiered_type::natural,
+            _ => models::tiered_type::linear,
+        };
+        args.tiered_multiplier1 = self.tiered_multiplier1;
+        args.tiered_input_offset1 = self.tiered_input_offset1;
+        args.tiered_multiplier2 = self.tiered_multiplier2;
+        args.tiered_transition1 = self.tiered_transition1;
+        args.tiered_input_offset2 = self.tiered_input_offset2;
+        args.tiered_multiplier3 = self.tiered_multiplier3;
+        args.tiered_transition2 = self.tiered_transition2;
+        args.tiered_decay_rate1 = self.tiered_decay_rate1;
+        args.tiered_decay_rate2 = self.tiered_decay_rate2;
         args.cap = models::vec2d { x: self.cap.x, y: self.cap.y };
         args.cap_mode = match self.cap_mode.as_str() {
             "in" => models::cap_mode::in_,
@@ -183,3 +217,4 @@ impl AppAccelArgs {
         args
     }
 }
+
