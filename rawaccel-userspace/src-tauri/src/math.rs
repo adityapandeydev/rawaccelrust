@@ -278,36 +278,28 @@ struct PowerLegacy {
 impl PowerLegacy {
     fn new(args: &accel_args) -> Self {
         let n = args.exponent_power;
-        let mut offset = vec2d::default();
+        let offset;
         let scale;
         let constant;
 
-        match args.cap_mode {
-            cap_mode::io => {
-                scale = args.scale;
-                offset.x = power_gain_inverse(args.output_offset, n, scale);
-                offset.y = args.output_offset;
-                constant = offset.x * offset.y * n / (n + 1.0);
-            }
-            _ if !args.gain && args.cap_mode == cap_mode::io => {
-                // Legacy + io: offset is ignored
-                scale = power_scale_from_output_point(args.cap.x, args.cap.y, n, 0.0);
-                constant = 0.0;
-            }
-            _ => {
-                if args.cap_mode != cap_mode::io {
-                    scale = args.scale;
-                } else if args.gain {
-                    scale = power_scale_from_gain_point(args.cap.x, args.cap.y, n);
-                } else {
-                    scale = power_scale_from_output_point(args.cap.x, args.cap.y, n, 0.0);
-                    return Self { offset: vec2d::default(), scale, constant: 0.0, cap: f64::MAX };
-                }
-                offset.x = power_gain_inverse(args.output_offset, n, scale);
-                offset.y = args.output_offset;
-                constant = offset.x * offset.y * n / (n + 1.0);
-            }
+        // Mirrors C++ power_base constructor: if/else-if/else on cap_mode and gain
+        if args.cap_mode != cap_mode::io {
+            scale = args.scale;
+        } else if args.gain {
+            scale = power_scale_from_gain_point(args.cap.x, args.cap.y, n);
+        } else {
+            // Legacy + io cap mode: offset ignored due to circular dependency
+            let s = power_scale_from_output_point(args.cap.x, args.cap.y, n, 0.0);
+            return Self {
+                offset: vec2d::default(), scale: s, constant: 0.0, cap: args.cap.y,
+            };
         }
+
+        offset = vec2d {
+            x: power_gain_inverse(args.output_offset, n, scale),
+            y: args.output_offset,
+        };
+        constant = offset.x * offset.y * n / (n + 1.0);
 
         let mut cap = f64::MAX;
         match args.cap_mode {

@@ -188,9 +188,9 @@ pub struct accel_union {
     pub memory: [u8; ACCEL_UNION_SIZE],
 }
 
-/// Overallocated to 128 bytes to safely fit any curve variant.
-/// The driver reads only the bytes relevant to the active mode.
-pub const ACCEL_UNION_SIZE: usize = 128;
+/// Sized to match the largest C++ union member: activation_framework<LEGACY> at 72 bytes.
+/// Must exactly match the C++ sizeof(accel_union) for correct IOCTL buffer layout.
+pub const ACCEL_UNION_SIZE: usize = 72;
 
 impl Default for accel_union {
     fn default() -> Self {
