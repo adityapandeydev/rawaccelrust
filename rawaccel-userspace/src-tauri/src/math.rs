@@ -592,9 +592,7 @@ fn init_accel_union(union: &mut accel_union, args: &mut accel_args) {
             let curve = Lookup::new(args);
             union.write(&curve);
         }
-        accel_mode::tiered => {
-            // Tiered has no pre-computed state.
-        }
+
         accel_mode::noaccel => {
             // No-op.
         }

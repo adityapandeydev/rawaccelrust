@@ -4,7 +4,7 @@ export interface Vec2D {
 }
 
 export interface AccelArgs {
-  mode: string; // "classic", "jump", "natural", "power", "synchronous", "lookup", "tiered", "noaccel"
+  mode: string; // "classic", "jump", "natural", "power", "synchronous", "lookup", "noaccel"
   gain: boolean;
   input_offset: number;
   output_offset: number;
@@ -19,17 +19,6 @@ export interface AccelArgs {
   sync_speed: number;
   smooth: number;
   
-  // Tiered Mode Fields
-  t_type: "linear" | "natural";
-  tiered_multiplier1: number;
-  tiered_input_offset1: number;
-  tiered_multiplier2: number;
-  tiered_transition1: number;
-  tiered_input_offset2: number;
-  tiered_multiplier3: number;
-  tiered_transition2: number;
-  tiered_decay_rate1: number;
-  tiered_decay_rate2: number;
 
   cap: Vec2D;
   cap_mode: "in" | "out" | "io";
@@ -95,17 +84,7 @@ export const defaultAccelArgs = (): AccelArgs => ({
   limit: 2,
   sync_speed: 10,
   smooth: 0,
-  tiered_multiplier1: 1.0,
-  tiered_input_offset1: 0.0,
-  tiered_multiplier2: 1.5,
-  tiered_transition1: 10.0,
-  tiered_input_offset2: 15.0,
-  tiered_multiplier3: 2.0,
-  tiered_transition2: 25.0,
-  tiered_decay_rate1: 0.1,
-  tiered_decay_rate2: 0.1,
-  t_type: "linear",
-  cap: { x: 0, y: 0 },
+  cap: { x: 15, y: 1.5 },
   cap_mode: "out"
 });
 
