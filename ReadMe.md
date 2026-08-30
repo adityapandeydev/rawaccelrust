@@ -1,28 +1,62 @@
-# Raw Accel - User Inteface Working Branch
+# Raw Accel — Rust Rewrite
 
-This branch will contain work to create a modern user interface for the Raw Accel driver using Avalonia.
+A rewrite of the [Raw Accel](https://github.com/RawAccelOfficial/rawaccel) mouse acceleration driver's userspace application, built with **Rust + Tauri + React**.
 
-## Why use a working branch?
-Only code which is ready to be released will be merged to master. This branch will be merged to master once we are satisfied with the new UI.
+## What is this?
 
-## ReadMe
+This is a reimplementation of the Raw Accel userspace tool. The kernel-mode driver remains unchanged — this project replaces the C#/WinForms frontend and C++ math layer with:
 
-This ReadMe will contain information on how to contribute to the working branch. It will be updated back to the standard Raw Accel readme on final merge to master before release.
+- **Pure Rust backend** — all acceleration curve math (classic, jump, natural, power, synchronous, lookup) ported 1:1 from the original C++ headers
+- **Tauri** — lightweight native window shell, replacing the .NET runtime dependency
+- **React + TypeScript** — modern UI (in progress)
+- **Tiered mode** — a new acceleration mode that defines piecewise linear breakpoint curves
+
+## Architecture
+
+```
+┌──────────────────────────────────┐
+│  React UI (TypeScript)           │
+│  Curve editor, settings panel    │
+├──────────────────────────────────┤
+│  Tauri IPC bridge                │
+├──────────────────────────────────┤
+│  Rust backend                    │
+│  ├── models.rs   (driver ABI)   │
+│  ├── math.rs     (curve init)   │
+│  ├── config.rs   (settings)     │
+│  └── driver.rs   (DeviceIoCtl)  │
+├──────────────────────────────────┤
+│  Raw Accel kernel driver (C)     │
+│  (unchanged, communicates via    │
+│   DeviceIoControl IOCTL)         │
+└──────────────────────────────────┘
+```
 
 ## Building
 
-To build the solution for RA with the new user interface, you need the same prerequisites as master, and one additional:
-- .NET VS installations -4.7.2, 8.0
-- Desktop development with C++ (VS installer component package)
-- Windows SDK for your Windows installation version
-- Windows Driver Development Kit (WDK) for your Windows installation version
-- [Avalonia Templates and VSIX](https://avaloniaui.net/gettingstarted#installation)
+### Prerequisites
+- [Rust](https://rustup.rs/) (stable toolchain)
+- [Node.js](https://nodejs.org/) (v18+)
+- Raw Accel driver installed (for runtime testing)
 
-## Project Planning
+### Build & Run
+```bash
+cd rawaccel-userspace
+npm install
+npm run tauri dev
+```
 
-The GitHub Project used to plan this work can be found here: [User Interface 2.0 with Avalonia](https://github.com/orgs/RawAccelOfficial/projects/2)  
-That project has a ReadMe with additional info.
+## Original Project
 
-## Contributing
+The original Raw Accel project is maintained at:  
+https://github.com/RawAccelOfficial/rawaccel
 
-We welcome contributions from anyone! If you want, you can join [our Discord server](https://discord.gg/7pQh8zH) to help coordinate work.
+This rewrite is based on the math and driver interface from that project. The kernel driver code is shared.
+
+## Status
+
+- [x] Rust backend — pure Rust math port of all acceleration curves
+- [x] Driver communication — DeviceIoControl read/write
+- [x] Tiered mode — new piecewise linear acceleration mode
+- [ ] React UI — curve editor, settings panel, graph visualization
+- [ ] Full end-to-end testing with driver
