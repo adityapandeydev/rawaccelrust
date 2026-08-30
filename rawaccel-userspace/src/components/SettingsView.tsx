@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings, Globe, Bell, Info } from "lucide-react";
+import { Globe, Bell, Info } from "lucide-react";
 import { CustomSelect } from "./CustomSelect";
 
 interface SettingsViewProps {
@@ -24,11 +24,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   setShowConfirmModals
 }) => {
   return (
-    <div className="panel" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div className="panel-header" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <Settings size={20} color="var(--color-primary)" />
-        <h2>Application Settings</h2>
-      </div>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", padding: "1.5rem" }}>
+      
 
       <div style={{ flex: 1, overflowY: "auto", padding: "1.5rem", display: "flex", flexDirection: "column", gap: "2rem" }}>
         
@@ -123,3 +120,5 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     </div>
   );
 };
+
+

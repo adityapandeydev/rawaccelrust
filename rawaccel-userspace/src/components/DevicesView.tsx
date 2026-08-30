@@ -1,3 +1,4 @@
+import { NumberInput } from "./NumberInput";
 import { useState } from "react";
 import { Device, DeviceConfig } from "../types";
 import { Monitor } from "lucide-react";
@@ -33,7 +34,7 @@ export function DevicesView({
         profile_id: null,
         disable: false,
         set_extra_info: false,
-        poll_time_lock: true,
+        poll_time_lock: false,
         dpi: 0,
         polling_rate: 0,
         clamp_min: 0,
@@ -48,28 +49,32 @@ export function DevicesView({
     <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "1.5rem", padding: "1.5rem", height: "100%", width: "100%", overflow: "hidden" }}>
       
       {/* Device List */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: "1.1rem", margin: 0 }}>System Devices</h2>
-        </div>
-        
-        <div className="panel" style={{ flex: 1, padding: "0.5rem", overflowY: "auto" }}>
-          <ul className="sidebar-list">
-            {devices.map(d => (
-              <li 
-                key={d.id} 
-                className={`sidebar-list-item ${selectedDeviceId === d.id ? "active" : ""}`}
-                onClick={() => setSelectedDeviceId(d.id)}
-                style={{ padding: "0.75rem", display: "flex", alignItems: "center", gap: "0.75rem" }}
-              >
-                <Monitor size={16} />
-                <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                  <span style={{ fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.name}</span>
-                  <span style={{ fontSize: "0.65rem", color: selectedDeviceId === d.id ? "var(--bg-app)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{d.id}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div className="panel" style={{ flex: 1, display: "flex", flexDirection: "column", padding: "1.5rem 0 0 0", overflow: "hidden" }}>
+          <div style={{ padding: "0 1.5rem" }}>
+            <div className="panel-header" style={{ marginBottom: "0.5rem" }}>
+              System Devices
+            </div>
+          </div>
+          
+          <div style={{ flex: 1, padding: "0.5rem", overflowY: "auto" }}>
+            <ul className="sidebar-list">
+              {devices.map(d => (
+                <li 
+                  key={d.id} 
+                  className={`sidebar-list-item ${selectedDeviceId === d.id ? "active" : ""}`}
+                  onClick={() => setSelectedDeviceId(d.id)}
+                  style={{ padding: "0.75rem", display: "flex", alignItems: "center", gap: "0.75rem" }}
+                >
+                  <Monitor size={16} />
+                  <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                    <span style={{ fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.name}</span>
+                    <span style={{ fontSize: "0.65rem", color: selectedDeviceId === d.id ? "var(--bg-app)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{d.id}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -88,11 +93,11 @@ export function DevicesView({
               <div>
                 <div className="input-group">
                   <label className="input-label">Hardware DPI</label>
-                  <input type="number" className="input-field selectable" value={selectedConfig.dpi || 0} onChange={e => updateConfig("dpi", parseInt(e.target.value) || 0)} />
+                  <NumberInput className="input-field selectable" value={selectedConfig.dpi || 0} onChange={e => updateConfig("dpi", parseInt(e.target.value) || 0)} />
                 </div>
                 <div className="input-group">
                   <label className="input-label">Polling Rate (Hz)</label>
-                  <input type="number" className="input-field selectable" value={selectedConfig.polling_rate || 0} onChange={e => updateConfig("polling_rate", parseInt(e.target.value) || 0)} />
+                  <NumberInput className="input-field selectable" value={selectedConfig.polling_rate || 0} onChange={e => updateConfig("polling_rate", parseInt(e.target.value) || 0)} />
                 </div>
                 
                 <div style={{ marginTop: "2rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -116,11 +121,11 @@ export function DevicesView({
                 <h4 style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "1rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Time Clamping</h4>
                 <div className="input-group">
                   <label className="input-label">Min Time Clamp</label>
-                  <input type="number" className="input-field selectable" value={selectedConfig.clamp_min || 0} onChange={e => updateConfig("clamp_min", parseFloat(e.target.value) || 0)} step="0.1" />
+                  <NumberInput className="input-field selectable" value={selectedConfig.clamp_min || 0} onChange={e => updateConfig("clamp_min", parseFloat(e.target.value) || 0)} step="0.1" />
                 </div>
                 <div className="input-group">
                   <label className="input-label">Max Time Clamp</label>
-                  <input type="number" className="input-field selectable" value={selectedConfig.clamp_max || 0} onChange={e => updateConfig("clamp_max", parseFloat(e.target.value) || 0)} step="0.1" />
+                  <NumberInput className="input-field selectable" value={selectedConfig.clamp_max || 0} onChange={e => updateConfig("clamp_max", parseFloat(e.target.value) || 0)} step="0.1" />
                 </div>
                 <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "1rem", lineHeight: 1.5 }}>
                   Time clamping sets limits on the delta-time between polls. Useful for fixing anomalous polling rate spikes that cause acceleration jumps.
@@ -138,3 +143,4 @@ export function DevicesView({
     </div>
   );
 }
+

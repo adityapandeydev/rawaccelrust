@@ -69,7 +69,7 @@ pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
     let handle = open_driver()?;
 
     let active_devices: Vec<_> = config.devices.iter()
-        .filter(|d| d.profile_id.is_some() && !d.disable)
+        .filter(|d| d.profile_id.is_some())
         .collect();
     let num_profiles = config.profiles.len();
     let num_devices = active_devices.len();

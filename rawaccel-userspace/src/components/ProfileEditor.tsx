@@ -1,3 +1,4 @@
+import { NumberInput } from "./NumberInput";
 import React, { useState } from "react";
 import { Profile, AccelArgs } from "../types";
 import { CurveGraph } from "./CurveGraph";
@@ -77,11 +78,11 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
         <div className="panel">
           <div className="input-group">
             <label className="input-label">Sens Multiplier</label>
-            <input type="number" className="input-field" value={profile.yx_output_dpi_ratio} onChange={e => updateProfile("yx_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
+            <NumberInput className="input-field" value={profile.yx_output_dpi_ratio} onChange={e => updateProfile("yx_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
           </div>
           <div className="input-group">
             <label className="input-label">Output DPI</label>
-            <input type="number" className="input-field" value={profile.output_dpi} onChange={e => updateProfile("output_dpi", safeParseFloat(e.target.value))} />
+            <NumberInput className="input-field" value={profile.output_dpi} onChange={e => updateProfile("output_dpi", safeParseFloat(e.target.value))} />
           </div>
         </div>
 
@@ -93,50 +94,62 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
           <div className="input-group">
             <label className="input-label">Domain</label>
             <div style={{ display: "flex", gap: "0.5rem" }}>
-              <input type="number" className="input-field" style={{ width: "100%" }} value={profile.domain_weights.x} onChange={e => updateProfile("domain_weights", { ...profile.domain_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
-              <input type="number" className="input-field" style={{ width: "100%" }} value={profile.domain_weights.y} onChange={e => updateProfile("domain_weights", { ...profile.domain_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
+              <NumberInput className="input-field" style={{ width: "100%" }} value={profile.domain_weights.x} onChange={e => updateProfile("domain_weights", { ...profile.domain_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
+              <NumberInput className="input-field" style={{ width: "100%" }} value={profile.domain_weights.y} onChange={e => updateProfile("domain_weights", { ...profile.domain_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
             </div>
           </div>
           <div className="input-group">
             <label className="input-label">Range</label>
             <div style={{ display: "flex", gap: "0.5rem" }}>
-              <input type="number" className="input-field" style={{ width: "100%" }} value={profile.range_weights.x} onChange={e => updateProfile("range_weights", { ...profile.range_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
-              <input type="number" className="input-field" style={{ width: "100%" }} value={profile.range_weights.y} onChange={e => updateProfile("range_weights", { ...profile.range_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
+              <NumberInput className="input-field" style={{ width: "100%" }} value={profile.range_weights.x} onChange={e => updateProfile("range_weights", { ...profile.range_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
+              <NumberInput className="input-field" style={{ width: "100%" }} value={profile.range_weights.y} onChange={e => updateProfile("range_weights", { ...profile.range_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
             </div>
           </div>
           <div className="input-group">
             <label className="input-label">LP Norm</label>
-            <input type="number" className="input-field" value={profile.speed_processor_args.lp_norm} onChange={e => updateSpeed("lp_norm", safeParseFloat(e.target.value))} step="0.1" />
+            <NumberInput className="input-field" value={profile.speed_processor_args.lp_norm} onChange={e => updateSpeed("lp_norm", safeParseFloat(e.target.value))} step="0.1" />
           </div>
         </Accordion>
 
         <Accordion title="Coalescion">
           <div className="input-group">
             <label className="input-label">Input Speed</label>
-            <input type="number" className="input-field" value={profile.speed_processor_args.input_speed_smooth_halflife} onChange={e => updateSpeed("input_speed_smooth_halflife", safeParseFloat(e.target.value))} />
+            <NumberInput className="input-field" value={profile.speed_processor_args.input_speed_smooth_halflife} onChange={e => updateSpeed("input_speed_smooth_halflife", safeParseFloat(e.target.value))} />
           </div>
           <div className="input-group">
             <label className="input-label">Scale</label>
-            <input type="number" className="input-field" value={profile.speed_processor_args.scale_smooth_halflife} onChange={e => updateSpeed("scale_smooth_halflife", safeParseFloat(e.target.value))} />
+            <NumberInput className="input-field" value={profile.speed_processor_args.scale_smooth_halflife} onChange={e => updateSpeed("scale_smooth_halflife", safeParseFloat(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Output Speed</label>
+            <NumberInput className="input-field" value={profile.speed_processor_args.output_speed_smooth_halflife} onChange={e => updateSpeed("output_speed_smooth_halflife", safeParseFloat(e.target.value))} />
           </div>
         </Accordion>
 
-        <Accordion title="Hidden">
+        <Accordion title="Modifiers">
           <div className="input-group">
             <label className="input-label">Rotation (°)</label>
-            <input type="number" className="input-field" value={profile.degrees_rotation} onChange={e => updateProfile("degrees_rotation", safeParseFloat(e.target.value))} />
+            <NumberInput className="input-field" value={profile.degrees_rotation} onChange={e => updateProfile("degrees_rotation", safeParseFloat(e.target.value))} />
           </div>
           <div className="input-group">
             <label className="input-label">Angle Snapping (°)</label>
-            <input type="number" className="input-field" value={profile.degrees_snap} onChange={e => updateProfile("degrees_snap", safeParseFloat(e.target.value))} />
+            <NumberInput className="input-field" value={profile.degrees_snap} onChange={e => updateProfile("degrees_snap", safeParseFloat(e.target.value))} />
           </div>
           <div className="input-group">
             <label className="input-label">L/R Ratio</label>
-            <input type="number" className="input-field" value={profile.lr_output_dpi_ratio} onChange={e => updateProfile("lr_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
+            <NumberInput className="input-field" value={profile.lr_output_dpi_ratio} onChange={e => updateProfile("lr_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
           </div>
           <div className="input-group">
             <label className="input-label">U/D Ratio</label>
-            <input type="number" className="input-field" value={profile.ud_output_dpi_ratio} onChange={e => updateProfile("ud_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
+            <NumberInput className="input-field" value={profile.ud_output_dpi_ratio} onChange={e => updateProfile("ud_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Speed Min Clamp</label>
+            <NumberInput className="input-field" value={profile.speed_min} onChange={e => updateProfile("speed_min", safeParseFloat(e.target.value))} step="0.1" />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Speed Max Clamp</label>
+            <NumberInput className="input-field" value={profile.speed_max} onChange={e => updateProfile("speed_max", safeParseFloat(e.target.value))} step="0.1" />
           </div>
         </Accordion>
       </div>
@@ -164,7 +177,7 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
         </div>
 
         <div className="graph-container">
-          <CurveGraph argsX={profile.accel_x} argsY={profile.accel_y} maxSpeed={50} maxMultiplier={2} showExtras={true} />
+          <CurveGraph argsX={profile.accel_x} argsY={profile.accel_y} showExtras={true} />
         </div>
 
         {/* Curve Specific Parameters */}
@@ -189,11 +202,11 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
               <>
                 <div className="input-group">
                   <label className="input-label">Acceleration</label>
-                  <input type="number" className="input-field" value={activeAccel.acceleration} onChange={e => updateAccel("acceleration", safeParseFloat(e.target.value))} step="0.01" />
+                  <NumberInput className="input-field" value={activeAccel.acceleration} onChange={e => updateAccel("acceleration", safeParseFloat(e.target.value))} step="0.01" />
                 </div>
                 <div className="input-group">
                   <label className="input-label">Input Offset</label>
-                  <input type="number" className="input-field" value={activeAccel.input_offset} onChange={e => updateAccel("input_offset", safeParseFloat(e.target.value))} step="0.1" />
+                  <NumberInput className="input-field" value={activeAccel.input_offset} onChange={e => updateAccel("input_offset", safeParseFloat(e.target.value))} step="0.1" />
                 </div>
               </>
             )}
@@ -204,11 +217,11 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
           <div>
             <div className="input-group">
               <label className="input-label">Cap X</label>
-              <input type="number" className="input-field" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
+              <NumberInput className="input-field" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
             </div>
             <div className="input-group">
               <label className="input-label">Cap Y</label>
-              <input type="number" className="input-field" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
+              <NumberInput className="input-field" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
             </div>
 
 
@@ -226,3 +239,4 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
     </div>
   );
 }
+

@@ -1,5 +1,5 @@
 import { Device, DeviceConfig } from "../types";
-import { Layers, Monitor, Activity, Plus } from "lucide-react";
+import { Monitor, Activity } from "lucide-react";
 
 export function MappingsView({ 
   devices, 
@@ -37,7 +37,6 @@ export function MappingsView({
     <div style={{ padding: "1.5rem", height: "100%", width: "100%", overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
         <div>
-          <h2 style={{ fontSize: "1.25rem", margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}><Layers size={20} color="var(--color-primary)" /> Device Mappings</h2>
           <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "0.25rem" }}>Enable and bind specific acceleration profiles to individual hardware devices.</p>
         </div>
       </div>
@@ -104,3 +103,5 @@ export function MappingsView({
     </div>
   );
 }
+
+

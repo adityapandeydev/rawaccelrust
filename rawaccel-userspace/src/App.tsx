@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Moon, Sun, Monitor, Layers, Activity, Plus, Save, Download, Upload, Mouse, Menu, X, Settings } from "lucide-react";
 import "./index.css";
 import { Profile, defaultProfile, AccelArgs, Device, DeviceConfig } from "./types";
+import { NumberInput } from "./components/NumberInput";
 import { CurveGraph } from "./components/CurveGraph";
 import { CustomSelect } from "./components/CustomSelect";
 import { DevicesView } from "./components/DevicesView";
@@ -195,7 +196,10 @@ function App() {
             </button>
             
             <h1 style={{ fontSize: "1.25rem", margin: 0, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              {profile.name}
+              {activeTab === "profiles" && profile.name}
+              {activeTab === "mappings" && "Device Mappings"}
+              {activeTab === "devices" && "Devices"}
+              {activeTab === "settings" && "Application Settings"}
               {activeTab === "profiles" && (
                 <button className="btn" style={{ padding: "0.2rem", background: "transparent", border: "none", color: "var(--color-primary)", cursor: "pointer" }} title="Add New Profile">
                   <Plus size={18} />
@@ -226,7 +230,7 @@ function App() {
               </>
             )}
 
-            <button className="btn btn-primary" onClick={applySettings}><Save size={16} /> Apply to Mouse</button>
+            {activeTab !== "settings" && <button className="btn btn-primary" onClick={applySettings}><Save size={16} /> Apply to Mouse</button>}
           </div>
         </header>
 
@@ -289,7 +293,7 @@ function App() {
                       {activeAccel.cap_mode !== "io" && (
                         <div className="input-group">
                           <label className="input-label">Acceleration</label>
-                          <input type="number" className="input-field selectable" value={activeAccel.acceleration} onChange={e => updateAccel("acceleration", safeParseFloat(e.target.value))} step="0.001" />
+                          <NumberInput className="input-field selectable" value={activeAccel.acceleration} onChange={e => updateAccel("acceleration", safeParseFloat(e.target.value))} step="0.001" />
                         </div>
                       )}
                       
@@ -310,24 +314,24 @@ function App() {
                       {activeAccel.cap_mode === "in" || activeAccel.cap_mode === "out" ? (
                         <div className="input-group">
                           <label className="input-label">Cap: {activeAccel.cap_mode === "in" ? "Input" : "Output"}</label>
-                          <input type="number" className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
+                          <NumberInput className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
                         </div>
                       ) : (
                         <>
                           <div className="input-group">
                             <label className="input-label">Cap: Input</label>
-                            <input type="number" className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
+                            <NumberInput className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
                           </div>
                           <div className="input-group">
                             <label className="input-label">Cap: Output</label>
-                            <input type="number" className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
+                            <NumberInput className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
                           </div>
                         </>
                       )}
 
                       <div className="input-group">
                         <label className="input-label">Input Offset</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.input_offset} onChange={e => updateAccel("input_offset", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.input_offset} onChange={e => updateAccel("input_offset", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                     </>
                   )}
@@ -355,34 +359,34 @@ function App() {
                         <>
                           <div className="input-group">
                             <label className="input-label">Cap: {activeAccel.cap_mode === "in" ? "Input" : "Output"}</label>
-                            <input type="number" className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
+                            <NumberInput className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
                           </div>
                           <div className="input-group">
                             <label className="input-label">Acceleration</label>
-                            <input type="number" className="input-field selectable" value={activeAccel.acceleration} onChange={e => updateAccel("acceleration", safeParseFloat(e.target.value))} step="0.001" />
+                            <NumberInput className="input-field selectable" value={activeAccel.acceleration} onChange={e => updateAccel("acceleration", safeParseFloat(e.target.value))} step="0.001" />
                           </div>
                         </>
                       ) : (
                         <>
                           <div className="input-group">
                             <label className="input-label">Cap: Input</label>
-                            <input type="number" className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
+                            <NumberInput className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
                           </div>
                           <div className="input-group">
                             <label className="input-label">Cap: Output</label>
-                            <input type="number" className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
+                            <NumberInput className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
                           </div>
                         </>
                       )}
 
                       <div className="input-group">
                         <label className="input-label">Input Offset</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.input_offset} onChange={e => updateAccel("input_offset", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.input_offset} onChange={e => updateAccel("input_offset", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                       
                       <div className="input-group">
                         <label className="input-label">Power</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.exponent_classic} onChange={e => updateAccel("exponent_classic", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.exponent_classic} onChange={e => updateAccel("exponent_classic", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                     </>
                   )}
@@ -394,15 +398,15 @@ function App() {
                     <>
                       <div className="input-group">
                         <label className="input-label">Smooth</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.smooth} onChange={e => updateAccel("smooth", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.smooth} onChange={e => updateAccel("smooth", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                       <div className="input-group">
                         <label className="input-label">Input</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
                       </div>
                       <div className="input-group">
                         <label className="input-label">Output</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
                       </div>
                     </>
                   )}
@@ -414,15 +418,15 @@ function App() {
                     <>
                       <div className="input-group">
                         <label className="input-label">Decay Rate</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.decay_rate} onChange={e => updateAccel("decay_rate", safeParseFloat(e.target.value))} step="0.01" />
+                        <NumberInput className="input-field selectable" value={activeAccel.decay_rate} onChange={e => updateAccel("decay_rate", safeParseFloat(e.target.value))} step="0.01" />
                       </div>
                       <div className="input-group">
                         <label className="input-label">Input Offset</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.input_offset} onChange={e => updateAccel("input_offset", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.input_offset} onChange={e => updateAccel("input_offset", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                       <div className="input-group">
                         <label className="input-label">Limit</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.limit} onChange={e => updateAccel("limit", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.limit} onChange={e => updateAccel("limit", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                     </>
                   )}
@@ -435,7 +439,7 @@ function App() {
                       {activeAccel.cap_mode !== "io" && (
                         <div className="input-group">
                           <label className="input-label">Scale</label>
-                          <input type="number" className="input-field selectable" value={activeAccel.scale} onChange={e => updateAccel("scale", safeParseFloat(e.target.value))} step="0.1" />
+                          <NumberInput className="input-field selectable" value={activeAccel.scale} onChange={e => updateAccel("scale", safeParseFloat(e.target.value))} step="0.1" />
                         </div>
                       )}
 
@@ -456,29 +460,29 @@ function App() {
                       {activeAccel.cap_mode === "in" || activeAccel.cap_mode === "out" ? (
                         <div className="input-group">
                           <label className="input-label">Cap: {activeAccel.cap_mode === "in" ? "Input" : "Output"}</label>
-                          <input type="number" className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
+                          <NumberInput className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
                         </div>
                       ) : (
                         <>
                           <div className="input-group">
                             <label className="input-label">Cap: Input</label>
-                            <input type="number" className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
+                            <NumberInput className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
                           </div>
                           <div className="input-group">
                             <label className="input-label">Cap: Output</label>
-                            <input type="number" className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
+                            <NumberInput className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
                           </div>
                         </>
                       )}
 
                       <div className="input-group">
                         <label className="input-label">Exponent</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.exponent_power} onChange={e => updateAccel("exponent_power", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.exponent_power} onChange={e => updateAccel("exponent_power", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                       
                       <div className="input-group">
                         <label className="input-label">Output Offset</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.output_offset} onChange={e => updateAccel("output_offset", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.output_offset} onChange={e => updateAccel("output_offset", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                     </>
                   )}
@@ -490,19 +494,19 @@ function App() {
                     <>
                       <div className="input-group">
                         <label className="input-label">Gamma</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.gamma} onChange={e => updateAccel("gamma", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.gamma} onChange={e => updateAccel("gamma", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                       <div className="input-group">
                         <label className="input-label">Smooth</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.smooth} onChange={e => updateAccel("smooth", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.smooth} onChange={e => updateAccel("smooth", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                       <div className="input-group">
                         <label className="input-label">Motivity</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.motivity} onChange={e => updateAccel("motivity", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.motivity} onChange={e => updateAccel("motivity", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                       <div className="input-group">
                         <label className="input-label">Sync Speed</label>
-                        <input type="number" className="input-field selectable" value={activeAccel.sync_speed} onChange={e => updateAccel("sync_speed", safeParseFloat(e.target.value))} step="0.1" />
+                        <NumberInput className="input-field selectable" value={activeAccel.sync_speed} onChange={e => updateAccel("sync_speed", safeParseFloat(e.target.value))} step="0.1" />
                       </div>
                     </>
                   )}
@@ -549,11 +553,11 @@ function App() {
                   <h3 style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "0.5rem", marginBottom: "-0.25rem" }}>General</h3>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Sens Multiplier</label>
-                    <input type="number" className="input-field selectable" value={profile.yx_output_dpi_ratio} onChange={e => updateProfile("yx_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
+                    <NumberInput className="input-field selectable" value={profile.yx_output_dpi_ratio} onChange={e => updateProfile("yx_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Output DPI</label>
-                    <input type="number" className="input-field selectable" value={profile.output_dpi} onChange={e => updateProfile("output_dpi", safeParseFloat(e.target.value))} step="1" />
+                    <NumberInput className="input-field selectable" value={profile.output_dpi} onChange={e => updateProfile("output_dpi", safeParseFloat(e.target.value))} step="1" />
                   </div>
 
                   <div style={{ height: "1px", backgroundColor: "var(--border)", margin: "0.5rem 0" }}></div>
@@ -563,20 +567,20 @@ function App() {
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Domain Weights</label>
                     <div style={{ display: "flex", gap: "0.25rem", width: "90px" }}>
-                      <input type="number" className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.domain_weights.x} onChange={e => updateProfile("domain_weights", { ...profile.domain_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
-                      <input type="number" className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.domain_weights.y} onChange={e => updateProfile("domain_weights", { ...profile.domain_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
+                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.domain_weights.x} onChange={e => updateProfile("domain_weights", { ...profile.domain_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
+                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.domain_weights.y} onChange={e => updateProfile("domain_weights", { ...profile.domain_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
                     </div>
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Range Weights</label>
                     <div style={{ display: "flex", gap: "0.25rem", width: "90px" }}>
-                      <input type="number" className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.range_weights.x} onChange={e => updateProfile("range_weights", { ...profile.range_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
-                      <input type="number" className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.range_weights.y} onChange={e => updateProfile("range_weights", { ...profile.range_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
+                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.range_weights.x} onChange={e => updateProfile("range_weights", { ...profile.range_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
+                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.range_weights.y} onChange={e => updateProfile("range_weights", { ...profile.range_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
                     </div>
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">LP Norm</label>
-                    <input type="number" className="input-field selectable" value={profile.speed_processor_args.lp_norm} onChange={e => updateSpeed("lp_norm", safeParseFloat(e.target.value))} step="0.1" />
+                    <NumberInput className="input-field selectable" value={profile.speed_processor_args.lp_norm} onChange={e => updateSpeed("lp_norm", safeParseFloat(e.target.value))} step="0.1" />
                   </div>
 
                   <div style={{ height: "1px", backgroundColor: "var(--border)", margin: "0.5rem 0" }}></div>
@@ -585,11 +589,11 @@ function App() {
                   <h3 style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "-0.25rem" }}>Coalescion (Smooth)</h3>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Input Half-life</label>
-                    <input type="number" className="input-field selectable" value={profile.speed_processor_args.input_speed_smooth_halflife} onChange={e => updateSpeed("input_speed_smooth_halflife", safeParseFloat(e.target.value))} step="0.1" />
+                    <NumberInput className="input-field selectable" value={profile.speed_processor_args.input_speed_smooth_halflife} onChange={e => updateSpeed("input_speed_smooth_halflife", safeParseFloat(e.target.value))} step="0.1" />
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Scale Half-life</label>
-                    <input type="number" className="input-field selectable" value={profile.speed_processor_args.scale_smooth_halflife} onChange={e => updateSpeed("scale_smooth_halflife", safeParseFloat(e.target.value))} step="0.1" />
+                    <NumberInput className="input-field selectable" value={profile.speed_processor_args.scale_smooth_halflife} onChange={e => updateSpeed("scale_smooth_halflife", safeParseFloat(e.target.value))} step="0.1" />
                   </div>
 
                   <div style={{ height: "1px", backgroundColor: "var(--border)", margin: "0.5rem 0" }}></div>
@@ -598,19 +602,19 @@ function App() {
                   <h3 style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "-0.25rem" }}>Geometry</h3>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Rotation (°)</label>
-                    <input type="number" className="input-field selectable" value={profile.degrees_rotation} onChange={e => updateProfile("degrees_rotation", safeParseFloat(e.target.value))} step="0.1" />
+                    <NumberInput className="input-field selectable" value={profile.degrees_rotation} onChange={e => updateProfile("degrees_rotation", safeParseFloat(e.target.value))} step="0.1" />
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Angle Snapping</label>
-                    <input type="number" className="input-field selectable" value={profile.degrees_snap} onChange={e => updateProfile("degrees_snap", safeParseFloat(e.target.value))} step="0.1" />
+                    <NumberInput className="input-field selectable" value={profile.degrees_snap} onChange={e => updateProfile("degrees_snap", safeParseFloat(e.target.value))} step="0.1" />
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">L/R Ratio</label>
-                    <input type="number" className="input-field selectable" value={profile.lr_output_dpi_ratio} onChange={e => updateProfile("lr_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
+                    <NumberInput className="input-field selectable" value={profile.lr_output_dpi_ratio} onChange={e => updateProfile("lr_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">U/D Ratio</label>
-                    <input type="number" className="input-field selectable" value={profile.ud_output_dpi_ratio} onChange={e => updateProfile("ud_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
+                    <NumberInput className="input-field selectable" value={profile.ud_output_dpi_ratio} onChange={e => updateProfile("ud_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
                   </div>
 
                 </div>
@@ -620,7 +624,7 @@ function App() {
             
             {/* Right Column: Full Height Graph */}
             <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", paddingTop: "0.25rem" }}>
-              <CurveGraph argsX={profile.accel_x} argsY={profile.accel_y} maxSpeed={50} maxMultiplier={2} showExtras={showExtras} />
+              <CurveGraph argsX={profile.accel_x} argsY={profile.accel_y} showExtras={showExtras} />
             </div>
             
           </div>
