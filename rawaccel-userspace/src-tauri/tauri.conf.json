@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "rawaccel-userspace",
+  "productName": "RawAccel",
   "version": "0.1.0",
   "identifier": "com.adityapandey.rawaccel-userspace",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "rawaccel-userspace",
+        "title": "RawAccel",
         "width": 800,
         "height": 600,
         "fullscreen": false,

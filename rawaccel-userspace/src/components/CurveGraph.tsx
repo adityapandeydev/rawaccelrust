@@ -7,21 +7,23 @@ import { Zap, Activity, TrendingUp } from 'lucide-react';
 interface CurveGraphProps {
   argsX: AccelArgs;
   argsY: AccelArgs;
-  showExtras: boolean;
+  visibleGraphs: string[];
+  isExpanded: boolean;
 }
 
 export function CurveGraph({ 
   argsX, 
   argsY, 
-  showExtras
+  visibleGraphs,
+  isExpanded
 }: CurveGraphProps) {
 
   const maxSpeed = useMemo(() => {
-    let m = 80;
+    let m = isExpanded ? 200 : 80;
     if (argsX.cap_mode === "in" && argsX.cap.x > 0) m = Math.max(m, argsX.cap.x * 1.2);
     if (argsY.cap_mode === "in" && argsY.cap.x > 0) m = Math.max(m, argsY.cap.x * 1.2);
     return Math.ceil(m / 20) * 20;
-  }, [argsX, argsY]);
+  }, [argsX, argsY, isExpanded]);
 
   const dataX = useMemo(() => generateGraphData(argsX, maxSpeed, 200), [argsX, maxSpeed]);
   const dataY = useMemo(() => generateGraphData(argsY, maxSpeed, 200), [argsY, maxSpeed]);
@@ -91,7 +93,12 @@ export function CurveGraph({
     const pathX = generatePath(dataX, dataKey, minY, maxY);
     const pathY = generatePath(dataY, dataKey, minY, maxY);
 
-    const ticks = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
+    // Fixed Y ticks (5 intervals)
+    const yTicks = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
+    
+    // Dynamic X ticks based on maxSpeed (intervals of 20)
+    const numXTicks = maxSpeed / 20;
+    const xTicks = Array.from({ length: numXTicks + 1 }, (_, i) => i / numXTicks);
 
     return (
       <motion.div 
@@ -121,7 +128,8 @@ export function CurveGraph({
           <div style={{ flex: 1, position: "relative" }}>
             {/* Grid Lines & Labels (Unscaled) */}
             <svg width="100%" height="100%" style={{ overflow: "visible", position: "absolute", top: 0, left: 0 }}>
-              {ticks.map(p => {
+              {/* Y Axis Grid */}
+              {yTicks.map(p => {
                 const isZero = p === 0;
                 const yPos = `${100 - (p * 100)}%`;
                 const yVal = minY + p * (maxY - minY);
@@ -135,15 +143,21 @@ export function CurveGraph({
                 );
               })}
               
-              {ticks.map(p => {
+              {/* X Axis Grid */}
+              {xTicks.map((p, i) => {
                 const isZero = p === 0;
                 const xPos = `${p * 100}%`;
+                // To prevent crowding on large domains, only label every 2nd tick if very expanded, or skip some
+                const showLabel = numXTicks <= 10 || (i % 2 === 0);
+                
                 return (
                   <g key={`grid-x-${p}`}>
                     {!isZero && <line x1={xPos} y1="0" x2={xPos} y2="100%" stroke="var(--border)" strokeWidth="1" />}
-                    <text x={xPos} y="100%" dy="16" fill="var(--text-muted)" fontSize="10" fontWeight="500" textAnchor="middle">
-                      {(p * maxSpeed).toFixed(0)}
-                    </text>
+                    {showLabel && (
+                      <text x={xPos} y="100%" dy="16" fill="var(--text-muted)" fontSize="10" fontWeight="500" textAnchor="middle">
+                        {(p * maxSpeed).toFixed(0)}
+                      </text>
+                    )}
                   </g>
                 );
               })}
@@ -165,7 +179,7 @@ export function CurveGraph({
             </svg>
             
             {/* X-Axis Title */}
-            <div style={{ position: "absolute", bottom: "-1.75rem", left: "50%", transform: "translateX(-50%)", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-main)", letterSpacing: "0.02em", whiteSpace: "nowrap" }}>
+            <div style={{ position: "absolute", bottom: "-2.5rem", left: "50%", transform: "translateX(-50%)", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-main)", letterSpacing: "0.02em", whiteSpace: "nowrap" }}>
               Input Speed (counts/ms)
             </div>
             
@@ -180,13 +194,12 @@ export function CurveGraph({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", position: "relative" }}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.5rem", overflowY: "auto", minHeight: 0 }} className="custom-scrollbar">
-        {renderGraph("Sensitivity", <Zap size={15} color="var(--color-sensitivity)" />, "sensitivity", "Ratio of Output to Input", "var(--color-sensitivity)", true)}
-        
         <AnimatePresence mode="popLayout">
-          {showExtras && renderGraph("Velocity", <Activity size={15} color="#10b981" />, "velocity", "Output Velocity (counts/ms)", "#10b981")}
-          {showExtras && renderGraph("Gain", <TrendingUp size={15} color="#f59e0b" />, "gain", "Slope of Velocity", "#f59e0b")}
+          {visibleGraphs.includes("sensitivity") && renderGraph("Sensitivity", <Zap size={15} color="var(--color-sensitivity)" />, "sensitivity", "Ratio of Output to Input", "var(--color-sensitivity)", true)}
+          {visibleGraphs.includes("velocity") && renderGraph("Velocity", <Activity size={15} color="#10b981" />, "velocity", "Output Velocity (counts/ms)", "#10b981")}
+          {visibleGraphs.includes("gain") && renderGraph("Gain", <TrendingUp size={15} color="#f59e0b" />, "gain", "Slope of Velocity", "#f59e0b")}
         </AnimatePresence>
       </div>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Moon, Sun, Monitor, Layers, Activity, Plus, Save, Download, Upload, Mouse, Menu, X, Settings } from "lucide-react";
+import { Moon, Sun, Monitor, Layers, Activity, Plus, Save, Download, Upload, Mouse, Menu, X, Settings, Maximize, Minimize } from "lucide-react";
 import "./index.css";
 import { Profile, defaultProfile, AccelArgs, Device, DeviceConfig } from "./types";
 import { NumberInput } from "./components/NumberInput";
@@ -29,8 +29,19 @@ function App() {
   const [linkXY, setLinkXY] = useState(true);
   const [lookupType, setLookupType] = useState<"sensitivity" | "velocity">("sensitivity");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [showExtras, setShowExtras] = useState(false);
+  const [visibleGraphs, setVisibleGraphs] = useState<string[]>(["sensitivity"]);
+  const [isExpanded, setIsExpanded] = useState(false);
   
+  const toggleGraph = (graph: string) => {
+    if (visibleGraphs.includes(graph)) {
+      if (visibleGraphs.length > 1) {
+        setVisibleGraphs(visibleGraphs.filter(g => g !== graph));
+      }
+    } else {
+      setVisibleGraphs([...visibleGraphs, graph]);
+    }
+  };
+
   useEffect(() => {
     if (theme === "light") {
       document.body.setAttribute("data-theme", "light");
@@ -212,15 +223,20 @@ function App() {
           <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
             {activeTab === "profiles" && (
               <>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.85rem", color: "var(--text-muted)", margin: 0 }}>
-                  <input 
-                    type="checkbox" 
-                    checked={showExtras} 
-                    onChange={(e) => setShowExtras(e.target.checked)}
-                    style={{ accentColor: "var(--color-primary)", margin: 0, cursor: "pointer" }}
-                  />
-                  Show Velocity & Gain
-                </label>
+                <div style={{ display: "flex", gap: "0.25rem", background: "var(--bg-input)", padding: "0.25rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
+                  <button className="btn" style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: visibleGraphs.includes("sensitivity") ? "var(--color-primary)" : "transparent", color: visibleGraphs.includes("sensitivity") ? "#fff" : "var(--text-muted)", border: "none" }} onClick={() => toggleGraph("sensitivity")}>Sensitivity</button>
+                  <button className="btn" style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: visibleGraphs.includes("velocity") ? "var(--color-primary)" : "transparent", color: visibleGraphs.includes("velocity") ? "#fff" : "var(--text-muted)", border: "none" }} onClick={() => toggleGraph("velocity")}>Velocity</button>
+                  <button className="btn" style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: visibleGraphs.includes("gain") ? "var(--color-primary)" : "transparent", color: visibleGraphs.includes("gain") ? "#fff" : "var(--text-muted)", border: "none" }} onClick={() => toggleGraph("gain")}>Gain</button>
+                </div>
+                
+                <button 
+                  className="btn"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  style={{ padding: "0.25rem", background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-muted)", cursor: "pointer", borderRadius: "var(--radius-sm)", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  title={isExpanded ? "Minimize Graph Domain" : "Expand Graph Domain"}
+                >
+                  {isExpanded ? <Minimize size={18} /> : <Maximize size={18} />}
+                </button>
 
                 <div style={{ display: "flex", gap: "0.25rem", background: "var(--bg-input)", padding: "0.25rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
                   <button className="btn" style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: linkXY ? "var(--color-primary)" : "transparent", color: linkXY ? "#fff" : "var(--text-muted)", border: "none" }} onClick={() => setLinkXY(true)}>Link X/Y</button>
@@ -625,7 +641,7 @@ function App() {
             
             {/* Right Column: Full Height Graph */}
             <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", paddingTop: "0.25rem" }}>
-              <CurveGraph argsX={profile.accel_x} argsY={profile.accel_y} showExtras={showExtras} />
+              <CurveGraph argsX={profile.accel_x} argsY={profile.accel_y} visibleGraphs={visibleGraphs} isExpanded={isExpanded} />
             </div>
             
           </div>
