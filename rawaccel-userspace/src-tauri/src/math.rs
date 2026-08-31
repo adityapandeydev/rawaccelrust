@@ -388,13 +388,125 @@ impl PowerGain {
 }
 
 // ── Tiered ───────────────────────────────────────────────────────────────
-// Tiered mode stores no pre-computed state; it evaluates directly from accel_args.
 
 #[repr(C)]
-struct TieredLegacy;
+struct TieredLinearLegacy {
+    m1: f64,
+    x1: f64,
+    m2: f64,
+    x1_end: f64,
+    inv_trans1: f64,
+    m3: f64,
+    x2: f64,
+    x2_end: f64,
+    inv_trans2: f64,
+}
+
+impl TieredLinearLegacy {
+    fn new(args: &accel_args) -> Self {
+        let inv_trans1 = if args.tiered_transition1 > 0.0 { 1.0 / args.tiered_transition1 } else { 0.0 };
+        let inv_trans2 = if args.tiered_transition2 > 0.0 { 1.0 / args.tiered_transition2 } else { 0.0 };
+        Self {
+            m1: args.tiered_multiplier1,
+            x1: args.tiered_input_offset1,
+            m2: args.tiered_multiplier2,
+            x1_end: args.tiered_input_offset1 + args.tiered_transition1,
+            inv_trans1,
+            m3: args.tiered_multiplier3,
+            x2: args.tiered_input_offset2,
+            x2_end: args.tiered_input_offset2 + args.tiered_transition2,
+            inv_trans2,
+        }
+    }
+}
 
 #[repr(C)]
-struct TieredGain;
+struct TieredNaturalLegacy {
+    m1: f64,
+    x1: f64,
+    l1: f64,
+    a1: f64,
+    x2: f64,
+    v2: f64,
+    m2_prime: f64,
+    l2: f64,
+    a2: f64,
+}
+
+impl TieredNaturalLegacy {
+    fn new(args: &accel_args) -> Self {
+        let m1 = args.tiered_multiplier1;
+        let x1 = args.tiered_input_offset1;
+        let v1 = m1 * x1;
+        
+        let l1 = args.tiered_multiplier2 - m1;
+        let a1 = if l1 != 0.0 { args.tiered_decay_rate1 / l1.abs() } else { 0.0 };
+        
+        let x2 = args.tiered_input_offset2;
+        let dx1 = x2 - x1;
+        
+        let decay1 = if l1 != 0.0 { (-a1 * dx1).exp() } else { 1.0 };
+        let v2 = if l1 != 0.0 {
+            v1 + m1 * dx1 + l1 * dx1 * (1.0 - decay1)
+        } else {
+            v1 + m1 * dx1
+        };
+        let m2_prime = if l1 != 0.0 {
+            m1 + l1 * (1.0 - decay1 + dx1 * a1 * decay1)
+        } else {
+            m1
+        };
+        
+        let l2 = args.tiered_multiplier3 - m2_prime;
+        let a2 = if l2 != 0.0 { args.tiered_decay_rate2 / l2.abs() } else { 0.0 };
+        
+        Self { m1, x1, l1, a1, x2, v2, m2_prime, l2, a2 }
+    }
+}
+
+#[repr(C)]
+struct TieredNaturalGain {
+    m1: f64,
+    x1: f64,
+    l1: f64,
+    a1: f64,
+    x2: f64,
+    v2: f64,
+    m2_prime: f64,
+    l2: f64,
+    a2: f64,
+}
+
+impl TieredNaturalGain {
+    fn new(args: &accel_args) -> Self {
+        let m1 = args.tiered_multiplier1;
+        let x1 = args.tiered_input_offset1;
+        let v1 = m1 * x1;
+        
+        let l1 = args.tiered_multiplier2 - m1;
+        let a1 = if l1 != 0.0 { args.tiered_decay_rate1 / l1.abs() } else { 0.0 };
+        
+        let x2 = args.tiered_input_offset2;
+        let dx1 = x2 - x1;
+        
+        let decay1 = if l1 != 0.0 { (-a1 * dx1).exp() } else { 1.0 };
+        let v2 = if l1 != 0.0 {
+            v1 + m1 * dx1 + l1 * (dx1 - (1.0 - decay1) / a1)
+        } else {
+            v1 + m1 * dx1
+        };
+        let m2_prime = if l1 != 0.0 {
+            m1 + l1 * (1.0 - decay1)
+        } else {
+            m1
+        };
+        
+        let l2 = args.tiered_multiplier3 - m2_prime;
+        let a2 = if l2 != 0.0 { args.tiered_decay_rate2 / l2.abs() } else { 0.0 };
+        
+        Self { m1, x1, l1, a1, x2, v2, m2_prime, l2, a2 }
+    }
+}
 
 // ── Lookup ───────────────────────────────────────────────────────────────
 // Lookup stores size and velocity flag. Points live in accel_args.data[].
@@ -579,6 +691,18 @@ fn init_accel_union(union: &mut accel_union, args: &mut accel_args) {
                 union.write(&curve);
             }
         }
+        accel_mode::tiered => {
+            if args.t_type == models::tiered_type::linear {
+                let curve = TieredLinearLegacy::new(args);
+                union.write(&curve);
+            } else if args.gain {
+                let curve = TieredNaturalGain::new(args);
+                union.write(&curve);
+            } else {
+                let curve = TieredNaturalLegacy::new(args);
+                union.write(&curve);
+            }
+        }
         accel_mode::synchronous => {
             if args.gain {
                 let curve = SynchronousGain::new(args);
@@ -591,9 +715,6 @@ fn init_accel_union(union: &mut accel_union, args: &mut accel_args) {
         accel_mode::lookup => {
             let curve = Lookup::new(args);
             union.write(&curve);
-        }
-        accel_mode::tiered => {
-            // Tiered has no pre-computed state.
         }
         accel_mode::noaccel => {
             // No-op.

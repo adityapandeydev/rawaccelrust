@@ -321,59 +321,87 @@ function createClassicEvaluator(originalArgs: AccelArgs, isLinear: boolean): Eva
 // ── Tiered Mode ──────────────────────────────────────────────────────────
 
 function createTieredEvaluator(args: AccelArgs): Evaluator {
-  const evaluateBase = (x: number) => {
-    if (args.t_type === "natural") {
-      if (x <= args.tiered_input_offset1) return args.tiered_multiplier1;
-      
-      if (x < args.tiered_input_offset2) {
-        const offset_x = args.tiered_input_offset1 - x;
-        const limit = args.tiered_multiplier2 - args.tiered_multiplier1;
-        if (limit === 0) return args.tiered_multiplier1;
-        const decay = Math.exp((args.tiered_decay_rate1 / Math.abs(limit)) * offset_x);
-        return args.tiered_multiplier1 + limit * (1 - decay);
-      }
-      
-      let y_at_mid = args.tiered_multiplier1;
-      const offset_x_mid = args.tiered_input_offset1 - args.tiered_input_offset2;
-      const limit1 = args.tiered_multiplier2 - args.tiered_multiplier1;
-      if (limit1 !== 0) {
-        const decay_mid = Math.exp((args.tiered_decay_rate1 / Math.abs(limit1)) * offset_x_mid);
-        y_at_mid = args.tiered_multiplier1 + limit1 * (1 - decay_mid);
-      }
-      
-      const offset_x2 = args.tiered_input_offset2 - x;
-      const limit2 = args.tiered_multiplier3 - y_at_mid;
-      if (limit2 === 0) return y_at_mid;
-      const decay2 = Math.exp((args.tiered_decay_rate2 / Math.abs(limit2)) * offset_x2);
-      return y_at_mid + limit2 * (1 - decay2);
-    } else {
-      // Linear
-      if (x <= args.tiered_input_offset1) return args.tiered_multiplier1;
-      
-      if (x < args.tiered_transition1) {
-        const denom = args.tiered_transition1 - args.tiered_input_offset1;
-        if (denom <= 0) return args.tiered_multiplier2;
-        const t = (x - args.tiered_input_offset1) / denom;
-        return args.tiered_multiplier1 + t * (args.tiered_multiplier2 - args.tiered_multiplier1);
-      }
-      
-      if (x <= args.tiered_input_offset2) return args.tiered_multiplier2;
-      
-      if (x < args.tiered_transition2) {
-        const denom = args.tiered_transition2 - args.tiered_input_offset2;
-        if (denom <= 0) return args.tiered_multiplier3;
-        const t = (x - args.tiered_input_offset2) / denom;
-        return args.tiered_multiplier2 + t * (args.tiered_multiplier3 - args.tiered_multiplier2);
-      }
-      
-      return args.tiered_multiplier3;
+  const evaluateLinear = (x: number) => {
+    if (x <= args.tiered_input_offset1) return args.tiered_multiplier1;
+    
+    if (x < args.tiered_input_offset1 + args.tiered_transition1) {
+      const denom = args.tiered_transition1;
+      if (denom <= 0) return args.tiered_multiplier2;
+      const t = (x - args.tiered_input_offset1) / denom;
+      return args.tiered_multiplier1 + t * (args.tiered_multiplier2 - args.tiered_multiplier1);
     }
+    
+    if (x <= args.tiered_input_offset2) return args.tiered_multiplier2;
+    
+    if (x < args.tiered_input_offset2 + args.tiered_transition2) {
+      const denom = args.tiered_transition2;
+      if (denom <= 0) return args.tiered_multiplier3;
+      const t = (x - args.tiered_input_offset2) / denom;
+      return args.tiered_multiplier2 + t * (args.tiered_multiplier3 - args.tiered_multiplier2);
+    }
+    
+    return args.tiered_multiplier3;
   };
 
   return (x: number) => {
-    const y = evaluateBase(x);
-    if (args.gain) return y;
-    return x > 0 ? y / x : y;
+    if (args.t_type === "linear") {
+      return evaluateLinear(x);
+    }
+
+    const m1 = args.tiered_multiplier1;
+    const x1 = args.tiered_input_offset1;
+    const v1 = m1 * x1;
+    const l1 = args.tiered_multiplier2 - m1;
+    const a1 = l1 !== 0 ? args.tiered_decay_rate1 / Math.abs(l1) : 0;
+    
+    const x2 = args.tiered_input_offset2;
+    const dx1 = x2 - x1;
+    const decay1 = l1 !== 0 ? Math.exp(-a1 * dx1) : 1.0;
+    
+    let v2 = v1 + m1 * dx1;
+    let m2_prime = m1;
+    if (l1 !== 0) {
+      if (args.gain) {
+        v2 = v1 + m1 * dx1 + l1 * (dx1 - (1.0 - decay1) / a1);
+        m2_prime = m1 + l1 * (1.0 - decay1);
+      } else {
+        v2 = v1 + m1 * dx1 + l1 * dx1 * (1.0 - decay1);
+        m2_prime = m1 + l1 * (1.0 - decay1 + dx1 * a1 * decay1);
+      }
+    }
+    
+    const l2 = args.tiered_multiplier3 - m2_prime;
+    const a2 = l2 !== 0 ? args.tiered_decay_rate2 / Math.abs(l2) : 0;
+
+    if (x <= x1) return m1;
+
+    if (x < x2) {
+      if (l1 === 0) return m1;
+      const dx = x - x1;
+      const decay = Math.exp(-a1 * dx);
+      if (args.gain) {
+        const v = v1 + m1 * dx + l1 * (dx - (1.0 - decay) / a1);
+        return v / x;
+      } else {
+        const v = v1 + m1 * dx + l1 * dx * (1.0 - decay);
+        return v / x;
+      }
+    }
+
+    if (l2 === 0) {
+      const dx2 = x - x2;
+      return (v2 + m2_prime * dx2) / x;
+    }
+
+    const dx2 = x - x2;
+    const decay2 = Math.exp(-a2 * dx2);
+    if (args.gain) {
+      const v = v2 + m2_prime * dx2 + l2 * (dx2 - (1.0 - decay2) / a2);
+      return v / x;
+    } else {
+      const v = v2 + m2_prime * dx2 + l2 * dx2 * (1.0 - decay2);
+      return v / x;
+    }
   };
 }
 

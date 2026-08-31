@@ -16,7 +16,10 @@ const safeParseFloat = (val: string) => {
 };
 
 function App() {
-  const [profile, setProfile] = useState<Profile>(defaultProfile());
+  const [profiles, setProfiles] = useState<Profile[]>([defaultProfile()]);
+  const [activeProfileIndex, setActiveProfileIndex] = useState(0);
+  const activeProfile = profiles[activeProfileIndex] || profiles[0];
+
   const [devices, setDevices] = useState<Device[]>([]);
   const [deviceConfig, setDeviceConfig] = useState<DeviceConfig[]>([]);
   
@@ -31,7 +34,10 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [visibleGraphs, setVisibleGraphs] = useState<string[]>(["sensitivity"]);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isProfilesExpanded, setIsProfilesExpanded] = useState(false);
   
+  const mappedDevicesCount = deviceConfig.filter(d => !d.disable && d.profile_id).length;
+
   const toggleGraph = (graph: string) => {
     if (visibleGraphs.includes(graph)) {
       if (visibleGraphs.length > 1) {
@@ -50,17 +56,18 @@ function App() {
     }
   }, [theme]);
 
-  async function applySettings() {
+  async function applySettings(showToast: boolean = true, customMessage?: string, overrideConfig?: DeviceConfig[]) {
     try {
-      console.log("Applying Settings...", profile);
+      const configToUse = overrideConfig || deviceConfig;
+      console.log("Applying Settings...", profiles);
       const profileJson = JSON.stringify({ 
-        profiles: [profile],
-        devices: deviceConfig
+        profiles: profiles,
+        devices: configToUse
       });
       await invoke('apply_settings', { settingsJson: profileJson });
       console.log("Settings applied successfully!");
-      if (showToastNotifications) {
-          alert("Settings applied to driver!");
+      if (showToast && showToastNotifications) {
+          alert(customMessage || "Settings applied to driver!");
       }
     } catch (error) {
       console.error("Failed to apply settings:", error);
@@ -79,8 +86,9 @@ function App() {
         const result: string = await invoke('load_settings');
         const parsed = JSON.parse(result);
         if (parsed && parsed.profiles && parsed.profiles.length > 0) {
-            console.log("Loaded settings from backend:", parsed.profiles[0]);
-            setProfile(parsed.profiles[0]);
+            console.log("Loaded settings from backend:", parsed.profiles);
+            setProfiles(parsed.profiles);
+            setActiveProfileIndex(0);
         }
         if (parsed && parsed.devices) {
             setDeviceConfig(parsed.devices);
@@ -108,16 +116,20 @@ function App() {
   }, []);
 
   // State Update Helpers
+  const updateActiveProfile = (updater: (p: Profile) => Profile) => {
+    setProfiles(prev => prev.map((p, i) => i === activeProfileIndex ? updater(p) : p));
+  };
+
   const updateProfile = (key: keyof Profile, value: any) => {
-    setProfile(p => ({ ...p, [key]: value }));
+    updateActiveProfile(p => ({ ...p, [key]: value }));
   };
 
   const updateSpeed = (key: string, value: number) => {
-    setProfile(p => ({ ...p, speed_processor_args: { ...p.speed_processor_args, [key]: value } }));
+    updateActiveProfile(p => ({ ...p, speed_processor_args: { ...p.speed_processor_args, [key]: value } }));
   };
 
   const updateAccel = (key: keyof AccelArgs, value: any) => {
-    setProfile(p => {
+    updateActiveProfile(p => {
       const next = { ...p };
       if (linkXY) {
         next.accel_x = { ...next.accel_x, [key]: value };
@@ -130,7 +142,7 @@ function App() {
     });
   };
 
-  const activeAccel = activeCurveAxis === "x" ? profile.accel_x : profile.accel_y;
+  const activeAccel = activeCurveAxis === "x" ? activeProfile.accel_x : activeProfile.accel_y;
 
   const navigateTo = (tab: typeof activeTab) => {
     setActiveTab(tab);
@@ -170,8 +182,84 @@ function App() {
         
         <nav style={{ display: "flex", flexDirection: "column", flex: 1 }}>
           <span className="input-label" style={{ marginBottom: "0.5rem", paddingLeft: "0.5rem" }}>Navigation</span>
-          <div className={`nav-link ${activeTab === "profiles" ? "active" : ""}`} onClick={() => navigateTo("profiles")}>
-            <Activity size={16} style={{ marginRight: "0.75rem" }}/> Profiles
+          
+          <div>
+            <div 
+              className={`nav-link ${activeTab === "profiles" ? "active" : ""}`} 
+              onClick={() => {
+                if (profiles.length <= 1) {
+                  navigateTo("profiles");
+                } else {
+                  setActiveTab("profiles");
+                  setIsProfilesExpanded(!isProfilesExpanded);
+                }
+              }}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+            >
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <Activity size={16} style={{ marginRight: "0.75rem" }}/> Profiles
+              </div>
+              <button 
+                className="btn" 
+                style={{ padding: "0.2rem", background: "transparent", border: "none", color: "inherit", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (profiles.length < 5) {
+                    const newProfile = defaultProfile();
+                    newProfile.name = `Profile ${profiles.length + 1}`;
+                    setProfiles([...profiles, newProfile]);
+                    setIsProfilesExpanded(true);
+                    setActiveTab("profiles");
+                  } else {
+                    alert("Maximum 5 profiles allowed.");
+                  }
+                }}
+                title="Add New Profile"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+            
+            {isProfilesExpanded && (
+              <div style={{ paddingLeft: "2.5rem", display: "flex", flexDirection: "column", gap: "0.25rem", marginTop: "0.25rem", marginBottom: "0.5rem" }}>
+                {profiles.map((p, idx) => (
+                  <div 
+                    key={idx}
+                    onClick={() => { setActiveProfileIndex(idx); navigateTo("profiles"); }}
+                    style={{ 
+                      padding: "0.5rem", 
+                      fontSize: "0.85rem",
+                      background: activeProfileIndex === idx ? "var(--color-primary-bg)" : "transparent",
+                      color: activeProfileIndex === idx ? "var(--color-primary)" : "var(--text-main)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center"
+                    }}
+                  >
+                    <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {p.name}
+                    </div>
+                    {profiles.length > 1 && (
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newProfiles = profiles.filter((_, i) => i !== idx);
+                          setProfiles(newProfiles);
+                          if (activeProfileIndex === idx) setActiveProfileIndex(Math.max(0, idx - 1));
+                          else if (activeProfileIndex > idx) setActiveProfileIndex(activeProfileIndex - 1);
+                        }}
+                        style={{ padding: "0.15rem", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        title="Delete Profile"
+                      >
+                        <X size={12} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className={`nav-link ${activeTab === "mappings" ? "active" : ""}`} onClick={() => navigateTo("mappings")}>
             <Layers size={16} style={{ marginRight: "0.75rem" }}/> Mappings
@@ -207,15 +295,17 @@ function App() {
             </button>
             
             <h1 style={{ fontSize: "1.25rem", margin: 0, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              {activeTab === "profiles" && profile.name}
+              {activeTab === "profiles" && (
+                <input 
+                  type="text" 
+                  value={activeProfile.name}
+                  onChange={(e) => updateProfile("name", e.target.value)}
+                  style={{ background: "transparent", border: "none", color: "inherit", font: "inherit", outline: "none", width: "250px", padding: 0, margin: 0 }}
+                />
+              )}
               {activeTab === "mappings" && "Device Mappings"}
               {activeTab === "devices" && "Devices"}
               {activeTab === "settings" && "Application Settings"}
-              {activeTab === "profiles" && (
-                <button className="btn" style={{ padding: "0.2rem", background: "transparent", border: "none", color: "var(--color-primary)", cursor: "pointer" }} title="Add New Profile">
-                  <Plus size={18} />
-                </button>
-              )}
             </h1>
             {activeTab === "profiles" && <span style={{ padding: "0.25rem 0.6rem", backgroundColor: "var(--color-primary-bg)", color: "var(--color-primary)", borderRadius: "var(--radius-sm)", fontSize: "0.75rem", fontWeight: 600 }}>Active</span>}
           </div>
@@ -246,7 +336,27 @@ function App() {
               </>
             )}
 
-            {activeTab !== "settings" && <button className="btn btn-primary" onClick={applySettings}><Save size={16} /> Apply to Mouse</button>}
+            {activeTab === "profiles" ? (
+              <button 
+                className="btn btn-primary" 
+                onClick={() => {
+                  if (mappedDevicesCount <= 1 && deviceConfig.length > 0) {
+                    const targetDeviceIndex = deviceConfig.findIndex(d => !d.disable && d.profile_id);
+                    const applyIndex = targetDeviceIndex !== -1 ? targetDeviceIndex : 0;
+                    const newConfig = [...deviceConfig];
+                    newConfig[applyIndex] = { ...newConfig[applyIndex], profile_id: activeProfile.name };
+                    setDeviceConfig(newConfig);
+                    applySettings(true, "Profile applied to mouse successfully!", newConfig);
+                  } else {
+                    applySettings(true, "Settings saved. Please go to the Mappings section to apply this profile to a specific device.");
+                  }
+                }}
+              >
+                <Save size={16} /> {mappedDevicesCount > 1 ? "Save" : "Apply Settings"}
+              </button>
+            ) : (
+              activeTab !== "settings" && <button className="btn btn-primary" onClick={() => applySettings(true, "Settings applied to driver!")}><Save size={16} /> Apply Settings</button>
+            )}
           </div>
         </header>
 
@@ -276,7 +386,9 @@ function App() {
                     <CustomSelect
                       width="100%"
                       value={activeAccel.mode}
-                      onChange={(val) => updateAccel("mode", val)}
+                      onChange={(val) => {
+                        updateAccel("mode", val);
+                      }}
                       options={[
                         { value: "linear", label: "Linear" },
                         { value: "classic", label: "Classic" },
@@ -284,8 +396,8 @@ function App() {
                         { value: "natural", label: "Natural" },
                         { value: "power", label: "Power" },
                         { value: "synchronous", label: "Synchronous" },
-                        { value: "lookup", label: "Lookup Table" },
                         { value: "tiered", label: "Tiered" },
+                        { value: "lookup", label: "Lookup Table" },
                         { value: "noaccel", label: "Off" },
                       ]}
                     />
@@ -293,8 +405,14 @@ function App() {
 
                   {/* Shared Gain Checkbox - Beside Mode Selector */}
                   {activeAccel.mode !== "noaccel" && activeAccel.mode !== "lookup" && (
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", whiteSpace: "nowrap" }}>
-                      <input type="checkbox" checked={activeAccel.gain} onChange={e => updateAccel("gain", e.target.checked)} style={{ accentColor: "var(--color-primary)", width: "16px", height: "16px", margin: 0 }} />
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: (activeAccel.mode === "tiered" && (!activeAccel.t_type || activeAccel.t_type === "linear")) ? "not-allowed" : "pointer", whiteSpace: "nowrap", opacity: (activeAccel.mode === "tiered" && (!activeAccel.t_type || activeAccel.t_type === "linear")) ? 0.5 : 1 }}>
+                      <input 
+                        type="checkbox" 
+                        checked={activeAccel.mode === "tiered" && (!activeAccel.t_type || activeAccel.t_type === "linear") ? false : activeAccel.gain} 
+                        disabled={activeAccel.mode === "tiered" && (!activeAccel.t_type || activeAccel.t_type === "linear")}
+                        onChange={e => updateAccel("gain", e.target.checked)} 
+                        style={{ accentColor: "var(--color-primary)", width: "16px", height: "16px", margin: 0, cursor: (activeAccel.mode === "tiered" && (!activeAccel.t_type || activeAccel.t_type === "linear")) ? "not-allowed" : "pointer" }} 
+                      />
                       <span style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--text-main)" }}>Gain</span>
                     </label>
                   )}
@@ -551,6 +669,98 @@ function App() {
                     </>
                   )}
 
+                  {/* ───────────────────────────────────────────────────────── */}
+                  {/* TIERED MODE                                                 */}
+                  {/* ───────────────────────────────────────────────────────── */}
+                  {activeAccel.mode === "tiered" && (
+                    <>
+                      <div className="input-group">
+                        <label className="input-label">Type</label>
+                        <CustomSelect
+                          width="120px"
+                          value={activeAccel.t_type || "linear"}
+                          onChange={(val) => {
+                            updateAccel("t_type", val);
+                            if (val === "linear") {
+                              updateAccel("gain", false);
+                            }
+                          }}
+                          options={[
+                            { value: "linear", label: "Linear" },
+                            { value: "natural", label: "Natural" }
+                          ]}
+                        />
+                      </div>
+                      
+                      {/* TIER 1 */}
+                      <div className="input-group">
+                        <label className="input-label">Tier 1 Multiplier</label>
+                        <NumberInput className="input-field selectable" value={activeAccel.tiered_multiplier1} onChange={e => updateAccel("tiered_multiplier1", safeParseFloat(e.target.value))} step="0.1" />
+                      </div>
+                      <div className="input-group">
+                        <label className="input-label">Tier 1 Input Offset</label>
+                        <NumberInput className="input-field selectable" value={activeAccel.tiered_input_offset1} onChange={e => {
+                          let val = safeParseFloat(e.target.value);
+                          const maxOffset1 = activeAccel.tiered_input_offset2 - ((!activeAccel.t_type || activeAccel.t_type === "linear") ? activeAccel.tiered_transition1 : 0);
+                          if (val > maxOffset1) val = maxOffset1;
+                          if (val < 0) val = 0;
+                          updateAccel("tiered_input_offset1", val);
+                        }} step="0.1" />
+                      </div>
+                      {(activeAccel.t_type === "natural") && (
+                        <div className="input-group">
+                          <label className="input-label">Tier 1 Decay Rate</label>
+                          <NumberInput className="input-field selectable" value={activeAccel.tiered_decay_rate1} onChange={e => updateAccel("tiered_decay_rate1", safeParseFloat(e.target.value))} step="0.01" />
+                        </div>
+                      )}
+
+                      {/* TIER 2 */}
+                      <div className="input-group">
+                        <label className="input-label">Tier 2 Multiplier</label>
+                        <NumberInput className="input-field selectable" value={activeAccel.tiered_multiplier2} onChange={e => updateAccel("tiered_multiplier2", safeParseFloat(e.target.value))} step="0.1" />
+                      </div>
+                      {((activeAccel.t_type || "linear") === "linear") && (
+                        <div className="input-group">
+                          <label className="input-label">Tier 2 Transition</label>
+                          <NumberInput className="input-field selectable" value={activeAccel.tiered_transition1} onChange={e => {
+                            let val = safeParseFloat(e.target.value);
+                            const maxTransition = activeAccel.tiered_input_offset2 - activeAccel.tiered_input_offset1;
+                            if (val > maxTransition) val = maxTransition;
+                            if (val < 0) val = 0;
+                            updateAccel("tiered_transition1", val);
+                          }} step="0.1" />
+                        </div>
+                      )}
+                      <div className="input-group">
+                        <label className="input-label">Tier 2 Input Offset</label>
+                        <NumberInput className="input-field selectable" value={activeAccel.tiered_input_offset2} onChange={e => {
+                          let val = safeParseFloat(e.target.value);
+                          const minOffset2 = activeAccel.tiered_input_offset1 + ((!activeAccel.t_type || activeAccel.t_type === "linear") ? activeAccel.tiered_transition1 : 0);
+                          if (val < minOffset2) val = minOffset2;
+                          updateAccel("tiered_input_offset2", val);
+                        }} step="0.1" />
+                      </div>
+                      {(activeAccel.t_type === "natural") && (
+                        <div className="input-group">
+                          <label className="input-label">Tier 2 Decay Rate</label>
+                          <NumberInput className="input-field selectable" value={activeAccel.tiered_decay_rate2} onChange={e => updateAccel("tiered_decay_rate2", safeParseFloat(e.target.value))} step="0.01" />
+                        </div>
+                      )}
+
+                      {/* TIER 3 */}
+                      <div className="input-group">
+                        <label className="input-label">Tier 3 Multiplier</label>
+                        <NumberInput className="input-field selectable" value={activeAccel.tiered_multiplier3} onChange={e => updateAccel("tiered_multiplier3", safeParseFloat(e.target.value))} step="0.1" />
+                      </div>
+                      {((activeAccel.t_type || "linear") === "linear") && (
+                        <div className="input-group">
+                          <label className="input-label">Tier 3 Transition</label>
+                          <NumberInput className="input-field selectable" value={activeAccel.tiered_transition2} onChange={e => updateAccel("tiered_transition2", safeParseFloat(e.target.value))} step="0.1" />
+                        </div>
+                      )}
+                    </>
+                  )}
+
                   {activeAccel.mode === "noaccel" && (
                     <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "1rem" }}>
                       Acceleration disabled.
@@ -570,11 +780,11 @@ function App() {
                   <h3 style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "0.5rem", marginBottom: "-0.25rem" }}>General</h3>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Sens Multiplier</label>
-                    <NumberInput className="input-field selectable" value={profile.yx_output_dpi_ratio} onChange={e => updateProfile("yx_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
+                    <NumberInput className="input-field selectable" value={activeProfile.yx_output_dpi_ratio} onChange={e => updateProfile("yx_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Output DPI</label>
-                    <NumberInput className="input-field selectable" value={profile.output_dpi} onChange={e => updateProfile("output_dpi", safeParseFloat(e.target.value))} step="1" />
+                    <NumberInput className="input-field selectable" value={activeProfile.output_dpi} onChange={e => updateProfile("output_dpi", safeParseFloat(e.target.value))} step="1" />
                   </div>
 
                   <div style={{ height: "1px", backgroundColor: "var(--border)", margin: "0.5rem 0" }}></div>
@@ -584,20 +794,20 @@ function App() {
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Domain Weights</label>
                     <div style={{ display: "flex", gap: "0.25rem", width: "90px" }}>
-                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.domain_weights.x} onChange={e => updateProfile("domain_weights", { ...profile.domain_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
-                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.domain_weights.y} onChange={e => updateProfile("domain_weights", { ...profile.domain_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
+                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={activeProfile.domain_weights.x} onChange={e => updateProfile("domain_weights", { ...activeProfile.domain_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
+                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={activeProfile.domain_weights.y} onChange={e => updateProfile("domain_weights", { ...activeProfile.domain_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
                     </div>
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Range Weights</label>
                     <div style={{ display: "flex", gap: "0.25rem", width: "90px" }}>
-                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.range_weights.x} onChange={e => updateProfile("range_weights", { ...profile.range_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
-                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={profile.range_weights.y} onChange={e => updateProfile("range_weights", { ...profile.range_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
+                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={activeProfile.range_weights.x} onChange={e => updateProfile("range_weights", { ...activeProfile.range_weights, x: safeParseFloat(e.target.value) })} step="0.1" />
+                      <NumberInput className="input-field selectable" style={{ width: "100%", padding: "0.25rem" }} value={activeProfile.range_weights.y} onChange={e => updateProfile("range_weights", { ...activeProfile.range_weights, y: safeParseFloat(e.target.value) })} step="0.1" />
                     </div>
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">LP Norm</label>
-                    <NumberInput className="input-field selectable" value={profile.speed_processor_args.lp_norm} onChange={e => updateSpeed("lp_norm", safeParseFloat(e.target.value))} step="0.1" />
+                    <NumberInput className="input-field selectable" value={activeProfile.speed_processor_args.lp_norm} onChange={e => updateSpeed("lp_norm", safeParseFloat(e.target.value))} step="0.1" />
                   </div>
 
                   <div style={{ height: "1px", backgroundColor: "var(--border)", margin: "0.5rem 0" }}></div>
@@ -606,11 +816,11 @@ function App() {
                   <h3 style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "-0.25rem" }}>Coalescion (Smooth)</h3>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Input Half-life</label>
-                    <NumberInput className="input-field selectable" value={profile.speed_processor_args.input_speed_smooth_halflife} onChange={e => updateSpeed("input_speed_smooth_halflife", safeParseFloat(e.target.value))} step="0.1" />
+                    <NumberInput className="input-field selectable" value={activeProfile.speed_processor_args.input_speed_smooth_halflife} onChange={e => updateSpeed("input_speed_smooth_halflife", safeParseFloat(e.target.value))} step="0.1" />
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Scale Half-life</label>
-                    <NumberInput className="input-field selectable" value={profile.speed_processor_args.scale_smooth_halflife} onChange={e => updateSpeed("scale_smooth_halflife", safeParseFloat(e.target.value))} step="0.1" />
+                    <NumberInput className="input-field selectable" value={activeProfile.speed_processor_args.scale_smooth_halflife} onChange={e => updateSpeed("scale_smooth_halflife", safeParseFloat(e.target.value))} step="0.1" />
                   </div>
 
                   <div style={{ height: "1px", backgroundColor: "var(--border)", margin: "0.5rem 0" }}></div>
@@ -619,19 +829,19 @@ function App() {
                   <h3 style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "-0.25rem" }}>Geometry</h3>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Rotation (°)</label>
-                    <NumberInput className="input-field selectable" value={profile.degrees_rotation} onChange={e => updateProfile("degrees_rotation", safeParseFloat(e.target.value))} step="0.1" />
+                    <NumberInput className="input-field selectable" value={activeProfile.degrees_rotation} onChange={e => updateProfile("degrees_rotation", safeParseFloat(e.target.value))} step="0.1" />
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">Angle Snapping</label>
-                    <NumberInput className="input-field selectable" value={profile.degrees_snap} onChange={e => updateProfile("degrees_snap", safeParseFloat(e.target.value))} step="0.1" />
+                    <NumberInput className="input-field selectable" value={activeProfile.degrees_snap} onChange={e => updateProfile("degrees_snap", safeParseFloat(e.target.value))} step="0.1" />
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">L/R Ratio</label>
-                    <NumberInput className="input-field selectable" value={profile.lr_output_dpi_ratio} onChange={e => updateProfile("lr_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
+                    <NumberInput className="input-field selectable" value={activeProfile.lr_output_dpi_ratio} onChange={e => updateProfile("lr_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
                   </div>
                   <div className="input-group" style={{ margin: 0 }}>
                     <label className="input-label">U/D Ratio</label>
-                    <NumberInput className="input-field selectable" value={profile.ud_output_dpi_ratio} onChange={e => updateProfile("ud_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
+                    <NumberInput className="input-field selectable" value={activeProfile.ud_output_dpi_ratio} onChange={e => updateProfile("ud_output_dpi_ratio", safeParseFloat(e.target.value))} step="0.01" />
                   </div>
 
                 </div>
@@ -641,7 +851,7 @@ function App() {
             
             {/* Right Column: Full Height Graph */}
             <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", paddingTop: "0.25rem" }}>
-              <CurveGraph argsX={profile.accel_x} argsY={profile.accel_y} visibleGraphs={visibleGraphs} isExpanded={isExpanded} />
+              <CurveGraph argsX={activeProfile.accel_x} argsY={activeProfile.accel_y} visibleGraphs={visibleGraphs} isExpanded={isExpanded} />
             </div>
             
           </div>
@@ -652,7 +862,7 @@ function App() {
             devices={devices} 
             deviceConfig={deviceConfig} 
             setDeviceConfig={setDeviceConfig}
-            profiles={[profile.name]} 
+            profiles={[activeProfile.name]} 
         />}
         
       </main>

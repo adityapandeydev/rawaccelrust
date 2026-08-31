@@ -5,8 +5,8 @@ interface NumberInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, '
   onChange: (e: { target: { value: string } }) => void;
 }
 
-export function NumberInput({ value, onChange, ...props }: NumberInputProps) {
-  const [localValue, setLocalValue] = useState(value.toString());
+export function NumberInput({ value = 0, onChange, ...props }: NumberInputProps) {
+  const [localValue, setLocalValue] = useState((value ?? 0).toString());
 
   useEffect(() => {
     const parsedLocal = parseFloat(localValue);
