@@ -39,16 +39,27 @@ export function CurveGraph({
     
     if (isVelocity) {
       min = 0;
-      max = Math.ceil(max / 20) * 20;
+      // Add 5% clearance at the top to prevent clipping the stroke
+      max = Math.ceil((max * 1.05) / 20) * 20;
       if (max < 100) max = 100;
     } else {
-      const pad = (max - min) * 0.15;
+      let pad = (max - min) * 0.15;
+      if (pad === 0) {
+        pad = max === 0 ? 0.1 : Math.abs(max * 0.1);
+      }
       min = min - pad;
       max = max + pad;
       
       if (min < 0) min = 0;
       if (min > 0.9 && min <= 1.0) min = 0.9;
       if (max <= min) max = min + 1;
+      
+      // Magic: Ensure the starting point is at most in the middle of the Y-axis
+      const startVal = dataX.length > 0 ? (dataX[0][key] as number) : 1.0;
+      const requiredMax = 2 * startVal - min;
+      if (max < requiredMax) {
+        max = requiredMax;
+      }
     }
     
     return { min, max };

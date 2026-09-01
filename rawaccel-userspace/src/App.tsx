@@ -57,6 +57,26 @@ function App() {
   }, [theme]);
 
   async function applySettings(showToast: boolean = true, customMessage?: string, overrideConfig?: DeviceConfig[]) {
+    // Frontend validation
+    for (const profile of profiles) {
+      if (profile.accel_x.mode === "classic" && profile.accel_x.exponent_classic <= 1.0) {
+        alert("bad input\n\nexponent must be greater than 1");
+        return;
+      }
+      if (profile.accel_y.mode === "classic" && profile.accel_y.exponent_classic <= 1.0) {
+        alert("bad input\n\nexponent must be greater than 1");
+        return;
+      }
+      if (profile.accel_x.mode === "power" && profile.accel_x.exponent_power <= 0.0) {
+        alert("bad input\n\nexponent must be positive");
+        return;
+      }
+      if (profile.accel_y.mode === "power" && profile.accel_y.exponent_power <= 0.0) {
+        alert("bad input\n\nexponent must be positive");
+        return;
+      }
+    }
+
     try {
       const configToUse = overrideConfig || deviceConfig;
       console.log("Applying Settings...", profiles);

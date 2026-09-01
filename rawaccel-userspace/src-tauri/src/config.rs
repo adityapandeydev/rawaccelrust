@@ -172,6 +172,7 @@ impl AppAccelArgs {
 
         args.mode = match self.mode.as_str() {
             "classic" => models::accel_mode::classic,
+            "linear" => models::accel_mode::classic,
             "jump" => models::accel_mode::jump,
             "natural" => models::accel_mode::natural,
             "synchronous" => models::accel_mode::synchronous,
@@ -187,7 +188,11 @@ impl AppAccelArgs {
         args.decay_rate = if self.decay_rate <= 0.0 { 0.1 } else { self.decay_rate };
         args.gamma = if self.gamma <= 0.0 { 1.0 } else { self.gamma };
         args.motivity = if self.motivity <= 1.0 { 1.5 } else { self.motivity };
-        args.exponent_classic = if self.exponent_classic <= 1.0 { 2.0 } else { self.exponent_classic };
+        args.exponent_classic = if self.mode.as_str() == "linear" {
+            2.0
+        } else {
+            self.exponent_classic
+        };
         args.scale = if self.scale <= 0.0 { 1.0 } else { self.scale };
         args.exponent_power = if self.exponent_power <= 0.0 { 0.05 } else { self.exponent_power };
         args.limit = if self.limit <= 0.0 { 2.0 } else { self.limit };
