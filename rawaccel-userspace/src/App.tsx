@@ -74,7 +74,7 @@ function App() {
       if (args.cap.y < 0) return `${axis}: Cap (output) cannot be negative`;
       else if (args.cap.y === 0 && jump_or_io_cap) return `${axis}: Cap (output) cannot be 0 for this mode/cap style`;
 
-      if (args.mode === 'classic' && args.cap.x > 0 && args.cap.x < args.input_offset && args.cap_mode !== 'out') return `${axis}: Cap cannot be less than Input Offset`;
+      if ((args.mode === 'classic' || args.mode === 'linear') && args.cap.x > 0 && args.cap.x < args.input_offset && args.cap_mode !== 'out') return `${axis}: Cap cannot be less than Input Offset`;
       if (args.mode === 'power' && args.cap.y > 0 && args.cap.y < args.output_offset && args.cap_mode !== 'in') return `${axis}: Cap cannot be less than Output Offset`;
 
       // Mode-specific validations
@@ -532,12 +532,19 @@ function App() {
                         />
                       </div>
 
-                      {activeAccel.cap_mode === "in" || activeAccel.cap_mode === "out" ? (
+                      {activeAccel.cap_mode === "in" && (
                         <div className="input-group">
-                          <label className="input-label">Cap: {activeAccel.cap_mode === "in" ? "Input" : "Output"}</label>
+                          <label className="input-label">Cap: Input</label>
                           <NumberInput className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
                         </div>
-                      ) : (
+                      )}
+                      {activeAccel.cap_mode === "out" && (
+                        <div className="input-group">
+                          <label className="input-label">Cap: Output</label>
+                          <NumberInput className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
+                        </div>
+                      )}
+                      {activeAccel.cap_mode === "io" && (
                         <>
                           <div className="input-group">
                             <label className="input-label">Cap: Input</label>
@@ -576,10 +583,10 @@ function App() {
                         />
                       </div>
 
-                      {activeAccel.cap_mode === "in" || activeAccel.cap_mode === "out" ? (
+                      {activeAccel.cap_mode === "in" && (
                         <>
                           <div className="input-group">
-                            <label className="input-label">Cap: {activeAccel.cap_mode === "in" ? "Input" : "Output"}</label>
+                            <label className="input-label">Cap: Input</label>
                             <NumberInput className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
                           </div>
                           <div className="input-group">
@@ -587,7 +594,20 @@ function App() {
                             <NumberInput className="input-field selectable" value={activeAccel.acceleration} onChange={e => updateAccel("acceleration", safeParseFloat(e.target.value))} step="0.001" />
                           </div>
                         </>
-                      ) : (
+                      )}
+                      {activeAccel.cap_mode === "out" && (
+                        <>
+                          <div className="input-group">
+                            <label className="input-label">Cap: Output</label>
+                            <NumberInput className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
+                          </div>
+                          <div className="input-group">
+                            <label className="input-label">Acceleration</label>
+                            <NumberInput className="input-field selectable" value={activeAccel.acceleration} onChange={e => updateAccel("acceleration", safeParseFloat(e.target.value))} step="0.001" />
+                          </div>
+                        </>
+                      )}
+                      {activeAccel.cap_mode === "io" && (
                         <>
                           <div className="input-group">
                             <label className="input-label">Cap: Input</label>
@@ -678,12 +698,19 @@ function App() {
                         />
                       </div>
 
-                      {activeAccel.cap_mode === "in" || activeAccel.cap_mode === "out" ? (
+                      {activeAccel.cap_mode === "in" && (
                         <div className="input-group">
-                          <label className="input-label">Cap: {activeAccel.cap_mode === "in" ? "Input" : "Output"}</label>
+                          <label className="input-label">Cap: Input</label>
                           <NumberInput className="input-field selectable" value={activeAccel.cap.x} onChange={e => updateAccel("cap", { ...activeAccel.cap, x: safeParseFloat(e.target.value) })} step="0.1" />
                         </div>
-                      ) : (
+                      )}
+                      {activeAccel.cap_mode === "out" && (
+                        <div className="input-group">
+                          <label className="input-label">Cap: Output</label>
+                          <NumberInput className="input-field selectable" value={activeAccel.cap.y} onChange={e => updateAccel("cap", { ...activeAccel.cap, y: safeParseFloat(e.target.value) })} step="0.1" />
+                        </div>
+                      )}
+                      {activeAccel.cap_mode === "io" && (
                         <>
                           <div className="input-group">
                             <label className="input-label">Cap: Input</label>
