@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Moon, Sun, Monitor, Layers, Activity, Plus, Save, Download, Upload, Mouse, Menu, X, Settings, Maximize, Minimize } from "lucide-react";
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { Moon, Sun, Monitor, Layers, Activity, Plus, Save, Download, Upload, Mouse, Menu, X, Settings, Maximize, Minimize, Copy, Trash2, Eye, EyeOff, Check } from "lucide-react";
 import "./index.css";
 import { Profile, defaultProfile, AccelArgs, Device, DeviceConfig } from "./types";
 import { NumberInput } from "./components/NumberInput";
@@ -9,6 +10,8 @@ import { CustomSelect } from "./components/CustomSelect";
 import { DevicesView } from "./components/DevicesView";
 import { MappingsView } from "./components/MappingsView";
 import { SettingsView } from "./components/SettingsView";
+import { CustomModal } from "./components/CustomModal";
+import { AnimatedButton } from "./components/AnimatedButton";
 
 const safeParseFloat = (val: string) => {
   const parsed = parseFloat(val);
@@ -35,6 +38,7 @@ function App() {
   const [visibleGraphs, setVisibleGraphs] = useState<string[]>(["sensitivity"]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isProfilesExpanded, setIsProfilesExpanded] = useState(false);
+  const [modalState, setModalState] = useState({ isOpen: false, title: "", message: "" });
   
   const mappedDevicesCount = deviceConfig.filter(d => !d.disable && d.profile_id).length;
 
@@ -56,24 +60,24 @@ function App() {
     }
   }, [theme]);
 
-  async function applySettings(showToast: boolean = true, customMessage?: string, overrideConfig?: DeviceConfig[]) {
+  async function applySettings(overrideConfig?: DeviceConfig[]) {
     // Frontend validation
     for (const profile of profiles) {
       if (profile.accel_x.mode === "classic" && profile.accel_x.exponent_classic <= 1.0) {
-        alert("bad input\n\nexponent must be greater than 1");
-        return;
+        setModalState({ isOpen: true, title: "localhost:1420 says", message: "bad input\n\nexponent must be greater than 1" });
+        throw new Error("Validation failed");
       }
       if (profile.accel_y.mode === "classic" && profile.accel_y.exponent_classic <= 1.0) {
-        alert("bad input\n\nexponent must be greater than 1");
-        return;
+        setModalState({ isOpen: true, title: "localhost:1420 says", message: "bad input\n\nexponent must be greater than 1" });
+        throw new Error("Validation failed");
       }
       if (profile.accel_x.mode === "power" && profile.accel_x.exponent_power <= 0.0) {
-        alert("bad input\n\nexponent must be positive");
-        return;
+        setModalState({ isOpen: true, title: "localhost:1420 says", message: "bad input\n\nexponent must be positive" });
+        throw new Error("Validation failed");
       }
       if (profile.accel_y.mode === "power" && profile.accel_y.exponent_power <= 0.0) {
-        alert("bad input\n\nexponent must be positive");
-        return;
+        setModalState({ isOpen: true, title: "localhost:1420 says", message: "bad input\n\nexponent must be positive" });
+        throw new Error("Validation failed");
       }
     }
 
@@ -86,12 +90,10 @@ function App() {
       });
       await invoke('apply_settings', { settingsJson: profileJson });
       console.log("Settings applied successfully!");
-      if (showToast && showToastNotifications) {
-          alert(customMessage || "Settings applied to driver!");
-      }
     } catch (error) {
       console.error("Failed to apply settings:", error);
-      alert("Error applying settings: " + error);
+      setModalState({ isOpen: true, title: "localhost:1420 says", message: "Error applying settings: " + error });
+      throw error;
     }
   }
 
@@ -231,7 +233,7 @@ function App() {
                     setIsProfilesExpanded(true);
                     setActiveTab("profiles");
                   } else {
-                    alert("Maximum 5 profiles allowed.");
+                    setModalState({ isOpen: true, title: "Profile Limit Reached", message: "Maximum 5 profiles allowed." });
                   }
                 }}
                 title="Add New Profile"
@@ -357,25 +359,28 @@ function App() {
             )}
 
             {activeTab === "profiles" ? (
-              <button 
-                className="btn btn-primary" 
-                onClick={() => {
+              <AnimatedButton
+                onClick={async () => {
                   if (mappedDevicesCount <= 1 && deviceConfig.length > 0) {
                     const targetDeviceIndex = deviceConfig.findIndex(d => !d.disable && d.profile_id);
                     const applyIndex = targetDeviceIndex !== -1 ? targetDeviceIndex : 0;
                     const newConfig = [...deviceConfig];
                     newConfig[applyIndex] = { ...newConfig[applyIndex], profile_id: activeProfile.name };
                     setDeviceConfig(newConfig);
-                    applySettings(true, "Profile applied to mouse successfully!", newConfig);
+                    await applySettings(newConfig);
                   } else {
-                    applySettings(true, "Settings saved. Please go to the Mappings section to apply this profile to a specific device.");
+                    await applySettings();
                   }
                 }}
-              >
-                <Save size={16} /> {mappedDevicesCount > 1 ? "Save" : "Apply Settings"}
-              </button>
+                defaultText={<><Save size={16} /> {mappedDevicesCount > 1 ? "Save" : "Apply Settings"}</>}
+                successText={<><Check size={16} /> {mappedDevicesCount > 1 ? "Saved!" : "Applied!"}</>}
+              />
             ) : (
-              activeTab !== "settings" && <button className="btn btn-primary" onClick={() => applySettings(true, "Settings applied to driver!")}><Save size={16} /> Apply Settings</button>
+              activeTab !== "settings" && <AnimatedButton 
+                onClick={async () => await applySettings()} 
+                defaultText={<><Save size={16} /> Apply Settings</>} 
+                successText={<><Check size={16} /> Applied!</>} 
+              />
             )}
           </div>
         </header>
@@ -886,6 +891,12 @@ function App() {
         />}
         
       </main>
+      <CustomModal 
+        isOpen={modalState.isOpen} 
+        title={modalState.title} 
+        message={modalState.message} 
+        onClose={() => setModalState({ ...modalState, isOpen: false })} 
+      />
     </div>
   );
 }
