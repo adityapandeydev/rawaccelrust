@@ -190,6 +190,8 @@ impl AppAccelArgs {
         args.motivity = if self.motivity <= 1.0 { 1.5 } else { self.motivity };
         args.exponent_classic = if self.mode.as_str() == "linear" {
             2.0
+        } else if self.exponent_classic <= 1.0 {
+            2.0
         } else {
             self.exponent_classic
         };

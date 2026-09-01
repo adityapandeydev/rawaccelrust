@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Moon, Sun, Monitor, Layers, Activity, Plus, Save, Download, Upload, Mouse, Menu, X, Settings, Maximize, Minimize, Copy, Trash2, Eye, EyeOff, Check } from "lucide-react";
+import { Moon, Sun, Monitor, Layers, Activity, Plus, Save, Download, Upload, Mouse, Menu, X, Settings, Maximize, Minimize, Check } from "lucide-react";
 import "./index.css";
 import { Profile, defaultProfile, AccelArgs, Device, DeviceConfig } from "./types";
 import { NumberInput } from "./components/NumberInput";
@@ -60,24 +59,86 @@ function App() {
     }
   }, [theme]);
 
+  function validateProfile(profile: Profile): string | null {
+    // Helper to validate a single accel_args
+    const validateAccel = (args: AccelArgs, isY: boolean): string | null => {
+      const axis = isY ? 'Y Axis' : 'X Axis';
+      
+      // Base validations for offset and cap
+      if (args.input_offset < 0) return `${axis}: Input Offset cannot be negative`;
+      if (args.output_offset < 0) return `${axis}: Output Offset cannot be negative`;
+
+      const jump_or_io_cap = (args.mode === 'jump' || ((args.mode === 'classic' || args.mode === 'power') && args.cap_mode === 'io'));
+      if (args.cap.x < 0) return `${axis}: Cap cannot be negative`;
+      else if (args.cap.x === 0 && jump_or_io_cap) return `${axis}: Cap cannot be 0 for this mode/cap style`;
+      if (args.cap.y < 0) return `${axis}: Cap (output) cannot be negative`;
+      else if (args.cap.y === 0 && jump_or_io_cap) return `${axis}: Cap (output) cannot be 0 for this mode/cap style`;
+
+      if (args.mode === 'classic' && args.cap.x > 0 && args.cap.x < args.input_offset && args.cap_mode !== 'out') return `${axis}: Cap cannot be less than Input Offset`;
+      if (args.mode === 'power' && args.cap.y > 0 && args.cap.y < args.output_offset && args.cap_mode !== 'in') return `${axis}: Cap cannot be less than Output Offset`;
+
+      // Mode-specific validations
+      switch (args.mode) {
+        case 'classic':
+          if (args.acceleration <= 0) return `${axis}: Acceleration must be positive (greater than 0)`;
+          if (args.exponent_classic <= 1) return `${axis}: Classic Exponent must be strictly greater than 1`;
+          break;
+        case 'linear':
+          if (args.acceleration <= 0) return `${axis}: Acceleration must be positive (greater than 0)`;
+          break;
+        case 'natural':
+          if (args.decay_rate <= 0) return `${axis}: Decay Rate must be positive (greater than 0)`;
+          if (args.limit <= 0) return `${axis}: Limit must be positive`;
+          break;
+        case 'power':
+          if (args.scale <= 0) return `${axis}: Scale must be positive (greater than 0)`;
+          if (args.exponent_power <= 0) return `${axis}: Power Exponent must be positive (greater than 0)`;
+          break;
+        case 'motivity':
+          if (args.acceleration <= 0) return `${axis}: Acceleration must be positive (greater than 0)`;
+          if (args.motivity <= 1) return `${axis}: Motivity must be strictly greater than 1`;
+          break;
+        case 'jump':
+          if (args.smooth < 0 || args.smooth > 1) return `${axis}: Smooth must be between 0 and 1`;
+          break;
+        case 'synchronous':
+          if (args.sync_speed <= 0) return `${axis}: Synchronous speed must be positive`;
+          if (args.limit <= 0) return `${axis}: Limit must be positive`;
+          break;
+      }
+      
+      return null;
+    };
+
+    let err = validateAccel(profile.accel_x, false);
+    if (err) return err;
+
+    if (!profile.speed_processor_args.whole) {
+      err = validateAccel(profile.accel_y, true);
+      if (err) return err;
+    }
+
+    if (!profile.name.trim()) return 'profile name can not be empty';
+    if (profile.speed_max < 0) return 'speed cap is negative';
+    if (profile.speed_max < profile.speed_min) return 'max speed is less than min speed';
+    if (profile.degrees_snap < 0 || profile.degrees_snap > 45) return 'snap angle must be between 0 and 45 degrees';
+    if (profile.output_dpi === 0) return 'output DPI is 0';
+    if (profile.yx_output_dpi_ratio === 0) return 'Y/X output DPI ratio is 0';
+    if (profile.domain_weights.x <= 0 || profile.domain_weights.y <= 0) return 'domain weights must be positive';
+    if (profile.lr_output_dpi_ratio <= 0 || profile.ud_output_dpi_ratio <= 0) return 'output DPI ratio must be positive';
+    if (profile.speed_processor_args.lp_norm <= 0) return 'Lp norm must be positive (default=2)';
+    if (profile.range_weights.x < 0 || profile.range_weights.y < 0) return 'range weights must be positive';
+
+    return null;
+  }
+
   async function applySettings(overrideConfig?: DeviceConfig[]) {
     // Frontend validation
     for (const profile of profiles) {
-      if (profile.accel_x.mode === "classic" && profile.accel_x.exponent_classic <= 1.0) {
-        setModalState({ isOpen: true, title: "localhost:1420 says", message: "bad input\n\nexponent must be greater than 1" });
-        throw new Error("Validation failed");
-      }
-      if (profile.accel_y.mode === "classic" && profile.accel_y.exponent_classic <= 1.0) {
-        setModalState({ isOpen: true, title: "localhost:1420 says", message: "bad input\n\nexponent must be greater than 1" });
-        throw new Error("Validation failed");
-      }
-      if (profile.accel_x.mode === "power" && profile.accel_x.exponent_power <= 0.0) {
-        setModalState({ isOpen: true, title: "localhost:1420 says", message: "bad input\n\nexponent must be positive" });
-        throw new Error("Validation failed");
-      }
-      if (profile.accel_y.mode === "power" && profile.accel_y.exponent_power <= 0.0) {
-        setModalState({ isOpen: true, title: "localhost:1420 says", message: "bad input\n\nexponent must be positive" });
-        throw new Error("Validation failed");
+      const err = validateProfile(profile);
+      if (err) {
+        setModalState({ isOpen: true, title: "Invalid Input", message: err });
+        throw new Error("Validation failed: " + err);
       }
     }
 
@@ -92,7 +153,7 @@ function App() {
       console.log("Settings applied successfully!");
     } catch (error) {
       console.error("Failed to apply settings:", error);
-      setModalState({ isOpen: true, title: "localhost:1420 says", message: "Error applying settings: " + error });
+      setModalState({ isOpen: true, title: "Application Error", message: "Failed to apply settings: " + error });
       throw error;
     }
   }
