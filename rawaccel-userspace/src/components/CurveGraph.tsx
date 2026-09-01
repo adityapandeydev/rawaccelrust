@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { listen } from '@tauri-apps/api/event';
 import { AccelArgs } from '../types';
 import { generateGraphData, GraphPoint } from '../math';
 import { Zap, Activity, TrendingUp } from 'lucide-react';
@@ -11,12 +12,29 @@ interface CurveGraphProps {
   isExpanded: boolean;
 }
 
+interface MouseSpeed {
+  speed_x: number;
+  speed_y: number;
+  speed_whole: number;
+}
+
 export function CurveGraph({ 
   argsX, 
   argsY, 
   visibleGraphs,
   isExpanded
 }: CurveGraphProps) {
+
+  const [mouseSpeed, setMouseSpeed] = useState<MouseSpeed>({ speed_x: 0, speed_y: 0, speed_whole: 0 });
+
+  useEffect(() => {
+    const unlisten = listen<MouseSpeed>('mouse-speed', (event) => {
+      setMouseSpeed(event.payload);
+    });
+    return () => {
+      unlisten.then(f => f());
+    };
+  }, []);
 
   const maxSpeed = useMemo(() => {
     let m = isExpanded ? 200 : 80;
@@ -187,6 +205,62 @@ export function CurveGraph({
               {!isSame && (
                 <path d={pathY} fill="none" stroke="var(--color-accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 6" vectorEffect="non-scaling-stroke" />
               )}
+            </svg>
+            
+            {/* Unscaled Overlay for Tracker Dots */}
+            <svg width="100%" height="100%" style={{ overflow: "visible", position: "absolute", top: 0, left: 0, pointerEvents: "none" }}>
+              {/* Mouse Tracker Dots */}
+              {(() => {
+                // Determine which Y value maps to a given X speed on a specific dataset
+                const getMappedY = (data: GraphPoint[], key: keyof GraphPoint, speed: number) => {
+                  if (data.length === 0 || speed <= 0) return data.length > 0 ? data[0][key] as number : 1;
+                  // Find the two points the speed falls between
+                  for (let i = 0; i < data.length - 1; i++) {
+                    if (speed >= data[i].x && speed <= data[i + 1].x) {
+                      // Linear interpolation
+                      const t = (speed - data[i].x) / (data[i + 1].x - data[i].x);
+                      return (data[i][key] as number) + t * ((data[i + 1][key] as number) - (data[i][key] as number));
+                    }
+                  }
+                  return data[data.length - 1][key] as number; // Fallback to last
+                };
+
+                const renderDot = (speed: number, data: GraphPoint[]) => {
+                  const yVal = getMappedY(data, dataKey, speed);
+                  const px = (Math.min(speed, maxSpeed) / maxSpeed) * 100;
+                  const range = maxY - minY;
+                  let py = range > 0 ? 100 - ((yVal - minY) / range) * 100 : 100;
+                  py = Math.max(0, Math.min(100, py));
+                  
+                  return (
+                    <circle 
+                      cx={`${px}%`} 
+                      cy={`${py}%`} 
+                      r="4.5" 
+                      fill="#FFFFFF" 
+                      stroke="#000000"
+                      strokeWidth="2"
+                    />
+                  );
+                };
+
+                // Animate smoothly
+                return (
+                  <motion.g
+                    animate={{ opacity: 1 }}
+                    transition={{ type: "tween", ease: "linear", duration: 0.016 }}
+                  >
+                    {isSame ? (
+                      renderDot(mouseSpeed.speed_whole, dataX)
+                    ) : (
+                      <>
+                        {renderDot(mouseSpeed.speed_x, dataX)}
+                        {renderDot(mouseSpeed.speed_y, dataY)}
+                      </>
+                    )}
+                  </motion.g>
+                );
+              })()}
             </svg>
             
             {/* X-Axis Title */}

@@ -3,8 +3,10 @@ pub mod driver;
 pub mod config;
 pub mod math;
 pub mod devices;
+pub mod mouse_tracker;
 
 use std::fs;
+use tauri::Manager;
 
 #[tauri::command]
 fn apply_settings(settings_json: String) -> Result<(), String> {
@@ -38,6 +40,10 @@ fn get_devices() -> Vec<devices::DeviceInfo> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            mouse_tracker::start(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             apply_settings,
             load_settings,
