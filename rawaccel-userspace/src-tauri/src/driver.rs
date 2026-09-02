@@ -1,10 +1,10 @@
 use std::mem::size_of;
-use windows::Win32::System::IO::DeviceIoControl;
-use windows::Win32::Foundation::{HANDLE, GENERIC_READ, GENERIC_WRITE, CloseHandle};
-use windows::Win32::Storage::FileSystem::{
-    CreateFileW, OPEN_EXISTING, FILE_SHARE_MODE, FILE_FLAGS_AND_ATTRIBUTES,
-};
 use windows::core::PCWSTR;
+use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE};
+use windows::Win32::Storage::FileSystem::{
+    CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_MODE, OPEN_EXISTING,
+};
+use windows::Win32::System::IO::DeviceIoControl;
 
 use crate::models as ra;
 
@@ -29,7 +29,8 @@ pub fn open_driver() -> Result<HANDLE, String> {
             FILE_FLAGS_AND_ATTRIBUTES(0),
             None,
         )
-    }.map_err(|e| format!("Failed to open driver: {}", e))?;
+    }
+    .map_err(|e| format!("Failed to open driver: {}", e))?;
 
     if handle.is_invalid() {
         Err("Failed to open driver. Is RawAccel installed and running?".to_string())
@@ -56,7 +57,9 @@ pub fn get_version() -> Result<(i32, i32, i32), String> {
         )
     };
 
-    unsafe { CloseHandle(handle).ok(); }
+    unsafe {
+        CloseHandle(handle).ok();
+    }
 
     if success.is_ok() && bytes_returned > 0 {
         Ok(version)
@@ -68,7 +71,9 @@ pub fn get_version() -> Result<(i32, i32, i32), String> {
 pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
     let handle = open_driver()?;
 
-    let active_devices: Vec<_> = config.devices.iter()
+    let active_devices: Vec<_> = config
+        .devices
+        .iter()
         .filter(|d| d.profile_id.is_some())
         .collect();
     let num_profiles = config.profiles.len();
@@ -95,17 +100,27 @@ pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
             crate::math::init_data(settings);
         }
 
-        let dev_ptr = buffer.as_mut_ptr().add(io_base_size + modifier_data_size) as *mut ra::device_settings;
+        let dev_ptr =
+            buffer.as_mut_ptr().add(io_base_size + modifier_data_size) as *mut ra::device_settings;
         for i in 0..num_devices {
             let app_dev = active_devices[i];
             let dev = &mut *dev_ptr.add(i);
-            
+
             let profile_name = app_dev.profile_id.as_ref().unwrap();
-            for (idx, c) in profile_name.encode_utf16().enumerate().take(ra::MAX_NAME_LEN - 1) {
+            for (idx, c) in profile_name
+                .encode_utf16()
+                .enumerate()
+                .take(ra::MAX_NAME_LEN - 1)
+            {
                 dev.profile[idx] = c;
             }
-            
-            for (idx, c) in app_dev.id.encode_utf16().enumerate().take(ra::MAX_DEV_ID_LEN - 1) {
+
+            for (idx, c) in app_dev
+                .id
+                .encode_utf16()
+                .enumerate()
+                .take(ra::MAX_DEV_ID_LEN - 1)
+            {
                 dev.id[idx] = c;
             }
 
@@ -117,9 +132,17 @@ pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
                 dpi: app_dev.dpi as i32,
                 polling_rate: app_dev.polling_rate as i32,
                 clamp: ra::time_clamp {
-                    min: if app_dev.clamp_min > 0.0 { app_dev.clamp_min } else { def_clamp.min },
-                    max: if app_dev.clamp_max > 0.0 { app_dev.clamp_max } else { def_clamp.max },
-                }
+                    min: if app_dev.clamp_min > 0.0 {
+                        app_dev.clamp_min
+                    } else {
+                        def_clamp.min
+                    },
+                    max: if app_dev.clamp_max > 0.0 {
+                        app_dev.clamp_max
+                    } else {
+                        def_clamp.max
+                    },
+                },
             };
         }
 
@@ -143,7 +166,10 @@ pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
         } else {
             let err = windows::Win32::Foundation::GetLastError();
             println!("driver.rs: DeviceIoControl failed with error {:?}", err);
-            Err(format!("Failed to write to driver via DeviceIoControl. Error code: {:?}", err))
+            Err(format!(
+                "Failed to write to driver via DeviceIoControl. Error code: {:?}",
+                err
+            ))
         }
     }
 }

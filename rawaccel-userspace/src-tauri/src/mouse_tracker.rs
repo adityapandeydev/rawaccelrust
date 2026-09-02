@@ -3,15 +3,15 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW,
-    HWND_MESSAGE, MSG, WNDCLASSW,
-};
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Input::{
     GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
     RIDEV_INPUTSINK, RID_INPUT,
 };
-use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW, HWND_MESSAGE,
+    MSG, WNDCLASSW,
+};
 
 #[derive(Clone, serde::Serialize)]
 pub struct MouseSpeed {
@@ -55,9 +55,11 @@ unsafe extern "system" fn window_proc(
             ) != u32::MAX
             {
                 let raw = &*(buffer.as_ptr() as *const RAWINPUT);
-                if raw.header.dwType == 0 { // RIM_TYPEMOUSE
+                if raw.header.dwType == 0 {
+                    // RIM_TYPEMOUSE
                     let mouse = raw.data.mouse;
-                    if (mouse.usFlags.0 & 0x01) == 0 { // MOUSE_MOVE_RELATIVE
+                    if (mouse.usFlags.0 & 0x01) == 0 {
+                        // MOUSE_MOVE_RELATIVE
                         if let Ok(mut state) = MOUSE_STATE.lock() {
                             state.dx += mouse.lLastX as f64;
                             state.dy += mouse.lLastY as f64;
@@ -99,7 +101,8 @@ pub fn start(app_handle: AppHandle) {
                 None,
                 Some(h_instance.into()),
                 None,
-            ).unwrap();
+            )
+            .unwrap();
 
             // Register for raw input
             let rid = RAWINPUTDEVICE {
@@ -109,7 +112,9 @@ pub fn start(app_handle: AppHandle) {
                 hwndTarget: hwnd,
             };
 
-            if let Err(e) = RegisterRawInputDevices(&[rid], std::mem::size_of::<RAWINPUTDEVICE>() as u32) {
+            if let Err(e) =
+                RegisterRawInputDevices(&[rid], std::mem::size_of::<RAWINPUTDEVICE>() as u32)
+            {
                 eprintln!("Failed to register raw input devices: {:?}", e);
                 return;
             }
@@ -129,7 +134,7 @@ pub fn start(app_handle: AppHandle) {
             thread::sleep(Duration::from_millis(16)); // ~60Hz
             let now = Instant::now();
             let dt = now.duration_since(last_emit).as_secs_f64() * 1000.0; // in ms
-            
+
             if dt >= 16.0 {
                 let (dx, dy) = if let Ok(mut state) = MOUSE_STATE.lock() {
                     let x = state.dx;
@@ -146,11 +151,14 @@ pub fn start(app_handle: AppHandle) {
                 let speed_y = (dy.abs() / dt).max(0.0);
                 let speed_whole = ((dx * dx + dy * dy).sqrt() / dt).max(0.0);
 
-                let _ = app_handle.emit("mouse-speed", MouseSpeed {
-                    speed_x,
-                    speed_y,
-                    speed_whole,
-                });
+                let _ = app_handle.emit(
+                    "mouse-speed",
+                    MouseSpeed {
+                        speed_x,
+                        speed_y,
+                        speed_whole,
+                    },
+                );
             }
         }
     });

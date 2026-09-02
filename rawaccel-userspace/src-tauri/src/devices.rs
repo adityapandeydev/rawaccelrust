@@ -5,13 +5,13 @@ use windows::core::PCWSTR;
 use windows::Win32::Devices::DeviceAndDriverInstallation::{
     CM_Get_Device_Interface_PropertyW, CR_BUFFER_SMALL, CR_SUCCESS,
 };
-use windows::Win32::Devices::Properties::{DEVPKEY_Device_InstanceId, DEVPROPTYPE};
 use windows::Win32::Devices::HumanInterfaceDevice::{
     HidD_GetManufacturerString, HidD_GetProductString,
 };
+use windows::Win32::Devices::Properties::{DEVPKEY_Device_InstanceId, DEVPROPTYPE};
 use windows::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
 use windows::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING, FILE_FLAGS_AND_ATTRIBUTES,
+    CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
 use windows::Win32::UI::Input::{
     GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST, RIDI_DEVICENAME,
@@ -33,11 +33,7 @@ fn get_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
     unsafe {
         if GetRawInputDeviceList(None, &mut num_devs, elem_size) == 0 {
             let mut dev_list: Vec<RAWINPUTDEVICELIST> = Vec::with_capacity(num_devs as usize);
-            let res = GetRawInputDeviceList(
-                Some(dev_list.as_mut_ptr()),
-                &mut num_devs,
-                elem_size,
-            );
+            let res = GetRawInputDeviceList(Some(dev_list.as_mut_ptr()), &mut num_devs, elem_size);
             if res != u32::MAX {
                 dev_list.set_len(num_devs as usize);
                 return Some(dev_list);
@@ -63,7 +59,9 @@ pub fn get_connected_devices() -> Vec<DeviceInfo> {
 
         let mut name_len = 0u32;
         unsafe {
-            if GetRawInputDeviceInfoW(Some(handle), RIDI_DEVICENAME, None, &mut name_len) == u32::MAX {
+            if GetRawInputDeviceInfoW(Some(handle), RIDI_DEVICENAME, None, &mut name_len)
+                == u32::MAX
+            {
                 continue;
             }
         }
@@ -161,11 +159,9 @@ pub fn get_connected_devices() -> Vec<DeviceInfo> {
                 continue;
             }
 
-            let id_utf16: &[u16] = std::slice::from_raw_parts(
-                id_buf.as_ptr() as *const u16,
-                id_size as usize / 2,
-            );
-            
+            let id_utf16: &[u16] =
+                std::slice::from_raw_parts(id_buf.as_ptr() as *const u16, id_size as usize / 2);
+
             let mut id_str = OsString::from_wide(id_utf16)
                 .to_string_lossy()
                 .trim_end_matches('\0')
@@ -174,7 +170,7 @@ pub fn get_connected_devices() -> Vec<DeviceInfo> {
             if let Some(idx) = id_str.rfind('\\') {
                 id_str = id_str[..idx].to_string();
             }
-            
+
             if !devices.iter().any(|d: &DeviceInfo| d.id == id_str) {
                 devices.push(DeviceInfo {
                     name: name_str,

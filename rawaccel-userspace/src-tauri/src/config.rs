@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::models;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppConfig {
@@ -28,7 +28,9 @@ pub struct AppDeviceConfig {
     pub clamp_max: f64,
 }
 
-fn default_poll_time_lock() -> bool { false }
+fn default_poll_time_lock() -> bool {
+    false
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppProfile {
@@ -136,7 +138,12 @@ impl AppProfile {
         let mut prof = models::profile::default();
 
         let mut name_u16 = [0u16; models::MAX_NAME_LEN];
-        for (i, c) in self.name.encode_utf16().enumerate().take(models::MAX_NAME_LEN - 1) {
+        for (i, c) in self
+            .name
+            .encode_utf16()
+            .enumerate()
+            .take(models::MAX_NAME_LEN - 1)
+        {
             name_u16[i] = c;
         }
         prof.name = name_u16;
@@ -147,16 +154,58 @@ impl AppProfile {
         prof.degrees_snap = self.degrees_snap;
         prof.speed_min = self.speed_min;
         prof.speed_max = self.speed_max;
-        prof.lr_output_dpi_ratio = if self.lr_output_dpi_ratio <= 0.0 { 1.0 } else { self.lr_output_dpi_ratio };
-        prof.ud_output_dpi_ratio = if self.ud_output_dpi_ratio <= 0.0 { 1.0 } else { self.ud_output_dpi_ratio };
-        prof.output_dpi = if self.output_dpi <= 0.0 { 1000.0 } else { self.output_dpi };
-        prof.yx_output_dpi_ratio = if self.yx_output_dpi_ratio <= 0.0 { 1.0 } else { self.yx_output_dpi_ratio };
-        prof.range_weights = models::vec2d { x: if self.range_weights.x < 0.0 { 1.0 } else { self.range_weights.x }, y: if self.range_weights.y < 0.0 { 1.0 } else { self.range_weights.y } };
-        prof.domain_weights = models::vec2d { x: if self.domain_weights.x <= 0.0 { 1.0 } else { self.domain_weights.x }, y: if self.domain_weights.y <= 0.0 { 1.0 } else { self.domain_weights.y } };
+        prof.lr_output_dpi_ratio = if self.lr_output_dpi_ratio <= 0.0 {
+            1.0
+        } else {
+            self.lr_output_dpi_ratio
+        };
+        prof.ud_output_dpi_ratio = if self.ud_output_dpi_ratio <= 0.0 {
+            1.0
+        } else {
+            self.ud_output_dpi_ratio
+        };
+        prof.output_dpi = if self.output_dpi <= 0.0 {
+            1000.0
+        } else {
+            self.output_dpi
+        };
+        prof.yx_output_dpi_ratio = if self.yx_output_dpi_ratio <= 0.0 {
+            1.0
+        } else {
+            self.yx_output_dpi_ratio
+        };
+        prof.range_weights = models::vec2d {
+            x: if self.range_weights.x < 0.0 {
+                1.0
+            } else {
+                self.range_weights.x
+            },
+            y: if self.range_weights.y < 0.0 {
+                1.0
+            } else {
+                self.range_weights.y
+            },
+        };
+        prof.domain_weights = models::vec2d {
+            x: if self.domain_weights.x <= 0.0 {
+                1.0
+            } else {
+                self.domain_weights.x
+            },
+            y: if self.domain_weights.y <= 0.0 {
+                1.0
+            } else {
+                self.domain_weights.y
+            },
+        };
 
         prof.speed_processor_args = models::speed_args {
             whole: self.speed_processor_args.whole,
-            lp_norm: if self.speed_processor_args.lp_norm <= 0.0 { 2.0 } else { self.speed_processor_args.lp_norm },
+            lp_norm: if self.speed_processor_args.lp_norm <= 0.0 {
+                2.0
+            } else {
+                self.speed_processor_args.lp_norm
+            },
             input_speed_smooth_halflife: self.speed_processor_args.input_speed_smooth_halflife,
             scale_smooth_halflife: self.speed_processor_args.scale_smooth_halflife,
             output_speed_smooth_halflife: self.speed_processor_args.output_speed_smooth_halflife,
@@ -184,10 +233,22 @@ impl AppAccelArgs {
         args.gain = self.gain;
         args.input_offset = self.input_offset;
         args.output_offset = self.output_offset;
-        args.acceleration = if self.acceleration <= 0.0 { 0.001 } else { self.acceleration };
-        args.decay_rate = if self.decay_rate <= 0.0 { 0.1 } else { self.decay_rate };
+        args.acceleration = if self.acceleration <= 0.0 {
+            0.001
+        } else {
+            self.acceleration
+        };
+        args.decay_rate = if self.decay_rate <= 0.0 {
+            0.1
+        } else {
+            self.decay_rate
+        };
         args.gamma = if self.gamma <= 0.0 { 1.0 } else { self.gamma };
-        args.motivity = if self.motivity <= 1.0 { 1.5 } else { self.motivity };
+        args.motivity = if self.motivity <= 1.0 {
+            1.5
+        } else {
+            self.motivity
+        };
         args.exponent_classic = if self.mode.as_str() == "linear" {
             2.0
         } else if self.exponent_classic <= 1.0 {
@@ -196,10 +257,22 @@ impl AppAccelArgs {
             self.exponent_classic
         };
         args.scale = if self.scale <= 0.0 { 1.0 } else { self.scale };
-        args.exponent_power = if self.exponent_power <= 0.0 { 0.05 } else { self.exponent_power };
+        args.exponent_power = if self.exponent_power <= 0.0 {
+            0.05
+        } else {
+            self.exponent_power
+        };
         args.limit = if self.limit <= 0.0 { 2.0 } else { self.limit };
-        args.sync_speed = if self.sync_speed <= 0.0 { 5.0 } else { self.sync_speed };
-        args.smooth = if self.smooth < 0.0 || self.smooth > 1.0 { 0.0 } else { self.smooth };
+        args.sync_speed = if self.sync_speed <= 0.0 {
+            5.0
+        } else {
+            self.sync_speed
+        };
+        args.smooth = if self.smooth < 0.0 || self.smooth > 1.0 {
+            0.0
+        } else {
+            self.smooth
+        };
         args.t_type = match self.t_type.as_str() {
             "natural" => models::tiered_type::natural,
             _ => models::tiered_type::linear,
@@ -213,7 +286,10 @@ impl AppAccelArgs {
         args.tiered_transition2 = self.tiered_transition2;
         args.tiered_decay_rate1 = self.tiered_decay_rate1;
         args.tiered_decay_rate2 = self.tiered_decay_rate2;
-        args.cap = models::vec2d { x: self.cap.x, y: self.cap.y };
+        args.cap = models::vec2d {
+            x: self.cap.x,
+            y: self.cap.y,
+        };
         args.cap_mode = match self.cap_mode.as_str() {
             "in" => models::cap_mode::in_,
             "io" => models::cap_mode::io,
@@ -224,4 +300,3 @@ impl AppAccelArgs {
         args
     }
 }
-

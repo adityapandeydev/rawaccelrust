@@ -1,8 +1,8 @@
-pub mod models;
-pub mod driver;
 pub mod config;
-pub mod math;
 pub mod devices;
+pub mod driver;
+pub mod math;
+pub mod models;
 pub mod mouse_tracker;
 
 use std::fs;
@@ -18,7 +18,7 @@ fn apply_settings(settings_json: String) -> Result<(), String> {
 
     // Save to settings.json in current directory (where driver lives)
     let _ = fs::write("settings.json", &settings_json);
-    
+
     Ok(())
 }
 
@@ -39,6 +39,7 @@ fn get_devices() -> Vec<devices::DeviceInfo> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::Builder::new().args(vec!["--silent"]).build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             mouse_tracker::start(app.handle().clone());

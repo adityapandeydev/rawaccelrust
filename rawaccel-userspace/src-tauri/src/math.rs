@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 use crate::models::{
-    self, accel_args, accel_mode, accel_union, cap_mode, modifier_flags,
-    modifier_settings, profile, vec2d,
+    self, accel_args, accel_mode, accel_union, cap_mode, modifier_flags, modifier_settings,
+    profile, vec2d,
 };
 use std::f64::consts::PI;
 
@@ -10,7 +10,10 @@ use std::f64::consts::PI;
 
 fn direction(degrees: f64) -> vec2d {
     let rad = degrees * PI / 180.0;
-    vec2d { x: rad.cos(), y: rad.sin() }
+    vec2d {
+        x: rad.cos(),
+        y: rad.sin(),
+    }
 }
 
 // ── Modifier Flags ───────────────────────────────────────────────────────
@@ -36,8 +39,6 @@ fn compute_flags(prof: &profile) -> modifier_flags {
 
 // ── Utility Functions ────────────────────────────────────────────────────
 
-
-
 // ── Curve Structs ────────────────────────────────────────────────────────
 // Each mirrors the C++ constructor logic that pre-computes constants
 // written into the accel_union for the driver to evaluate at runtime.
@@ -60,7 +61,10 @@ impl ClassicLegacy {
         match args.cap_mode {
             cap_mode::io => {
                 cap = args.cap.y - 1.0;
-                if cap < 0.0 { cap = -cap; sign = -sign; }
+                if cap < 0.0 {
+                    cap = -cap;
+                    sign = -sign;
+                }
                 let a = classic_base_accel(args.cap.x, cap, args);
                 accel_raised = a.powf(args.exponent_classic - 1.0);
             }
@@ -74,12 +78,19 @@ impl ClassicLegacy {
                 accel_raised = args.acceleration.powf(args.exponent_classic - 1.0);
                 if args.cap.y > 0.0 {
                     cap = args.cap.y - 1.0;
-                    if cap < 0.0 { cap = -cap; sign = -sign; }
+                    if cap < 0.0 {
+                        cap = -cap;
+                        sign = -sign;
+                    }
                 }
             }
         }
 
-        Self { accel_raised, cap, sign }
+        Self {
+            accel_raised,
+            cap,
+            sign,
+        }
     }
 }
 
@@ -94,7 +105,10 @@ struct ClassicGain {
 impl ClassicGain {
     fn new(args: &accel_args) -> Self {
         let mut sign = 1.0;
-        let mut cap = vec2d { x: f64::MAX, y: f64::MAX };
+        let mut cap = vec2d {
+            x: f64::MAX,
+            y: f64::MAX,
+        };
         let mut constant = 0.0;
         let accel_raised;
 
@@ -102,7 +116,10 @@ impl ClassicGain {
             cap_mode::io => {
                 cap.x = args.cap.x;
                 cap.y = args.cap.y - 1.0;
-                if cap.y < 0.0 { cap.y = -cap.y; sign = -sign; }
+                if cap.y < 0.0 {
+                    cap.y = -cap.y;
+                    sign = -sign;
+                }
                 let a = classic_gain_accel(cap.x, cap.y, args.exponent_classic, args.input_offset);
                 accel_raised = a.powf(args.exponent_classic - 1.0);
                 constant = (classic_base_fn(cap.x, accel_raised, args) - cap.y) * cap.x;
@@ -112,7 +129,10 @@ impl ClassicGain {
                 if args.cap.x > 0.0 {
                     cap.x = args.cap.x;
                     cap.y = classic_gain(
-                        cap.x, args.acceleration, args.exponent_classic, args.input_offset,
+                        cap.x,
+                        args.acceleration,
+                        args.exponent_classic,
+                        args.input_offset,
                     );
                     constant = (classic_base_fn(cap.x, accel_raised, args) - cap.y) * cap.x;
                 }
@@ -124,9 +144,15 @@ impl ClassicGain {
                     if cap.y == 0.0 {
                         cap.x = 0.0;
                     } else {
-                        if cap.y < 0.0 { cap.y = -cap.y; sign = -sign; }
+                        if cap.y < 0.0 {
+                            cap.y = -cap.y;
+                            sign = -sign;
+                        }
                         cap.x = classic_gain_inverse(
-                            cap.y, args.acceleration, args.exponent_classic, args.input_offset,
+                            cap.y,
+                            args.acceleration,
+                            args.exponent_classic,
+                            args.input_offset,
                         );
                         constant = (classic_base_fn(cap.x, accel_raised, args) - cap.y) * cap.x;
                     }
@@ -134,7 +160,12 @@ impl ClassicGain {
             }
         }
 
-        Self { accel_raised, cap, constant, sign }
+        Self {
+            accel_raised,
+            cap,
+            constant,
+            sign,
+        }
     }
 }
 
@@ -165,7 +196,11 @@ const JUMP_SMOOTH_SCALE: f64 = 2.0 * PI;
 
 fn jump_smooth_rate(args: &accel_args, step_x: f64) -> f64 {
     let rate_inverse = args.smooth * step_x;
-    if rate_inverse < 1.0 { 0.0 } else { JUMP_SMOOTH_SCALE / rate_inverse }
+    if rate_inverse < 1.0 {
+        0.0
+    } else {
+        JUMP_SMOOTH_SCALE / rate_inverse
+    }
 }
 
 fn jump_smooth_antideriv(x: f64, step: vec2d, smooth_rate: f64) -> f64 {
@@ -181,7 +216,10 @@ struct JumpLegacy {
 
 impl JumpLegacy {
     fn new(args: &accel_args) -> Self {
-        let step = vec2d { x: args.cap.x, y: args.cap.y - 1.0 };
+        let step = vec2d {
+            x: args.cap.x,
+            y: args.cap.y - 1.0,
+        };
         let smooth_rate = jump_smooth_rate(args, step.x);
         Self { step, smooth_rate }
     }
@@ -196,10 +234,17 @@ struct JumpGain {
 
 impl JumpGain {
     fn new(args: &accel_args) -> Self {
-        let step = vec2d { x: args.cap.x, y: args.cap.y - 1.0 };
+        let step = vec2d {
+            x: args.cap.x,
+            y: args.cap.y - 1.0,
+        };
         let smooth_rate = jump_smooth_rate(args, step.x);
         let c = -jump_smooth_antideriv(0.0, step, smooth_rate);
-        Self { step, smooth_rate, c }
+        Self {
+            step,
+            smooth_rate,
+            c,
+        }
     }
 }
 
@@ -216,7 +261,11 @@ impl NaturalLegacy {
     fn new(args: &accel_args) -> Self {
         let limit = args.limit - 1.0;
         let accel = args.decay_rate / limit.abs();
-        Self { offset: args.input_offset, accel, limit }
+        Self {
+            offset: args.input_offset,
+            accel,
+            limit,
+        }
     }
 }
 
@@ -233,7 +282,12 @@ impl NaturalGain {
         let limit = args.limit - 1.0;
         let accel = args.decay_rate / limit.abs();
         let constant = -limit / accel;
-        Self { offset: args.input_offset, accel, limit, constant }
+        Self {
+            offset: args.input_offset,
+            accel,
+            limit,
+            constant,
+        }
     }
 }
 
@@ -291,7 +345,10 @@ impl PowerLegacy {
             // Legacy + io cap mode: offset ignored due to circular dependency
             let s = power_scale_from_output_point(args.cap.x, args.cap.y, n, 0.0);
             return Self {
-                offset: vec2d::default(), scale: s, constant: 0.0, cap: args.cap.y,
+                offset: vec2d::default(),
+                scale: s,
+                constant: 0.0,
+                cap: args.cap.y,
             };
         }
 
@@ -303,18 +360,27 @@ impl PowerLegacy {
 
         let mut cap = f64::MAX;
         match args.cap_mode {
-            cap_mode::io => { cap = args.cap.y; }
+            cap_mode::io => {
+                cap = args.cap.y;
+            }
             cap_mode::in_ => {
                 if args.cap.x > 0.0 {
                     cap = power_base_fn(args.cap.x, args, offset, scale, constant);
                 }
             }
             _ => {
-                if args.cap.y > 0.0 { cap = args.cap.y; }
+                if args.cap.y > 0.0 {
+                    cap = args.cap.y;
+                }
             }
         }
 
-        Self { offset, scale, constant, cap }
+        Self {
+            offset,
+            scale,
+            constant,
+            cap,
+        }
     }
 }
 
@@ -341,8 +407,14 @@ impl PowerGain {
         } else {
             let s = power_scale_from_output_point(args.cap.x, args.cap.y, n, 0.0);
             return Self {
-                offset: vec2d::default(), scale: s, constant: 0.0,
-                cap: vec2d { x: f64::MAX, y: f64::MAX }, constant_b: 0.0,
+                offset: vec2d::default(),
+                scale: s,
+                constant: 0.0,
+                cap: vec2d {
+                    x: f64::MAX,
+                    y: f64::MAX,
+                },
+                constant_b: 0.0,
             };
         }
 
@@ -350,26 +422,42 @@ impl PowerGain {
         offset.y = args.output_offset;
         constant = offset.x * offset.y * n / (n + 1.0);
 
-        let mut cap = vec2d { x: f64::MAX, y: f64::MAX };
+        let mut cap = vec2d {
+            x: f64::MAX,
+            y: f64::MAX,
+        };
         let constant_b;
 
         match args.cap_mode {
             cap_mode::io => {
                 cap = args.cap;
                 constant_b = power_integration_constant(
-                    cap.x, cap.y, power_base_fn(cap.x, args, offset, scale, constant),
+                    cap.x,
+                    cap.y,
+                    power_base_fn(cap.x, args, offset, scale, constant),
                 );
             }
             cap_mode::in_ => {
                 if args.cap.x > 0.0 {
                     if args.cap.x <= offset.x {
-                        return Self { offset, scale, constant, cap: vec2d { x: 0.0, y: offset.y }, constant_b: 0.0 };
+                        return Self {
+                            offset,
+                            scale,
+                            constant,
+                            cap: vec2d {
+                                x: 0.0,
+                                y: offset.y,
+                            },
+                            constant_b: 0.0,
+                        };
                     }
                     cap.x = args.cap.x;
                     cap.y = power_gain_fn(args.cap.x, n, scale);
                 }
                 constant_b = power_integration_constant(
-                    cap.x, cap.y, power_base_fn(cap.x, args, offset, scale, constant),
+                    cap.x,
+                    cap.y,
+                    power_base_fn(cap.x, args, offset, scale, constant),
                 );
             }
             _ => {
@@ -378,12 +466,20 @@ impl PowerGain {
                     cap.y = args.cap.y;
                 }
                 constant_b = power_integration_constant(
-                    cap.x, cap.y, power_base_fn(cap.x, args, offset, scale, constant),
+                    cap.x,
+                    cap.y,
+                    power_base_fn(cap.x, args, offset, scale, constant),
                 );
             }
         }
 
-        Self { offset, scale, constant, cap, constant_b }
+        Self {
+            offset,
+            scale,
+            constant,
+            cap,
+            constant_b,
+        }
     }
 }
 
@@ -404,8 +500,16 @@ struct TieredLinearLegacy {
 
 impl TieredLinearLegacy {
     fn new(args: &accel_args) -> Self {
-        let inv_trans1 = if args.tiered_transition1 > 0.0 { 1.0 / args.tiered_transition1 } else { 0.0 };
-        let inv_trans2 = if args.tiered_transition2 > 0.0 { 1.0 / args.tiered_transition2 } else { 0.0 };
+        let inv_trans1 = if args.tiered_transition1 > 0.0 {
+            1.0 / args.tiered_transition1
+        } else {
+            0.0
+        };
+        let inv_trans2 = if args.tiered_transition2 > 0.0 {
+            1.0 / args.tiered_transition2
+        } else {
+            0.0
+        };
         Self {
             m1: args.tiered_multiplier1,
             x1: args.tiered_input_offset1,
@@ -438,13 +542,17 @@ impl TieredNaturalLegacy {
         let m1 = args.tiered_multiplier1;
         let x1 = args.tiered_input_offset1;
         let v1 = m1 * x1;
-        
+
         let l1 = args.tiered_multiplier2 - m1;
-        let a1 = if l1 != 0.0 { args.tiered_decay_rate1 / l1.abs() } else { 0.0 };
-        
+        let a1 = if l1 != 0.0 {
+            args.tiered_decay_rate1 / l1.abs()
+        } else {
+            0.0
+        };
+
         let x2 = args.tiered_input_offset2;
         let dx1 = x2 - x1;
-        
+
         let decay1 = if l1 != 0.0 { (-a1 * dx1).exp() } else { 1.0 };
         let v2 = if l1 != 0.0 {
             v1 + m1 * dx1 + l1 * dx1 * (1.0 - decay1)
@@ -456,11 +564,25 @@ impl TieredNaturalLegacy {
         } else {
             m1
         };
-        
+
         let l2 = args.tiered_multiplier3 - m2_prime;
-        let a2 = if l2 != 0.0 { args.tiered_decay_rate2 / l2.abs() } else { 0.0 };
-        
-        Self { m1, x1, l1, a1, x2, v2, m2_prime, l2, a2 }
+        let a2 = if l2 != 0.0 {
+            args.tiered_decay_rate2 / l2.abs()
+        } else {
+            0.0
+        };
+
+        Self {
+            m1,
+            x1,
+            l1,
+            a1,
+            x2,
+            v2,
+            m2_prime,
+            l2,
+            a2,
+        }
     }
 }
 
@@ -482,13 +604,17 @@ impl TieredNaturalGain {
         let m1 = args.tiered_multiplier1;
         let x1 = args.tiered_input_offset1;
         let v1 = m1 * x1;
-        
+
         let l1 = args.tiered_multiplier2 - m1;
-        let a1 = if l1 != 0.0 { args.tiered_decay_rate1 / l1.abs() } else { 0.0 };
-        
+        let a1 = if l1 != 0.0 {
+            args.tiered_decay_rate1 / l1.abs()
+        } else {
+            0.0
+        };
+
         let x2 = args.tiered_input_offset2;
         let dx1 = x2 - x1;
-        
+
         let decay1 = if l1 != 0.0 { (-a1 * dx1).exp() } else { 1.0 };
         let v2 = if l1 != 0.0 {
             v1 + m1 * dx1 + l1 * (dx1 - (1.0 - decay1) / a1)
@@ -500,11 +626,25 @@ impl TieredNaturalGain {
         } else {
             m1
         };
-        
+
         let l2 = args.tiered_multiplier3 - m2_prime;
-        let a2 = if l2 != 0.0 { args.tiered_decay_rate2 / l2.abs() } else { 0.0 };
-        
-        Self { m1, x1, l1, a1, x2, v2, m2_prime, l2, a2 }
+        let a2 = if l2 != 0.0 {
+            args.tiered_decay_rate2 / l2.abs()
+        } else {
+            0.0
+        };
+
+        Self {
+            m1,
+            x1,
+            l1,
+            a1,
+            x2,
+            v2,
+            m2_prime,
+            l2,
+            a2,
+        }
     }
 }
 
@@ -519,7 +659,10 @@ struct Lookup {
 
 impl Lookup {
     fn new(args: &accel_args) -> Self {
-        Self { size: args.length / 2, velocity: args.gain }
+        Self {
+            size: args.length / 2,
+            velocity: args.gain,
+        }
     }
 }
 
@@ -544,7 +687,11 @@ impl SynchronousLegacy {
     fn new(args: &accel_args) -> Self {
         let log_motivity = args.motivity.ln();
         let gamma_const = args.gamma / log_motivity;
-        let sharpness = if args.smooth == 0.0 { 16.0 } else { 0.5 / args.smooth };
+        let sharpness = if args.smooth == 0.0 {
+            16.0
+        } else {
+            0.5 / args.smooth
+        };
 
         Self {
             log_motivity,
@@ -562,23 +709,35 @@ impl SynchronousLegacy {
     fn evaluate(&self, x: f64) -> f64 {
         if self.use_linear_clamp {
             let log_space = self.gamma_const * (x.ln() - self.log_syncspeed);
-            if log_space < -1.0 { return self.minimum_sens; }
-            if log_space > 1.0 { return self.maximum_sens; }
+            if log_space < -1.0 {
+                return self.minimum_sens;
+            }
+            if log_space > 1.0 {
+                return self.maximum_sens;
+            }
             return (log_space * self.log_motivity).exp();
         }
 
-        if x == self.syncspeed { return 1.0; }
+        if x == self.syncspeed {
+            return 1.0;
+        }
 
         let log_x = x.ln();
         let log_diff = log_x - self.log_syncspeed;
 
         if log_diff > 0.0 {
             let log_space = self.gamma_const * log_diff;
-            let exponent = log_space.powf(self.sharpness).tanh().powf(self.sharpness_recip);
+            let exponent = log_space
+                .powf(self.sharpness)
+                .tanh()
+                .powf(self.sharpness_recip);
             (exponent * self.log_motivity).exp()
         } else {
             let log_space = -self.gamma_const * log_diff;
-            let exponent = -(log_space.powf(self.sharpness).tanh().powf(self.sharpness_recip));
+            let exponent = -(log_space
+                .powf(self.sharpness)
+                .tanh()
+                .powf(self.sharpness_recip));
             (exponent * self.log_motivity).exp()
         }
     }
@@ -620,7 +779,9 @@ impl SynchronousGain {
                 a = x;
 
                 let mut y = sum;
-                if velocity { y /= x; }
+                if velocity {
+                    y /= x;
+                }
 
                 if idx < models::LUT_RAW_DATA_CAPACITY {
                     args.data[idx] = y as f32;
@@ -637,12 +798,20 @@ impl SynchronousGain {
             sum += sig.evaluate(a + p as f64 * interval) * interval;
         }
         let mut y = sum;
-        if velocity { y /= x_final; }
+        if velocity {
+            y /= x_final;
+        }
         if idx < models::LUT_RAW_DATA_CAPACITY {
             args.data[idx] = y as f32;
         }
 
-        Self { velocity, range_start, range_stop, range_num, x_start }
+        Self {
+            velocity,
+            range_start,
+            range_stop,
+            range_num,
+            x_start,
+        }
     }
 }
 

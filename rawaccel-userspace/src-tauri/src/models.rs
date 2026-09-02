@@ -27,7 +27,9 @@ pub enum accel_mode {
 }
 
 impl Default for accel_mode {
-    fn default() -> Self { accel_mode::noaccel }
+    fn default() -> Self {
+        accel_mode::noaccel
+    }
 }
 
 #[repr(i32)]
@@ -38,7 +40,9 @@ pub enum tiered_type {
 }
 
 impl Default for tiered_type {
-    fn default() -> Self { tiered_type::linear }
+    fn default() -> Self {
+        tiered_type::linear
+    }
 }
 
 #[repr(i32)]
@@ -50,10 +54,10 @@ pub enum cap_mode {
 }
 
 impl Default for cap_mode {
-    fn default() -> Self { cap_mode::out }
+    fn default() -> Self {
+        cap_mode::out
+    }
 }
-
-
 
 // ── Math Primitives ──────────────────────────────────────────────────────
 
@@ -97,9 +101,6 @@ pub struct accel_args {
     pub tiered_transition2: f64,
     pub tiered_decay_rate1: f64,
     pub tiered_decay_rate2: f64,
-
-
-
 
     pub cap: vec2d,
     pub cap_mode: cap_mode,
@@ -220,7 +221,9 @@ pub const ACCEL_UNION_SIZE: usize = 72;
 
 impl Default for accel_union {
     fn default() -> Self {
-        Self { memory: [0; ACCEL_UNION_SIZE] }
+        Self {
+            memory: [0; ACCEL_UNION_SIZE],
+        }
     }
 }
 
@@ -228,7 +231,10 @@ impl accel_union {
     /// Write a curve struct into the union's raw memory.
     pub fn write<T: Sized>(&mut self, value: &T) {
         let size = std::mem::size_of::<T>();
-        assert!(size <= ACCEL_UNION_SIZE, "curve struct exceeds union capacity");
+        assert!(
+            size <= ACCEL_UNION_SIZE,
+            "curve struct exceeds union capacity"
+        );
         unsafe {
             std::ptr::copy_nonoverlapping(
                 value as *const T as *const u8,
@@ -321,4 +327,3 @@ pub struct io_base {
     pub modifier_data_size: u32,
     pub device_data_size: u32,
 }
-
