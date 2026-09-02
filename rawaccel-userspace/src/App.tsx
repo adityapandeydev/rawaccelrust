@@ -778,7 +778,38 @@ function App() {
                           ]}
                         />
                       </div>
-                      <button className="btn btn-primary" style={{ marginTop: "0.5rem", width: "100%" }}>Upload CSV</button>
+                      <input 
+                        type="file" 
+                        accept=".csv" 
+                        id="csv-upload" 
+                        style={{ display: "none" }} 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const text = event.target?.result as string;
+                            const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+                            const parsedArray = lines.map(line => {
+                              const [x, y] = line.split(",").map(n => parseFloat(n.trim()));
+                              return { x, y };
+                            }).filter(point => !isNaN(point.x) && !isNaN(point.y));
+                            // Sort by X to maintain strict left-to-right flow
+                            parsedArray.sort((a, b) => a.x - b.x);
+                            updateAccel("lookup_table", parsedArray);
+                            // Reset input
+                            e.target.value = "";
+                          };
+                          reader.readAsText(file);
+                        }}
+                      />
+                      <button 
+                        className="btn btn-primary" 
+                        style={{ marginTop: "0.5rem", width: "100%" }}
+                        onClick={() => document.getElementById("csv-upload")?.click()}
+                      >
+                        Upload CSV
+                      </button>
                     </>
                   )}
 
@@ -962,9 +993,20 @@ function App() {
               
             </div>
             
-            {/* Right Column: Full Height Graph */}
             <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", paddingTop: "0.25rem" }}>
-              <CurveGraph argsX={activeProfile.accel_x} argsY={activeProfile.accel_y} visibleGraphs={visibleGraphs} isExpanded={isExpanded} />
+              <CurveGraph 
+                argsX={activeProfile.accel_x} 
+                argsY={activeProfile.accel_y} 
+                visibleGraphs={visibleGraphs} 
+                isExpanded={isExpanded} 
+                onUpdateLookupPoint={(axis, newTable) => {
+                  const prop = axis === "x" ? "accel_x" : "accel_y";
+                  updateProfile(prop, {
+                    ...activeProfile[prop],
+                    lookup_table: newTable
+                  });
+                }}
+              />
             </div>
             
           </div>

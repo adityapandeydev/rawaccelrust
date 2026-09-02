@@ -128,9 +128,10 @@ pub struct AppAccelArgs {
     #[serde(default)]
     pub cap: AppVec2D,
     #[serde(default)]
+    #[serde(default)]
     pub cap_mode: String,
     #[serde(default)]
-    pub length: i32,
+    pub lookup_table: Vec<AppVec2D>,
 }
 
 impl AppProfile {
@@ -291,11 +292,20 @@ impl AppAccelArgs {
             y: self.cap.y,
         };
         args.cap_mode = match self.cap_mode.as_str() {
+        args.cap_mode = match self.cap_mode.as_str() {
             "in" => models::cap_mode::in_,
             "io" => models::cap_mode::io,
             _ => models::cap_mode::out,
         };
-        args.length = 0;
+
+        let max_points = models::LUT_RAW_DATA_CAPACITY / 2;
+        let num_points = std::cmp::min(self.lookup_table.len(), max_points);
+        
+        args.length = num_points as i32;
+        for i in 0..num_points {
+            args.data[i * 2] = self.lookup_table[i].x;
+            args.data[i * 2 + 1] = self.lookup_table[i].y;
+        }
 
         args
     }

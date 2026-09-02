@@ -22,10 +22,38 @@ export function createEvaluator(args: AccelArgs): Evaluator {
       return createPowerEvaluator(args);
     case "synchronous":
       return createSynchronousEvaluator(args);
+    case "lookup":
+      return createLookupEvaluator(args);
     case "noaccel":
     default:
       return () => 1.0;
   }
+}
+
+// ── Lookup Mode ──────────────────────────────────────────────────────────
+
+function createLookupEvaluator(args: AccelArgs): Evaluator {
+  if (!args.lookup_table || args.lookup_table.length === 0) {
+    return () => 1.0;
+  }
+  
+  const points = args.lookup_table;
+  
+  return (x: number) => {
+    if (x <= points[0].x) return points[0].y;
+    if (x >= points[points.length - 1].x) return points[points.length - 1].y;
+    
+    for (let i = 0; i < points.length - 1; i++) {
+      if (x >= points[i].x && x <= points[i + 1].x) {
+        const dx = points[i + 1].x - points[i].x;
+        if (dx === 0) return points[i].y;
+        const t = (x - points[i].x) / dx;
+        return points[i].y + t * (points[i + 1].y - points[i].y);
+      }
+    }
+    
+    return 1.0; // fallback
+  };
 }
 
 // ── Jump Mode ────────────────────────────────────────────────────────────

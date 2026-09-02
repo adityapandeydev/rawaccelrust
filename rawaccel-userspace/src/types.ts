@@ -50,6 +50,7 @@ export interface AccelArgs {
 
   cap: Vec2D;
   cap_mode: "in" | "out" | "io";
+  lookup_table?: Vec2D[];
 }
 
 export interface SpeedArgs {
