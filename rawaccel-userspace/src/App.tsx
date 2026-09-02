@@ -17,6 +17,14 @@ const safeParseFloat = (val: string) => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
+const defaultLookupTable = () => [
+  { x: 0.1, y: 1.0 },
+  { x: 20.0, y: 1.0 },
+];
+
+const copyLookupTable = (table: { x: number; y: number }[]) =>
+  table.map((point) => ({ ...point }));
+
 function App() {
   const [profiles, setProfiles] = useState<Profile[]>([defaultProfile()]);
   const [activeProfileIndex, setActiveProfileIndex] = useState(0);
@@ -234,6 +242,22 @@ function App() {
         if (activeCurveAxis === "y") next.accel_y = { ...next.accel_y, [key]: value };
       }
       return next;
+    });
+  };
+
+  const updateLookup = (updater: (args: AccelArgs) => AccelArgs) => {
+    updateActiveProfile((profile) => {
+      if (linkXY) {
+        return {
+          ...profile,
+          accel_x: updater(profile.accel_x),
+          accel_y: updater(profile.accel_y),
+        };
+      }
+
+      return activeCurveAxis === "x"
+        ? { ...profile, accel_x: updater(profile.accel_x) }
+        : { ...profile, accel_y: updater(profile.accel_y) };
     });
   };
 
@@ -485,7 +509,19 @@ function App() {
                       width="100%"
                       value={activeAccel.mode}
                       onChange={(val) => {
-                        updateAccel("mode", val);
+                        updateLookup((args) => {
+                          if (val !== "lookup" || (args.lookup_table?.length ?? 0) >= 2) {
+                            return { ...args, mode: val };
+                          }
+
+                          // A newly created LUT starts as a flat sensitivity curve.
+                          return {
+                            ...args,
+                            mode: "lookup",
+                            gain: false,
+                            lookup_table: defaultLookupTable(),
+                          };
+                        });
                       }}
                       options={[
                         { value: "linear", label: "Linear" },
@@ -783,7 +819,20 @@ function App() {
                         <CustomSelect
                           width="120px"
                           value={activeAccel.gain ? "velocity" : "sensitivity"}
-                          onChange={(val) => updateAccel("gain", val === "velocity")}
+                          onChange={(val) => {
+                            const useVelocity = val === "velocity";
+                            updateLookup((args) => {
+                              if (args.gain === useVelocity) return args;
+
+                              // Preserve the displayed sensitivity curve while changing
+                              // the driver's stored representation.
+                              const table = (args.lookup_table ?? []).map((point) => ({
+                                x: point.x,
+                                y: useVelocity ? point.y * point.x : point.y / point.x,
+                              }));
+                              return { ...args, gain: useVelocity, lookup_table: table };
+                            });
+                          }}
                           options={[
                             { value: "sensitivity", label: "Sensitivity" },
                             { value: "velocity", label: "Velocity" }
@@ -822,7 +871,13 @@ function App() {
                             } else if (parsedArray.some((point, index) => point.x <= 0 || (index > 0 && point.x <= parsedArray[index - 1].x))) {
                               setModalState({ isOpen: true, title: "Invalid CSV", message: "Input speeds must be above zero and strictly increasing." });
                             } else {
-                              updateAccel("lookup_table", parsedArray);
+                              updateLookup((args) => ({
+                                ...args,
+                                gain: activeAccel.gain,
+                                lookup_table: copyLookupTable(parsedArray),
+                                lookup_csv_backup: copyLookupTable(parsedArray),
+                                lookup_csv_backup_gain: activeAccel.gain,
+                              }));
                             }
                             // Reset input
                             e.target.value = "";
@@ -836,6 +891,21 @@ function App() {
                         onClick={() => document.getElementById("csv-upload")?.click()}
                       >
                         Upload CSV
+                      </button>
+                      <button
+                        className="btn"
+                        style={{ marginTop: "0.5rem", width: "100%" }}
+                        disabled={!activeAccel.lookup_csv_backup || activeAccel.lookup_csv_backup.length < 2}
+                        onClick={() => updateLookup((args) => {
+                          if (!args.lookup_csv_backup || args.lookup_csv_backup.length < 2) return args;
+                          return {
+                            ...args,
+                            lookup_table: copyLookupTable(args.lookup_csv_backup),
+                            gain: args.lookup_csv_backup_gain ?? args.gain,
+                          };
+                        })}
+                      >
+                        Restore CSV Points
                       </button>
                     </>
                   )}

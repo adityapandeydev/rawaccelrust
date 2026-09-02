@@ -50,7 +50,11 @@ export interface AccelArgs {
 
   cap: Vec2D;
   cap_mode: "in" | "out" | "io";
+  // The editable curve sent to the driver when mode is "lookup".
   lookup_table?: Vec2D[];
+  // Optional CSV source snapshot. It is never sent to the driver.
+  lookup_csv_backup?: Vec2D[];
+  lookup_csv_backup_gain?: boolean;
 }
 
 export interface SpeedArgs {
