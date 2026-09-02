@@ -8,6 +8,69 @@ pub struct AppConfig {
     pub devices: Vec<AppDeviceConfig>,
 }
 
+impl AppConfig {
+    /// Validates data that is used directly by the driver's lookup implementation.
+    /// The driver assumes these invariants when it interpolates `accel_args.data`.
+    pub fn validate(&self) -> Result<(), String> {
+        for profile in &self.profiles {
+            validate_lookup_table(&profile.name, "X", &profile.accel_x)?;
+
+            if !profile.speed_processor_args.whole {
+                validate_lookup_table(&profile.name, "Y", &profile.accel_y)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn validate_lookup_table(
+    profile_name: &str,
+    axis: &str,
+    args: &AppAccelArgs,
+) -> Result<(), String> {
+    if args.mode != "lookup" {
+        return Ok(());
+    }
+
+    let points = &args.lookup_table;
+    let max_points = models::LUT_POINTS_CAPACITY;
+    if points.len() < 2 {
+        return Err(format!(
+            "Profile '{profile_name}' {axis} lookup table needs at least two points"
+        ));
+    }
+    if points.len() > max_points {
+        return Err(format!(
+            "Profile '{profile_name}' {axis} lookup table has too many points (maximum {max_points})"
+        ));
+    }
+
+    let mut previous_x = 0.0;
+    for (index, point) in points.iter().enumerate() {
+        if !point.x.is_finite() || !point.y.is_finite() {
+            return Err(format!(
+                "Profile '{profile_name}' {axis} lookup point {} must contain finite numbers",
+                index + 1
+            ));
+        }
+        if point.x <= 0.0 {
+            return Err(format!(
+                "Profile '{profile_name}' {axis} lookup point {} must have an input speed above zero",
+                index + 1
+            ));
+        }
+        if index > 0 && point.x <= previous_x {
+            return Err(format!(
+                "Profile '{profile_name}' {axis} lookup input speeds must be strictly increasing"
+            ));
+        }
+        previous_x = point.x;
+    }
+
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppDeviceConfig {
     pub id: String,
@@ -127,7 +190,6 @@ pub struct AppAccelArgs {
     pub tiered_decay_rate2: f64,
     #[serde(default)]
     pub cap: AppVec2D,
-    #[serde(default)]
     #[serde(default)]
     pub cap_mode: String,
     #[serde(default)]
@@ -292,7 +354,6 @@ impl AppAccelArgs {
             y: self.cap.y,
         };
         args.cap_mode = match self.cap_mode.as_str() {
-        args.cap_mode = match self.cap_mode.as_str() {
             "in" => models::cap_mode::in_,
             "io" => models::cap_mode::io,
             _ => models::cap_mode::out,
@@ -300,13 +361,46 @@ impl AppAccelArgs {
 
         let max_points = models::LUT_RAW_DATA_CAPACITY / 2;
         let num_points = std::cmp::min(self.lookup_table.len(), max_points);
-        
-        args.length = num_points as i32;
+
+        // `length` is the number of raw f32 values, not the number of points.
+        // The C++ lookup implementation derives point count with `length / 2`.
+        args.length = (num_points * 2) as i32;
         for i in 0..num_points {
-            args.data[i * 2] = self.lookup_table[i].x;
-            args.data[i * 2 + 1] = self.lookup_table[i].y;
+            args.data[i * 2] = self.lookup_table[i].x as f32;
+            args.data[i * 2 + 1] = self.lookup_table[i].y as f32;
         }
 
         args
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lookup_points_are_written_as_driver_pairs() {
+        let args = AppAccelArgs {
+            mode: "lookup".to_string(),
+            gain: true,
+            lookup_table: vec![AppVec2D { x: 1.0, y: 2.0 }, AppVec2D { x: 4.0, y: 8.0 }],
+            ..Default::default()
+        };
+
+        let native = args.to_native();
+        assert_eq!(native.length, 4);
+        assert_eq!(native.data[..4], [1.0, 2.0, 4.0, 8.0]);
+        assert!(native.gain);
+    }
+
+    #[test]
+    fn lookup_validation_rejects_duplicate_input_speeds() {
+        let args = AppAccelArgs {
+            mode: "lookup".to_string(),
+            lookup_table: vec![AppVec2D { x: 1.0, y: 1.0 }, AppVec2D { x: 1.0, y: 2.0 }],
+            ..Default::default()
+        };
+
+        assert!(validate_lookup_table("test", "X", &args).is_err());
     }
 }

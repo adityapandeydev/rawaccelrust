@@ -33,26 +33,39 @@ export function createEvaluator(args: AccelArgs): Evaluator {
 // ── Lookup Mode ──────────────────────────────────────────────────────────
 
 function createLookupEvaluator(args: AccelArgs): Evaluator {
-  if (!args.lookup_table || args.lookup_table.length === 0) {
+  if (!args.lookup_table || args.lookup_table.length < 2) {
     return () => 1.0;
   }
-  
+
   const points = args.lookup_table;
-  
+
+  const sensitivityFromStoredValue = (storedY: number, x: number) =>
+    args.gain ? storedY / x : storedY;
+
   return (x: number) => {
-    if (x <= points[0].x) return points[0].y;
-    if (x >= points[points.length - 1].x) return points[points.length - 1].y;
-    
+    // Mirrors common/accel-lookup.hpp. A velocity LUT stores output velocity,
+    // while the graph and driver modifier consume sensitivity (output / input).
+    if (x <= 0) return 0;
+    if (x < points[0].x) {
+      return sensitivityFromStoredValue(points[0].y, points[0].x);
+    }
+
     for (let i = 0; i < points.length - 1; i++) {
-      if (x >= points[i].x && x <= points[i + 1].x) {
+      if (x <= points[i + 1].x) {
         const dx = points[i + 1].x - points[i].x;
-        if (dx === 0) return points[i].y;
+        if (dx <= 0) return 1.0;
         const t = (x - points[i].x) / dx;
-        return points[i].y + t * (points[i + 1].y - points[i].y);
+        const y = points[i].y + t * (points[i + 1].y - points[i].y);
+        return sensitivityFromStoredValue(y, x);
       }
     }
-    
-    return 1.0; // fallback
+
+    // The C++ implementation linearly extrapolates beyond the final point.
+    const previous = points[points.length - 2];
+    const last = points[points.length - 1];
+    const t = (x - previous.x) / (last.x - previous.x);
+    const y = previous.y + t * (last.y - previous.y);
+    return sensitivityFromStoredValue(y, x);
   };
 }
 

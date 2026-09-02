@@ -28,7 +28,6 @@ export function CurveGraph({
 }: CurveGraphProps) {
 
   const [mouseSpeed, setMouseSpeed] = useState<MouseSpeed>({ speed_x: 0, speed_y: 0, speed_whole: 0 });
-  const svgRef = React.useRef<SVGSVGElement>(null);
   const [dragging, setDragging] = useState<{ axis: "x"|"y", index: number } | null>(null);
 
   useEffect(() => {
@@ -44,6 +43,11 @@ export function CurveGraph({
     let m = isExpanded ? 200 : 80;
     if (argsX.cap_mode === "in" && argsX.cap.x > 0) m = Math.max(m, argsX.cap.x * 1.2);
     if (argsY.cap_mode === "in" && argsY.cap.x > 0) m = Math.max(m, argsY.cap.x * 1.2);
+    for (const table of [argsX.lookup_table, argsY.lookup_table]) {
+      for (const point of table ?? []) {
+        if (Number.isFinite(point.x) && point.x > 0) m = Math.max(m, point.x * 1.2);
+      }
+    }
     return Math.ceil(m / 20) * 20;
   }, [argsX, argsY, isExpanded]);
 
@@ -115,18 +119,20 @@ export function CurveGraph({
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragging || !svgRef.current || !onUpdateLookupPoint) return;
+    if (!dragging || !onUpdateLookupPoint) return;
     const args = dragging.axis === "x" ? argsX : argsY;
-    if (!args.lookup_table || args.lookup_table.length === 0) return;
+    if (!args.lookup_table || args.lookup_table.length < 2) return;
 
     // Use sensitivity bounds because that's what we plot lookup tables as
     const { min: minY, max: maxY } = bounds.sensitivity;
 
-    const rect = svgRef.current.getBoundingClientRect();
+    // currentTarget is the sensitivity graph overlay that received the event.
+    // This avoids a shared ref accidentally measuring another visible graph.
+    const rect = e.currentTarget.getBoundingClientRect();
     const px = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const py = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
 
-    const newX = px * maxSpeed;
+    const requestedX = px * maxSpeed;
     const range = maxY - minY;
     const newY = minY + (1 - py) * range;
 
@@ -134,21 +140,23 @@ export function CurveGraph({
     const index = dragging.index;
     
     // Constrain X so points cannot cross neighbors
-    const minX = index > 0 ? table[index - 1].x + 0.001 : 0;
+    const minX = index > 0 ? table[index - 1].x + 0.001 : 0.001;
     const maxX = index < table.length - 1 ? table[index + 1].x - 0.001 : maxSpeed;
+    const newX = Math.max(minX, Math.min(maxX, requestedX));
+    const displayedSensitivity = Math.max(minY, Math.min(maxY, newY));
     
     table[index] = {
-      x: Math.max(minX, Math.min(maxX, newX)),
-      y: Math.max(minY, Math.min(maxY, newY))
+      x: newX,
+      // Velocity LUTs store output velocity; sensitivity LUTs store sensitivity.
+      y: args.gain ? displayedSensitivity * newX : displayedSensitivity
     };
     
     onUpdateLookupPoint(dragging.axis, table);
   };
 
-  const handlePointerUp = (e: React.PointerEvent) => {
+  const handlePointerUp = () => {
     if (dragging) {
       setDragging(null);
-      (e.target as Element).releasePointerCapture(e.pointerId);
     }
   };
 
@@ -251,19 +259,18 @@ export function CurveGraph({
             
             {/* Unscaled Overlay for Tracker Dots and Draggable Nodes */}
             <svg 
-              ref={svgRef}
               width="100%" height="100%" 
               style={{ overflow: "visible", position: "absolute", top: 0, left: 0, pointerEvents: dragging ? "auto" : "none" }}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
-              onPointerLeave={handlePointerUp}
             >
               {/* Lookup Table Interactive Points */}
               {dataKey === "sensitivity" && (
                 <>
                   {argsX.mode === "lookup" && argsX.lookup_table && argsX.lookup_table.map((pt, i) => {
                     const px = (pt.x / maxSpeed) * 100;
-                    const py = 100 - ((pt.y - minY) / (maxY - minY)) * 100;
+                    const sensitivity = argsX.gain ? pt.y / pt.x : pt.y;
+                    const py = 100 - ((sensitivity - minY) / (maxY - minY)) * 100;
                     return (
                       <circle
                         key={`lut-x-${i}`}
@@ -273,14 +280,15 @@ export function CurveGraph({
                         onPointerDown={(e) => {
                           e.stopPropagation();
                           setDragging({ axis: "x", index: i });
-                          (e.target as Element).setPointerCapture(e.pointerId);
+                          e.currentTarget.setPointerCapture(e.pointerId);
                         }}
                       />
                     );
                   })}
                   {!isSame && argsY.mode === "lookup" && argsY.lookup_table && argsY.lookup_table.map((pt, i) => {
                     const px = (pt.x / maxSpeed) * 100;
-                    const py = 100 - ((pt.y - minY) / (maxY - minY)) * 100;
+                    const sensitivity = argsY.gain ? pt.y / pt.x : pt.y;
+                    const py = 100 - ((sensitivity - minY) / (maxY - minY)) * 100;
                     return (
                       <circle
                         key={`lut-y-${i}`}
@@ -290,7 +298,7 @@ export function CurveGraph({
                         onPointerDown={(e) => {
                           e.stopPropagation();
                           setDragging({ axis: "y", index: i });
-                          (e.target as Element).setPointerCapture(e.pointerId);
+                          e.currentTarget.setPointerCapture(e.pointerId);
                         }}
                       />
                     );

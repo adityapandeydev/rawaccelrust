@@ -32,7 +32,6 @@ function App() {
   const [showConfirmModals, setShowConfirmModals] = useState(true);
   const [activeCurveAxis, setActiveCurveAxis] = useState<"x" | "y">("x");
   const [linkXY, setLinkXY] = useState(true);
-  const [lookupType, setLookupType] = useState<"sensitivity" | "velocity">("sensitivity");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [visibleGraphs, setVisibleGraphs] = useState<string[]>(["sensitivity"]);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -105,6 +104,19 @@ function App() {
           if (args.sync_speed <= 0) return `${axis}: Synchronous speed must be positive`;
           if (args.limit <= 0) return `${axis}: Limit must be positive`;
           break;
+        case 'lookup': {
+          const points = args.lookup_table ?? [];
+          if (points.length < 2) return `${axis}: Lookup Table requires at least two points`;
+          if (points.length > 257) return `${axis}: Lookup Table supports at most 257 points`;
+
+          for (let i = 0; i < points.length; i++) {
+            const point = points[i];
+            if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return `${axis}: Lookup point ${i + 1} must contain finite numbers`;
+            if (point.x <= 0) return `${axis}: Lookup point ${i + 1} input speed must be above zero`;
+            if (i > 0 && point.x <= points[i - 1].x) return `${axis}: Lookup input speeds must be strictly increasing`;
+          }
+          break;
+        }
       }
       
       return null;
@@ -770,8 +782,8 @@ function App() {
                         <label className="input-label">Apply As</label>
                         <CustomSelect
                           width="120px"
-                          value={lookupType}
-                          onChange={(val) => setLookupType(val)}
+                          value={activeAccel.gain ? "velocity" : "sensitivity"}
+                          onChange={(val) => updateAccel("gain", val === "velocity")}
                           options={[
                             { value: "sensitivity", label: "Sensitivity" },
                             { value: "velocity", label: "Velocity" }
@@ -790,13 +802,28 @@ function App() {
                           reader.onload = (event) => {
                             const text = event.target?.result as string;
                             const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-                            const parsedArray = lines.map(line => {
-                              const [x, y] = line.split(",").map(n => parseFloat(n.trim()));
-                              return { x, y };
-                            }).filter(point => !isNaN(point.x) && !isNaN(point.y));
-                            // Sort by X to maintain strict left-to-right flow
+                            const parsedArray = [] as { x: number; y: number }[];
+
+                            for (const [index, line] of lines.entries()) {
+                              const [rawX, rawY] = line.split(",");
+                              const x = Number(rawX?.trim());
+                              const y = Number(rawY?.trim());
+                              if (!rawX?.trim() || !rawY?.trim() || !Number.isFinite(x) || !Number.isFinite(y)) {
+                                setModalState({ isOpen: true, title: "Invalid CSV", message: `Line ${index + 1} must contain two finite numbers: input speed, value.` });
+                                e.target.value = "";
+                                return;
+                              }
+                              parsedArray.push({ x, y });
+                            }
+
                             parsedArray.sort((a, b) => a.x - b.x);
-                            updateAccel("lookup_table", parsedArray);
+                            if (parsedArray.length < 2 || parsedArray.length > 257) {
+                              setModalState({ isOpen: true, title: "Invalid CSV", message: "A lookup table must contain between 2 and 257 points." });
+                            } else if (parsedArray.some((point, index) => point.x <= 0 || (index > 0 && point.x <= parsedArray[index - 1].x))) {
+                              setModalState({ isOpen: true, title: "Invalid CSV", message: "Input speeds must be above zero and strictly increasing." });
+                            } else {
+                              updateAccel("lookup_table", parsedArray);
+                            }
                             // Reset input
                             e.target.value = "";
                           };

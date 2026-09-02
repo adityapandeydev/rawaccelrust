@@ -107,7 +107,8 @@ export const defaultAccelArgs = (): AccelArgs => ({
   tiered_decay_rate1: 0.1,
   tiered_decay_rate2: 0.1,
   cap: { x: 15, y: 1.5 },
-  cap_mode: "out"
+  cap_mode: "out",
+  lookup_table: []
 });
 
 export const defaultSpeedArgs = (): SpeedArgs => ({
