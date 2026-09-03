@@ -9,14 +9,38 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    /// Validates data that is used directly by the driver's lookup implementation.
-    /// The driver assumes these invariants when it interpolates `accel_args.data`.
+    /// Validates data that is used directly by the driver.
+    /// Ensures profiles exist, have unique non-empty names, and mapped devices reference existing profiles.
     pub fn validate(&self) -> Result<(), String> {
+        if self.profiles.is_empty() {
+            return Err("At least one profile is required".to_string());
+        }
+
+        let mut profile_names = std::collections::HashSet::new();
         for profile in &self.profiles {
+            let trimmed = profile.name.trim();
+            if trimmed.is_empty() {
+                return Err("Profile name cannot be empty".to_string());
+            }
+            if !profile_names.insert(trimmed.to_lowercase()) {
+                return Err(format!("Duplicate profile name '{}'", profile.name));
+            }
+
             validate_lookup_table(&profile.name, "X", &profile.accel_x)?;
 
             if !profile.speed_processor_args.whole {
                 validate_lookup_table(&profile.name, "Y", &profile.accel_y)?;
+            }
+        }
+
+        for dev in &self.devices {
+            if let Some(ref pid) = dev.profile_id {
+                if !self.profiles.iter().any(|p| p.name == *pid) {
+                    return Err(format!(
+                        "Device '{}' references non-existent profile '{}'",
+                        dev.id, pid
+                    ));
+                }
             }
         }
 
@@ -71,7 +95,7 @@ fn validate_lookup_table(
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct AppDeviceConfig {
     pub id: String,
     pub profile_id: Option<String>,
@@ -95,7 +119,7 @@ fn default_poll_time_lock() -> bool {
     false
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct AppProfile {
     #[serde(default)]
     pub id: String,
@@ -402,5 +426,83 @@ mod tests {
         };
 
         assert!(validate_lookup_table("test", "X", &args).is_err());
+    }
+
+    #[test]
+    fn profile_validation_rejects_empty_profiles() {
+        let config = AppConfig {
+            profiles: vec![],
+            devices: vec![],
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn profile_validation_rejects_duplicate_names() {
+        let config = AppConfig {
+            profiles: vec![
+                AppProfile {
+                    name: "Gaming".to_string(),
+                    ..Default::default()
+                },
+                AppProfile {
+                    name: "gaming".to_string(),
+                    ..Default::default()
+                },
+            ],
+            devices: vec![],
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn profile_validation_rejects_invalid_device_mapping() {
+        let config = AppConfig {
+            profiles: vec![AppProfile {
+                name: "Gaming".to_string(),
+                ..Default::default()
+            }],
+            devices: vec![AppDeviceConfig {
+                id: "DEV123".to_string(),
+                profile_id: Some("NonExistent".to_string()),
+                ..Default::default()
+            }],
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn profile_validation_accepts_valid_multi_profile_mapping() {
+        let config = AppConfig {
+            profiles: vec![
+                AppProfile {
+                    name: "Gaming".to_string(),
+                    ..Default::default()
+                },
+                AppProfile {
+                    name: "Desktop".to_string(),
+                    ..Default::default()
+                },
+            ],
+            devices: vec![
+                AppDeviceConfig {
+                    id: "DEV_MOUSE1".to_string(),
+                    profile_id: Some("Gaming".to_string()),
+                    ..Default::default()
+                },
+                AppDeviceConfig {
+                    id: "DEV_MOUSE2".to_string(),
+                    profile_id: Some("Desktop".to_string()),
+                    ..Default::default()
+                },
+                AppDeviceConfig {
+                    id: "DEV_TRACKPAD".to_string(),
+                    profile_id: None,
+                    disable: true,
+                    ..Default::default()
+                },
+            ],
+        };
+        assert!(config.validate().is_ok());
     }
 }

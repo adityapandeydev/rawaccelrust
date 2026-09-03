@@ -153,11 +153,29 @@ function App() {
   }
 
   async function applySettings(overrideConfig?: DeviceConfig[]) {
+    if (profiles.length === 0) {
+      setModalState({ isOpen: true, title: "No Profiles", message: "At least one profile is required." });
+      throw new Error("No profiles");
+    }
+
     // Frontend validation
+    const profileNames = new Set<string>();
     for (const profile of profiles) {
+      const trimmed = profile.name.trim();
+      if (!trimmed) {
+        setModalState({ isOpen: true, title: "Invalid Profile", message: "Profile name cannot be empty." });
+        throw new Error("Profile name cannot be empty.");
+      }
+      const lower = trimmed.toLowerCase();
+      if (profileNames.has(lower)) {
+        setModalState({ isOpen: true, title: "Duplicate Profile Name", message: `Duplicate profile name: "${profile.name}". Each profile must have a unique name.` });
+        throw new Error(`Duplicate profile name: ${profile.name}`);
+      }
+      profileNames.add(lower);
+
       const err = validateProfile(profile);
       if (err) {
-        setModalState({ isOpen: true, title: "Invalid Input", message: err });
+        setModalState({ isOpen: true, title: "Invalid Input", message: `${profile.name}: ${err}` });
         throw new Error("Validation failed: " + err);
       }
     }
@@ -225,6 +243,14 @@ function App() {
 
   const updateProfile = (key: keyof Profile, value: any) => {
     updateActiveProfile(p => ({ ...p, [key]: value }));
+  };
+
+  const renameProfile = (newName: string) => {
+    const oldName = activeProfile.name;
+    updateActiveProfile(p => ({ ...p, name: newName }));
+    if (oldName && oldName !== newName) {
+      setDeviceConfig(prev => prev.map(d => d.profile_id === oldName ? { ...d, profile_id: newName } : d));
+    }
   };
 
   const updateSpeed = (key: string, value: number) => {
@@ -325,8 +351,16 @@ function App() {
                   e.stopPropagation();
                   if (profiles.length < 5) {
                     const newProfile = defaultProfile();
-                    newProfile.name = `Profile ${profiles.length + 1}`;
-                    setProfiles([...profiles, newProfile]);
+                    let nameIndex = profiles.length + 1;
+                    let candidateName = `Profile ${nameIndex}`;
+                    while (profiles.some(p => p.name.toLowerCase() === candidateName.toLowerCase())) {
+                      nameIndex++;
+                      candidateName = `Profile ${nameIndex}`;
+                    }
+                    newProfile.name = candidateName;
+                    const nextProfiles = [...profiles, newProfile];
+                    setProfiles(nextProfiles);
+                    setActiveProfileIndex(nextProfiles.length - 1);
                     setIsProfilesExpanded(true);
                     setActiveTab("profiles");
                   } else {
@@ -364,8 +398,10 @@ function App() {
                       <div 
                         onClick={(e) => {
                           e.stopPropagation();
+                          const deletedName = profiles[idx].name;
                           const newProfiles = profiles.filter((_, i) => i !== idx);
                           setProfiles(newProfiles);
+                          setDeviceConfig(prev => prev.map(d => d.profile_id === deletedName ? { ...d, profile_id: null } : d));
                           if (activeProfileIndex === idx) setActiveProfileIndex(Math.max(0, idx - 1));
                           else if (activeProfileIndex > idx) setActiveProfileIndex(activeProfileIndex - 1);
                         }}
@@ -418,15 +454,42 @@ function App() {
                 <input 
                   type="text" 
                   value={activeProfile.name}
-                  onChange={(e) => updateProfile("name", e.target.value)}
-                  style={{ background: "transparent", border: "none", color: "inherit", font: "inherit", outline: "none", width: "250px", padding: 0, margin: 0 }}
+                  onChange={(e) => renameProfile(e.target.value)}
+                  style={{ background: "transparent", border: "none", color: "inherit", font: "inherit", outline: "none", width: "200px", padding: 0, margin: 0 }}
+                  title="Click to rename profile"
                 />
               )}
               {activeTab === "mappings" && "Device Mappings"}
               {activeTab === "devices" && "Devices"}
               {activeTab === "settings" && "Application Settings"}
             </h1>
-            {activeTab === "profiles" && <span style={{ padding: "0.25rem 0.6rem", backgroundColor: "var(--color-primary-bg)", color: "var(--color-primary)", borderRadius: "var(--radius-sm)", fontSize: "0.75rem", fontWeight: 600 }}>Active</span>}
+            {activeTab === "profiles" && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                {profiles.length > 1 && (
+                  <CustomSelect
+                    width="140px"
+                    value={activeProfileIndex}
+                    onChange={(val) => setActiveProfileIndex(Number(val))}
+                    options={profiles.map((p, idx) => ({ value: idx, label: p.name }))}
+                  />
+                )}
+                {(() => {
+                  const mappedCount = deviceConfig.filter(d => !d.disable && d.profile_id === activeProfile.name).length;
+                  if (mappedCount > 0) {
+                    return (
+                      <span style={{ padding: "0.25rem 0.6rem", backgroundColor: "var(--color-primary-bg)", color: "var(--color-primary)", borderRadius: "var(--radius-sm)", fontSize: "0.75rem", fontWeight: 600 }}>
+                        Mapped ({mappedCount} {mappedCount === 1 ? "device" : "devices"})
+                      </span>
+                    );
+                  }
+                  return (
+                    <span style={{ padding: "0.25rem 0.6rem", backgroundColor: "var(--bg-input)", color: "var(--text-muted)", borderRadius: "var(--radius-sm)", fontSize: "0.75rem", fontWeight: 500, border: "1px solid var(--border)" }}>
+                      Unmapped
+                    </span>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
@@ -458,7 +521,7 @@ function App() {
             {activeTab === "profiles" ? (
               <AnimatedButton
                 onClick={async () => {
-                  if (mappedDevicesCount <= 1 && deviceConfig.length > 0) {
+                  if (profiles.length === 1 && mappedDevicesCount <= 1 && deviceConfig.length > 0) {
                     const targetDeviceIndex = deviceConfig.findIndex(d => !d.disable && d.profile_id);
                     const applyIndex = targetDeviceIndex !== -1 ? targetDeviceIndex : 0;
                     const newConfig = [...deviceConfig];
@@ -469,8 +532,8 @@ function App() {
                     await applySettings();
                   }
                 }}
-                defaultText={<><Save size={16} /> {mappedDevicesCount > 1 ? "Save" : "Apply Settings"}</>}
-                successText={<><Check size={16} /> {mappedDevicesCount > 1 ? "Saved!" : "Applied!"}</>}
+                defaultText={<><Save size={16} /> {profiles.length > 1 ? "Save All to Driver" : "Apply Settings"}</>}
+                successText={<><Check size={16} /> {profiles.length > 1 ? "Saved!" : "Applied!"}</>}
               />
             ) : (
               activeTab !== "settings" && <AnimatedButton 
@@ -1114,7 +1177,7 @@ function App() {
             devices={devices} 
             deviceConfig={deviceConfig} 
             setDeviceConfig={setDeviceConfig}
-            profiles={[activeProfile.name]} 
+            profiles={profiles.map(p => p.name)} 
         />}
         
       </main>
