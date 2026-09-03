@@ -465,14 +465,6 @@ function App() {
             </h1>
             {activeTab === "profiles" && (
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                {profiles.length > 1 && (
-                  <CustomSelect
-                    width="140px"
-                    value={activeProfileIndex}
-                    onChange={(val) => setActiveProfileIndex(Number(val))}
-                    options={profiles.map((p, idx) => ({ value: idx, label: p.name }))}
-                  />
-                )}
                 {(() => {
                   const mappedCount = deviceConfig.filter(d => !d.disable && d.profile_id === activeProfile.name).length;
                   if (mappedCount > 0) {
