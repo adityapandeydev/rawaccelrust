@@ -1,5 +1,96 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
+
+/// Gets the primary settings path: right next to the running executable.
+pub fn get_local_settings_path() -> PathBuf {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            return parent.join("settings.json");
+        }
+    }
+    PathBuf::from("settings.json")
+}
+
+/// Gets the backup settings path in %LocalAppData%\RawAccel\settings.json
+pub fn get_appdata_settings_path() -> Option<PathBuf> {
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        return Some(PathBuf::from(local_app_data).join("RawAccel").join("settings.json"));
+    }
+    None
+}
+
+/// Loads settings from disk:
+/// 1. First tries local executable directory (`get_local_settings_path()`)
+/// 2. If not found, falls back to current working directory (`settings.json`)
+/// 3. If not found, falls back to AppData (`%LocalAppData%\RawAccel\settings.json`)
+pub fn load_settings_from_disk() -> Result<String, String> {
+    let local_path = get_local_settings_path();
+    if local_path.exists() {
+        if let Ok(content) = fs::read_to_string(&local_path) {
+            return Ok(content);
+        }
+    }
+
+    // Fallback: Current working directory (useful during dev / cargo test / cargo run)
+    let cwd_path = PathBuf::from("settings.json");
+    if cwd_path != local_path && cwd_path.exists() {
+        if let Ok(content) = fs::read_to_string(&cwd_path) {
+            return Ok(content);
+        }
+    }
+
+    // Fallback: AppData backup
+    if let Some(appdata_path) = get_appdata_settings_path() {
+        if appdata_path.exists() {
+            if let Ok(content) = fs::read_to_string(&appdata_path) {
+                return Ok(content);
+            }
+        }
+    }
+
+    Err("No settings.json found".to_string())
+}
+
+/// Saves settings to disk:
+/// 1. Saves to primary local executable directory (`settings.json`)
+/// 2. Also saves a mirrored copy in %LocalAppData%\RawAccel\settings.json for safe backup
+pub fn save_settings_to_disk(settings_json: &str) -> Result<(), String> {
+    let local_path = get_local_settings_path();
+    let mut wrote_local = false;
+
+    if let Ok(()) = fs::write(&local_path, settings_json) {
+        wrote_local = true;
+    } else {
+        // In dev mode, try writing to CWD if writing to exe dir fails
+        let cwd_path = PathBuf::from("settings.json");
+        if let Ok(()) = fs::write(&cwd_path, settings_json) {
+            wrote_local = true;
+        }
+    }
+
+    // Always mirror to %LocalAppData%\RawAccel\settings.json
+    if let Some(appdata_path) = get_appdata_settings_path() {
+        if let Some(parent) = appdata_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::write(&appdata_path, settings_json);
+    }
+
+    if wrote_local {
+        Ok(())
+    } else {
+        // If local write failed (e.g. read-only folder), but AppData succeeded
+        if let Some(appdata_path) = get_appdata_settings_path() {
+            if appdata_path.exists() {
+                return Ok(());
+            }
+        }
+        Err("Failed to write settings.json".to_string())
+    }
+}
+
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppConfig {
@@ -504,5 +595,18 @@ mod tests {
             ],
         };
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn local_settings_path_resolves_json() {
+        let path = super::get_local_settings_path();
+        assert!(path.ends_with("settings.json"));
+    }
+
+    #[test]
+    fn appdata_settings_path_resolves_rawaccel_subfolder() {
+        if let Some(path) = super::get_appdata_settings_path() {
+            assert!(path.ends_with("RawAccel\\settings.json") || path.ends_with("RawAccel/settings.json"));
+        }
     }
 }

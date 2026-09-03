@@ -5,8 +5,6 @@ pub mod math;
 pub mod models;
 pub mod mouse_tracker;
 
-use std::fs;
-
 #[tauri::command]
 fn apply_settings(settings_json: String) -> Result<(), String> {
     let app_config: config::AppConfig = serde_json::from_str(&settings_json)
@@ -17,19 +15,15 @@ fn apply_settings(settings_json: String) -> Result<(), String> {
     // Apply to driver
     driver::apply_config(&app_config)?;
 
-    // Save to settings.json in current directory (where driver lives)
-    let _ = fs::write("settings.json", &settings_json);
+    // Persist settings in local executable directory with mirrored AppData backup
+    config::save_settings_to_disk(&settings_json)?;
 
     Ok(())
 }
 
 #[tauri::command]
 fn load_settings() -> Result<String, String> {
-    // Read from settings.json
-    match fs::read_to_string("settings.json") {
-        Ok(contents) => Ok(contents),
-        Err(_) => Err("No settings.json found".to_string()),
-    }
+    config::load_settings_from_disk()
 }
 
 #[tauri::command]
