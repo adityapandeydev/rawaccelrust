@@ -128,6 +128,33 @@ namespace rawaccel {
 				error("smooth must be between 0 and 1");
 			}
 
+			if (args.mode == accel_mode::tiered) {
+				if (args.tiered_multiplier1 <= 0 || args.tiered_multiplier2 <= 0 || args.tiered_multiplier3 <= 0) {
+					error("tiered multipliers must be positive");
+				}
+
+				if (args.tiered_input_offset1 < 0 || args.tiered_input_offset2 < 0) {
+					error("offset can not be negative");
+				}
+
+				if (args.t_type == tiered_type::linear) {
+					if (args.tiered_transition1 <= 0 || args.tiered_transition2 <= 0) {
+						error("transition width must be positive");
+					}
+					if (args.tiered_input_offset2 < args.tiered_input_offset1 + args.tiered_transition1) {
+						error("second offset must be greater than or equal to first transition end");
+					}
+				}
+				else if (args.t_type == tiered_type::natural) {
+					if (args.tiered_input_offset2 <= args.tiered_input_offset1) {
+						error("second offset must be greater than first offset");
+					}
+					if (args.tiered_decay_rate1 <= 0 || args.tiered_decay_rate2 <= 0) {
+						error("decay rate must be positive");
+					}
+				}
+			}
+
 		};
 
 		check_accel(args.accel_x);

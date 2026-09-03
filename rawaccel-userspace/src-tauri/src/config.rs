@@ -373,10 +373,10 @@ impl AppConfig {
                 return Err(format!("Duplicate profile name '{}'", profile.name));
             }
 
-            validate_lookup_table(&profile.name, "X", &profile.accel_x)?;
+            validate_accel_args(&profile.name, "X", &profile.accel_x)?;
 
             if !profile.speed_processor_args.whole {
-                validate_lookup_table(&profile.name, "Y", &profile.accel_y)?;
+                validate_accel_args(&profile.name, "Y", &profile.accel_y)?;
             }
         }
 
@@ -437,6 +437,99 @@ fn validate_lookup_table(
             ));
         }
         previous_x = point.x;
+    }
+
+    Ok(())
+}
+
+fn validate_accel_args(
+    profile_name: &str,
+    axis: &str,
+    args: &AppAccelArgs,
+) -> Result<(), String> {
+    if args.input_offset < 0.0 {
+        return Err(format!("Profile '{profile_name}' {axis}: offset can not be negative"));
+    }
+    if args.output_offset < 0.0 {
+        return Err(format!("Profile '{profile_name}' {axis}: offset can not be negative"));
+    }
+    if args.cap.x < 0.0 || args.cap.y < 0.0 {
+        return Err(format!("Profile '{profile_name}' {axis}: cap can not be negative"));
+    }
+
+    match args.mode.as_str() {
+        "lookup" => {
+            validate_lookup_table(profile_name, axis, args)?;
+        }
+        "tiered" => {
+            if args.tiered_multiplier1 <= 0.0 || args.tiered_multiplier2 <= 0.0 || args.tiered_multiplier3 <= 0.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: tiered multipliers must be positive"));
+            }
+            if args.tiered_input_offset1 < 0.0 || args.tiered_input_offset2 < 0.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: offset can not be negative"));
+            }
+            if args.t_type == "linear" {
+                if args.tiered_transition1 <= 0.0 || args.tiered_transition2 <= 0.0 {
+                    return Err(format!("Profile '{profile_name}' {axis}: transition width must be positive"));
+                }
+                if args.tiered_input_offset2 < args.tiered_input_offset1 + args.tiered_transition1 {
+                    return Err(format!("Profile '{profile_name}' {axis}: second offset must be greater than or equal to first transition end"));
+                }
+            } else if args.t_type == "natural" {
+                if args.tiered_input_offset2 <= args.tiered_input_offset1 {
+                    return Err(format!("Profile '{profile_name}' {axis}: second offset must be greater than first offset"));
+                }
+                if args.tiered_decay_rate1 <= 0.0 || args.tiered_decay_rate2 <= 0.0 {
+                    return Err(format!("Profile '{profile_name}' {axis}: decay rate must be positive"));
+                }
+            }
+        }
+        "classic" => {
+            if args.acceleration <= 0.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: acceleration must be positive"));
+            }
+            if args.exponent_classic <= 1.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: exponent must be greater than 1"));
+            }
+        }
+        "linear" => {
+            if args.acceleration <= 0.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: acceleration must be positive"));
+            }
+        }
+        "natural" => {
+            if args.decay_rate <= 0.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: decay rate must be positive"));
+            }
+            if args.limit <= 0.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: limit must be positive"));
+            }
+        }
+        "power" => {
+            if args.scale <= 0.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: scale must be positive"));
+            }
+            if args.exponent_power <= 0.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: exponent must be positive"));
+            }
+        }
+        "jump" => {
+            if args.smooth < 0.0 || args.smooth > 1.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: smooth must be between 0 and 1"));
+            }
+        }
+        "synchronous" => {
+            if args.sync_speed <= 0.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: synchronous speed must be positive"));
+            }
+            if args.motivity <= 1.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: motivity must be greater than 1"));
+            }
+            if args.gamma <= 0.0 {
+                return Err(format!("Profile '{profile_name}' {axis}: gamma must be positive"));
+            }
+        }
+        _ => {}
     }
 
     Ok(())
@@ -711,15 +804,15 @@ impl AppAccelArgs {
             "natural" => models::tiered_type::natural,
             _ => models::tiered_type::linear,
         };
-        args.tiered_multiplier1 = self.tiered_multiplier1;
-        args.tiered_input_offset1 = self.tiered_input_offset1;
-        args.tiered_multiplier2 = self.tiered_multiplier2;
-        args.tiered_transition1 = self.tiered_transition1;
-        args.tiered_input_offset2 = self.tiered_input_offset2;
-        args.tiered_multiplier3 = self.tiered_multiplier3;
-        args.tiered_transition2 = self.tiered_transition2;
-        args.tiered_decay_rate1 = self.tiered_decay_rate1;
-        args.tiered_decay_rate2 = self.tiered_decay_rate2;
+        args.tiered_multiplier1 = if self.tiered_multiplier1 <= 0.0 { 1.0 } else { self.tiered_multiplier1 };
+        args.tiered_input_offset1 = if self.tiered_input_offset1 < 0.0 { 0.0 } else { self.tiered_input_offset1 };
+        args.tiered_multiplier2 = if self.tiered_multiplier2 <= 0.0 { 1.5 } else { self.tiered_multiplier2 };
+        args.tiered_transition1 = if self.tiered_transition1 <= 0.0 { 10.0 } else { self.tiered_transition1 };
+        args.tiered_input_offset2 = if self.tiered_input_offset2 <= self.tiered_input_offset1 { self.tiered_input_offset1 + 15.0 } else { self.tiered_input_offset2 };
+        args.tiered_multiplier3 = if self.tiered_multiplier3 <= 0.0 { 2.0 } else { self.tiered_multiplier3 };
+        args.tiered_transition2 = if self.tiered_transition2 <= 0.0 { 25.0 } else { self.tiered_transition2 };
+        args.tiered_decay_rate1 = if self.tiered_decay_rate1 <= 0.0 { 0.1 } else { self.tiered_decay_rate1 };
+        args.tiered_decay_rate2 = if self.tiered_decay_rate2 <= 0.0 { 0.1 } else { self.tiered_decay_rate2 };
         args.cap = models::vec2d {
             x: self.cap.x,
             y: self.cap.y,
@@ -934,5 +1027,77 @@ mod tests {
         assert_eq!(config.profiles[0].speed_processor_args.whole, true);
         assert_eq!(config.devices.len(), 1);
         assert_eq!(config.devices[0].profile_id, Some("Old Profile".to_string()));
+    }
+
+    #[test]
+    fn tiered_validation_rejects_zero_decay_rate() {
+        let config = AppConfig {
+            profiles: vec![AppProfile {
+                name: "Tiered Profile".to_string(),
+                accel_x: AppAccelArgs {
+                    mode: "tiered".to_string(),
+                    t_type: "natural".to_string(),
+                    tiered_multiplier1: 1.0,
+                    tiered_input_offset1: 5.0,
+                    tiered_multiplier2: 1.5,
+                    tiered_input_offset2: 15.0,
+                    tiered_multiplier3: 2.0,
+                    tiered_decay_rate1: 0.0, // Invalid
+                    tiered_decay_rate2: 0.1,
+                    ..Default::default()
+                },
+                ..Default::default()
+            }],
+            devices: vec![],
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn tiered_validation_rejects_backward_offsets() {
+        let config = AppConfig {
+            profiles: vec![AppProfile {
+                name: "Tiered Profile".to_string(),
+                accel_x: AppAccelArgs {
+                    mode: "tiered".to_string(),
+                    t_type: "natural".to_string(),
+                    tiered_multiplier1: 1.0,
+                    tiered_input_offset1: 20.0,
+                    tiered_multiplier2: 1.5,
+                    tiered_input_offset2: 10.0, // Backward
+                    tiered_multiplier3: 2.0,
+                    tiered_decay_rate1: 0.1,
+                    tiered_decay_rate2: 0.1,
+                    ..Default::default()
+                },
+                ..Default::default()
+            }],
+            devices: vec![],
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn tiered_validation_accepts_valid_config() {
+        let config = AppConfig {
+            profiles: vec![AppProfile {
+                name: "Tiered Profile".to_string(),
+                accel_x: AppAccelArgs {
+                    mode: "tiered".to_string(),
+                    t_type: "natural".to_string(),
+                    tiered_multiplier1: 1.0,
+                    tiered_input_offset1: 5.0,
+                    tiered_multiplier2: 1.5,
+                    tiered_input_offset2: 15.0,
+                    tiered_multiplier3: 2.0,
+                    tiered_decay_rate1: 0.1,
+                    tiered_decay_rate2: 0.1,
+                    ..Default::default()
+                },
+                ..Default::default()
+            }],
+            devices: vec![],
+        };
+        assert!(config.validate().is_ok());
     }
 }

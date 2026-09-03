@@ -125,6 +125,29 @@ function App() {
           }
           break;
         }
+        case 'tiered':
+          if (args.tiered_multiplier1 <= 0 || args.tiered_multiplier2 <= 0 || args.tiered_multiplier3 <= 0) {
+            return `${axis}: Tiered multipliers must be positive (greater than 0)`;
+          }
+          if (args.tiered_input_offset1 < 0 || args.tiered_input_offset2 < 0) {
+            return `${axis}: Offsets cannot be negative`;
+          }
+          if (args.t_type === 'linear') {
+            if (args.tiered_transition1 <= 0 || args.tiered_transition2 <= 0) {
+              return `${axis}: Transition widths must be positive (greater than 0)`;
+            }
+            if (args.tiered_input_offset2 < args.tiered_input_offset1 + args.tiered_transition1) {
+              return `${axis}: Second offset must be greater than or equal to first transition end`;
+            }
+          } else if (args.t_type === 'natural') {
+            if (args.tiered_input_offset2 <= args.tiered_input_offset1) {
+              return `${axis}: Second offset must be strictly greater than first offset`;
+            }
+            if (args.tiered_decay_rate1 <= 0 || args.tiered_decay_rate2 <= 0) {
+              return `${axis}: Decay rates must be positive (greater than 0)`;
+            }
+          }
+          break;
       }
       
       return null;
