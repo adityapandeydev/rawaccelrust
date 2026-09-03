@@ -896,12 +896,24 @@ function App() {
                       </div>
                       <input 
                         type="file" 
-                        accept=".csv" 
+                        accept=".csv, .xlsx, .xls" 
                         id="csv-upload" 
                         style={{ display: "none" }} 
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
+
+                          const fileName = file.name.toLowerCase();
+                          if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+                            setModalState({
+                              isOpen: true,
+                              title: "Excel File Detected",
+                              message: "Raw Accel requires a plain-text CSV file.\n\nHow to convert your Excel sheet to CSV:\n1. Open your file in Excel or Google Sheets\n2. Click File → Save As (or Download)\n3. Choose 'CSV (Comma delimited) (*.csv)'\n4. Upload the saved .csv file here."
+                            });
+                            e.target.value = "";
+                            return;
+                          }
+
                           const reader = new FileReader();
                           reader.onload = (event) => {
                             const text = event.target?.result as string;
