@@ -71,13 +71,12 @@ pub fn get_version() -> Result<(i32, i32, i32), String> {
 pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
     let handle = open_driver()?;
 
-    let active_devices: Vec<_> = config
-        .devices
-        .iter()
-        .filter(|d| d.profile_id.is_some())
-        .collect();
+    // Send ALL configured devices to the driver, not just ones with a profile.
+    // A device with disable=true but no profile_id still needs to be sent so
+    // the driver knows to skip acceleration for that mouse.
+    let all_devices: Vec<_> = config.devices.iter().collect();
     let num_profiles = config.profiles.len();
-    let num_devices = active_devices.len();
+    let num_devices = all_devices.len();
 
     let io_base_size = size_of::<ra::io_base>();
     let modifier_data_size = size_of::<ra::modifier_settings>() * num_profiles;
@@ -103,16 +102,18 @@ pub fn apply_config(config: &crate::config::AppConfig) -> Result<(), String> {
         let dev_ptr =
             buffer.as_mut_ptr().add(io_base_size + modifier_data_size) as *mut ra::device_settings;
         for i in 0..num_devices {
-            let app_dev = active_devices[i];
+            let app_dev = all_devices[i];
             let dev = &mut *dev_ptr.add(i);
 
-            let profile_name = app_dev.profile_id.as_ref().unwrap();
-            for (idx, c) in profile_name
-                .encode_utf16()
-                .enumerate()
-                .take(ra::MAX_NAME_LEN - 1)
-            {
-                dev.profile[idx] = c;
+            // Write the profile name if assigned, otherwise leave it zeroed
+            if let Some(profile_name) = &app_dev.profile_id {
+                for (idx, c) in profile_name
+                    .encode_utf16()
+                    .enumerate()
+                    .take(ra::MAX_NAME_LEN - 1)
+                {
+                    dev.profile[idx] = c;
+                }
             }
 
             for (idx, c) in app_dev

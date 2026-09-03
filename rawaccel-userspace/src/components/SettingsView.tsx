@@ -130,7 +130,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 onChange={e => handleStartupToggle(e.target.checked)} 
                 style={{ accentColor: "var(--color-primary)", width: "16px", height: "16px" }} 
               />
-              <span style={{ fontSize: "0.95rem", color: "var(--text-main)" }}>Run on Startup (Silent Background)</span>
+              <span style={{ fontSize: "0.95rem", color: "var(--text-main)" }}>Run on Startup</span>
             </label>
           </div>
         </section>

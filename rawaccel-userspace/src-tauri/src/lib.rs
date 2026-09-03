@@ -6,7 +6,6 @@ pub mod models;
 pub mod mouse_tracker;
 
 use std::fs;
-use tauri::Manager;
 
 #[tauri::command]
 fn apply_settings(settings_json: String) -> Result<(), String> {
