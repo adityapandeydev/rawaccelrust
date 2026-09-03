@@ -468,8 +468,66 @@ function App() {
         
         <div style={{ paddingTop: "1.25rem", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "1rem" }}>
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button className="btn" style={{ flex: 1 }}><Upload size={14} /> Load</button>
-            <button className="btn" style={{ flex: 1 }}><Download size={14} /> Save</button>
+            <input
+              type="file"
+              accept=".json"
+              id="import-settings-upload"
+              style={{ display: "none" }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  const text = await file.text();
+                  const migrated: string = await invoke('import_settings', { rawJson: text });
+                  const parsed = JSON.parse(migrated);
+                  if (parsed && parsed.profiles && parsed.profiles.length > 0) {
+                    setProfiles(parsed.profiles);
+                    setActiveProfileIndex(0);
+                    if (parsed.profiles[0]?.speed_processor_args) {
+                      setLinkXY(parsed.profiles[0].speed_processor_args.whole);
+                    }
+                  }
+                  if (parsed && parsed.devices) {
+                    setDeviceConfig(parsed.devices);
+                  }
+                  setModalState({
+                    isOpen: true,
+                    title: "Settings Imported",
+                    message: "Settings loaded and migrated successfully!"
+                  });
+                } catch (err: any) {
+                  setModalState({
+                    isOpen: true,
+                    title: "Import Error",
+                    message: typeof err === "string" ? err : "Failed to parse or migrate settings JSON."
+                  });
+                }
+                e.target.value = "";
+              }}
+            />
+            <button 
+              className="btn" 
+              style={{ flex: 1 }}
+              onClick={() => document.getElementById("import-settings-upload")?.click()}
+            >
+              <Upload size={14} /> Load
+            </button>
+            <button 
+              className="btn" 
+              style={{ flex: 1 }}
+              onClick={() => {
+                const currentData = JSON.stringify({ profiles, devices: deviceConfig }, null, 2);
+                const blob = new Blob([currentData], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "settings.json";
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              <Download size={14} /> Save
+            </button>
           </div>
         </div>
       </aside>

@@ -27,6 +27,14 @@ fn load_settings() -> Result<String, String> {
 }
 
 #[tauri::command]
+fn import_settings(raw_json: String) -> Result<String, String> {
+    let config = config::parse_or_migrate_settings(&raw_json)?;
+    let serialized = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Failed to serialize migrated settings: {}", e))?;
+    Ok(serialized)
+}
+
+#[tauri::command]
 fn get_devices() -> Vec<devices::DeviceInfo> {
     devices::get_connected_devices()
 }
@@ -43,6 +51,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             apply_settings,
             load_settings,
+            import_settings,
             get_devices
         ])
         .run(tauri::generate_context!())

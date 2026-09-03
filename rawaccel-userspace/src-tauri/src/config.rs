@@ -21,36 +21,292 @@ pub fn get_appdata_settings_path() -> Option<PathBuf> {
     None
 }
 
+fn parse_vec2(val: Option<&serde_json::Value>, default_x: f64, default_y: f64) -> AppVec2D {
+    if let Some(v) = val {
+        let x = v.get("x").and_then(|n| n.as_f64()).unwrap_or(default_x);
+        let y = v.get("y").and_then(|n| n.as_f64()).unwrap_or(default_y);
+        AppVec2D { x, y }
+    } else {
+        AppVec2D { x: default_x, y: default_y }
+    }
+}
+
+fn parse_accel_args(val: Option<&serde_json::Value>) -> AppAccelArgs {
+    let mut args = AppAccelArgs::default();
+    if let Some(v) = val {
+        if let Some(m) = v.get("mode").and_then(|m| m.as_str()) {
+            args.mode = if m == "lut" { "lookup".to_string() } else { m.to_string() };
+        }
+
+        if let Some(gain) = v.get("Gain / Velocity").or_else(|| v.get("gain")).and_then(|g| g.as_bool()) {
+            args.gain = gain;
+        }
+
+        if let Some(n) = v.get("inputOffset").or_else(|| v.get("input_offset")).and_then(|n| n.as_f64()) {
+            args.input_offset = n;
+        }
+        if let Some(n) = v.get("outputOffset").or_else(|| v.get("output_offset")).and_then(|n| n.as_f64()) {
+            args.output_offset = n;
+        }
+        if let Some(n) = v.get("acceleration").and_then(|n| n.as_f64()) {
+            args.acceleration = n;
+        }
+        if let Some(n) = v.get("decayRate").or_else(|| v.get("decay_rate")).and_then(|n| n.as_f64()) {
+            args.decay_rate = n;
+        }
+        if let Some(n) = v.get("gamma").and_then(|n| n.as_f64()) {
+            args.gamma = n;
+        }
+        if let Some(n) = v.get("motivity").and_then(|n| n.as_f64()) {
+            args.motivity = n;
+        }
+        if let Some(n) = v.get("exponentClassic").or_else(|| v.get("exponent_classic")).and_then(|n| n.as_f64()) {
+            args.exponent_classic = n;
+        }
+        if let Some(n) = v.get("scale").and_then(|n| n.as_f64()) {
+            args.scale = n;
+        }
+        if let Some(n) = v.get("exponentPower").or_else(|| v.get("exponent_power")).and_then(|n| n.as_f64()) {
+            args.exponent_power = n;
+        }
+        if let Some(n) = v.get("limit").and_then(|n| n.as_f64()) {
+            args.limit = n;
+        }
+        if let Some(n) = v.get("syncSpeed").or_else(|| v.get("sync_speed")).and_then(|n| n.as_f64()) {
+            args.sync_speed = n;
+        }
+        if let Some(n) = v.get("smooth").and_then(|n| n.as_f64()) {
+            args.smooth = n;
+        }
+
+        args.cap = parse_vec2(v.get("Cap / Jump").or_else(|| v.get("cap")), 0.0, 0.0);
+
+        if let Some(cm) = v.get("Cap mode").or_else(|| v.get("capMode")).or_else(|| v.get("cap_mode")).and_then(|s| s.as_str()) {
+            args.cap_mode = match cm {
+                "in_out" | "io" => "io".to_string(),
+                "input" | "in" => "in".to_string(),
+                "output" | "out" => "out".to_string(),
+                other => other.to_string(),
+            };
+        }
+
+        // Parse legacy LUT data: flat array [x1, y1, x2, y2, ...]
+        if let Some(arr) = v.get("data").and_then(|d| d.as_array()) {
+            let mut pts = Vec::new();
+            let mut i = 0;
+            while i + 1 < arr.len() {
+                if let (Some(x), Some(y)) = (arr[i].as_f64(), arr[i + 1].as_f64()) {
+                    pts.push(AppVec2D { x, y });
+                }
+                i += 2;
+            }
+            if pts.len() >= 2 {
+                args.lookup_table = pts;
+            }
+        }
+    }
+    args
+}
+
+fn parse_speed_args(val: Option<&serde_json::Value>) -> AppSpeedArgs {
+    let mut args = AppSpeedArgs::default();
+    if let Some(v) = val {
+        if let Some(whole) = v.get("Whole/combined accel (set false for 'by component' mode)")
+            .or_else(|| v.get("combineMagnitudes"))
+            .or_else(|| v.get("whole"))
+            .and_then(|b| b.as_bool())
+        {
+            args.whole = whole;
+        }
+
+        if let Some(n) = v.get("lpNorm").or_else(|| v.get("lp_norm")).and_then(|n| n.as_f64()) {
+            args.lp_norm = n;
+        }
+        if let Some(n) = v.get("inputSmoothHalflife").or_else(|| v.get("input_speed_smooth_halflife")).and_then(|n| n.as_f64()) {
+            args.input_speed_smooth_halflife = n;
+        }
+        if let Some(n) = v.get("scaleSmoothHalflife").or_else(|| v.get("scale_smooth_halflife")).and_then(|n| n.as_f64()) {
+            args.scale_smooth_halflife = n;
+        }
+        if let Some(n) = v.get("outputSmoothHalflife").or_else(|| v.get("output_speed_smooth_halflife")).and_then(|n| n.as_f64()) {
+            args.output_speed_smooth_halflife = n;
+        }
+    }
+    args
+}
+
+/// Parses settings JSON, automatically detecting and migrating legacy C# Raw Accel files.
+pub fn parse_or_migrate_settings(raw_json: &str) -> Result<AppConfig, String> {
+    // 1. If valid modern format, return directly
+    if let Ok(config) = serde_json::from_str::<AppConfig>(raw_json) {
+        if config.validate().is_ok() {
+            return Ok(config);
+        }
+    }
+
+    // 2. Parse as generic JSON for legacy migration
+    let val: serde_json::Value = serde_json::from_str(raw_json)
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    if let Some(profiles_val) = val.get("profiles").and_then(|p| p.as_array()) {
+        let mut modern_profiles = Vec::new();
+
+        for (idx, p_val) in profiles_val.iter().enumerate() {
+            let name = p_val.get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or(&format!("Profile {}", idx + 1))
+                .to_string();
+
+            let domain_xy = parse_vec2(p_val.get("domainXY").or_else(|| p_val.get("domain_weights")), 1.0, 1.0);
+            let range_xy = parse_vec2(p_val.get("rangeXY").or_else(|| p_val.get("range_weights")), 1.0, 1.0);
+
+            let accel_x = parse_accel_args(p_val.get("argsX").or_else(|| p_val.get("accel_x")));
+            let accel_y = parse_accel_args(p_val.get("argsY").or_else(|| p_val.get("accel_y")));
+
+            let speed_processor_args = parse_speed_args(p_val.get("inputSpeedArgs").or_else(|| p_val.get("speed_processor_args")));
+
+            let output_dpi = p_val.get("Output DPI")
+                .or_else(|| p_val.get("outputDPI"))
+                .or_else(|| p_val.get("output_dpi"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(1600.0);
+
+            let yx_output_dpi_ratio = p_val.get("Y/X output DPI ratio (vertical sens multiplier)")
+                .or_else(|| p_val.get("yxOutputDPIRatio"))
+                .or_else(|| p_val.get("yx_output_dpi_ratio"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(1.0);
+
+            let lr_output_dpi_ratio = p_val.get("L/R output DPI ratio (left sens multiplier)")
+                .or_else(|| p_val.get("lrOutputDPIRatio"))
+                .or_else(|| p_val.get("lr_output_dpi_ratio"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(1.0);
+
+            let ud_output_dpi_ratio = p_val.get("U/D output DPI ratio (up sens multiplier)")
+                .or_else(|| p_val.get("udOutputDPIRatio"))
+                .or_else(|| p_val.get("ud_output_dpi_ratio"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(1.0);
+
+            let degrees_rotation = p_val.get("Degrees of rotation")
+                .or_else(|| p_val.get("rotation"))
+                .or_else(|| p_val.get("degrees_rotation"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+
+            let degrees_snap = p_val.get("Degrees of angle snapping")
+                .or_else(|| p_val.get("snap"))
+                .or_else(|| p_val.get("degrees_snap"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+
+            let speed_max = p_val.get("Input Speed Cap")
+                .or_else(|| p_val.get("maximumSpeed"))
+                .or_else(|| p_val.get("speed_max"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+
+            modern_profiles.push(AppProfile {
+                id: format!("profile-{}", idx + 1),
+                name,
+                domain_weights: domain_xy,
+                range_weights: range_xy,
+                accel_x,
+                accel_y,
+                speed_processor_args,
+                output_dpi,
+                yx_output_dpi_ratio,
+                lr_output_dpi_ratio,
+                ud_output_dpi_ratio,
+                degrees_rotation,
+                degrees_snap,
+                speed_min: 0.0,
+                speed_max,
+            });
+        }
+
+        let mut modern_devices = Vec::new();
+        if let Some(devices_val) = val.get("devices").and_then(|d| d.as_array()) {
+            for dev_val in devices_val {
+                if let Some(id) = dev_val.get("id").and_then(|i| i.as_str()) {
+                    let profile_id = dev_val.get("profile")
+                        .or_else(|| dev_val.get("profile_id"))
+                        .and_then(|p| p.as_str())
+                        .map(|s| s.to_string());
+
+                    let cfg = dev_val.get("config").unwrap_or(dev_val);
+                    let disable = cfg.get("disable").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let dpi = cfg.get("DPI (normalizes input speed unit: counts/ms -> in/s)")
+                        .or_else(|| cfg.get("dpi"))
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0)
+                        .max(0) as u32;
+                    let polling_rate = cfg.get("Polling rate Hz (keep at 0 for automatic adjustment)")
+                        .or_else(|| cfg.get("pollingRate"))
+                        .or_else(|| cfg.get("polling_rate"))
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0)
+                        .max(0) as u32;
+
+                    modern_devices.push(AppDeviceConfig {
+                        id: id.to_string(),
+                        profile_id,
+                        disable,
+                        set_extra_info: false,
+                        poll_time_lock: false,
+                        dpi,
+                        polling_rate,
+                        clamp_min: 0.0,
+                        clamp_max: 0.0,
+                    });
+                }
+            }
+        }
+
+        if !modern_profiles.is_empty() {
+            let config = AppConfig {
+                profiles: modern_profiles,
+                devices: modern_devices,
+            };
+            config.validate()?;
+            return Ok(config);
+        }
+    }
+
+    Err("Could not parse configuration. Ensure it is a valid Raw Accel JSON file.".to_string())
+}
+
 /// Loads settings from disk:
 /// 1. First tries local executable directory (`get_local_settings_path()`)
 /// 2. If not found, falls back to current working directory (`settings.json`)
 /// 3. If not found, falls back to AppData (`%LocalAppData%\RawAccel\settings.json`)
+/// Automatically upgrades legacy C# Raw Accel format if detected.
 pub fn load_settings_from_disk() -> Result<String, String> {
-    let local_path = get_local_settings_path();
-    if local_path.exists() {
-        if let Ok(content) = fs::read_to_string(&local_path) {
-            return Ok(content);
+    let raw_content = if let Ok(content) = fs::read_to_string(get_local_settings_path()) {
+        content
+    } else {
+        let cwd_path = PathBuf::from("settings.json");
+        if cwd_path != get_local_settings_path() && cwd_path.exists() {
+            fs::read_to_string(&cwd_path).map_err(|e| e.to_string())?
+        } else if let Some(appdata_path) = get_appdata_settings_path() {
+            fs::read_to_string(&appdata_path).map_err(|_| "No settings.json found".to_string())?
+        } else {
+            return Err("No settings.json found".to_string());
         }
-    }
+    };
 
-    // Fallback: Current working directory (useful during dev / cargo test / cargo run)
-    let cwd_path = PathBuf::from("settings.json");
-    if cwd_path != local_path && cwd_path.exists() {
-        if let Ok(content) = fs::read_to_string(&cwd_path) {
-            return Ok(content);
-        }
-    }
-
-    // Fallback: AppData backup
-    if let Some(appdata_path) = get_appdata_settings_path() {
-        if appdata_path.exists() {
-            if let Ok(content) = fs::read_to_string(&appdata_path) {
-                return Ok(content);
+    // If it's legacy or needs migration, parse_or_migrate_settings upgrades it
+    if let Ok(config) = parse_or_migrate_settings(&raw_content) {
+        if let Ok(modern_json) = serde_json::to_string_pretty(&config) {
+            if modern_json != raw_content {
+                let _ = save_settings_to_disk(&modern_json);
             }
+            return Ok(modern_json);
         }
     }
 
-    Err("No settings.json found".to_string())
+    Ok(raw_content)
 }
 
 /// Saves settings to disk:
@@ -608,5 +864,75 @@ mod tests {
         if let Some(path) = super::get_appdata_settings_path() {
             assert!(path.ends_with("RawAccel\\settings.json") || path.ends_with("RawAccel/settings.json"));
         }
+    }
+
+    #[test]
+    fn legacy_settings_migration_succeeds() {
+        let legacy_json = r####"{
+            "### Cap modes ###": "in_out | input | output",
+            "### Accel modes ###": "classic | jump | natural | synchronous | power | lut | noaccel",
+            "version": "v1.6.1",
+            "defaultDeviceConfig": {
+                "disable": false,
+                "dpi": 1600,
+                "pollingRate": 1000
+            },
+            "profiles": [
+                {
+                    "name": "Old Profile",
+                    "domainXY": { "x": 1.0, "y": 1.0 },
+                    "rangeXY": { "x": 1.0, "y": 1.0 },
+                    "argsX": {
+                        "mode": "natural",
+                        "Gain / Velocity": true,
+                        "decayRate": 0.2,
+                        "limit": 2.0,
+                        "inputOffset": 5.0,
+                        "Cap / Jump": { "x": 15.0, "y": 1.5 },
+                        "Cap mode": "output"
+                    },
+                    "argsY": {
+                        "mode": "natural",
+                        "Gain / Velocity": true,
+                        "decayRate": 0.2,
+                        "limit": 2.0,
+                        "inputOffset": 5.0,
+                        "Cap / Jump": { "x": 15.0, "y": 1.5 },
+                        "Cap mode": "output"
+                    },
+                    "inputSpeedArgs": {
+                        "Whole/combined accel (set false for 'by component' mode)": true,
+                        "lpNorm": 2.0
+                    },
+                    "Output DPI": 1600.0,
+                    "Y/X output DPI ratio (vertical sens multiplier)": 1.0,
+                    "Degrees of rotation": 0.0,
+                    "Degrees of angle snapping": 0.0,
+                    "Input Speed Cap": 0.0
+                }
+            ],
+            "devices": [
+                {
+                    "id": "HID\\VID_1234&PID_5678",
+                    "profile": "Old Profile",
+                    "config": {
+                        "disable": false,
+                        "dpi": 1600,
+                        "pollingRate": 1000
+                    }
+                }
+            ]
+        }"####;
+
+        let migrated = super::parse_or_migrate_settings(legacy_json);
+        assert!(migrated.is_ok(), "Failed to migrate legacy settings: {:?}", migrated.err());
+        let config = migrated.unwrap();
+        assert_eq!(config.profiles.len(), 1);
+        assert_eq!(config.profiles[0].name, "Old Profile");
+        assert_eq!(config.profiles[0].accel_x.mode, "natural");
+        assert_eq!(config.profiles[0].accel_x.cap_mode, "out");
+        assert_eq!(config.profiles[0].speed_processor_args.whole, true);
+        assert_eq!(config.devices.len(), 1);
+        assert_eq!(config.devices[0].profile_id, Some("Old Profile".to_string()));
     }
 }
