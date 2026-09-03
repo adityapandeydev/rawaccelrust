@@ -210,6 +210,9 @@ function App() {
             console.log("Loaded settings from backend:", parsed.profiles);
             setProfiles(parsed.profiles);
             setActiveProfileIndex(0);
+            if (parsed.profiles[0]?.speed_processor_args) {
+              setLinkXY(parsed.profiles[0].speed_processor_args.whole);
+            }
         }
         if (parsed && parsed.devices) {
             setDeviceConfig(parsed.devices);
@@ -292,6 +295,34 @@ function App() {
   const navigateTo = (tab: typeof activeTab) => {
     setActiveTab(tab);
     setIsSidebarOpen(false);
+  };
+
+  const handleLinkXY = () => {
+    setLinkXY(true);
+    setActiveCurveAxis("x");
+    updateActiveProfile(p => ({
+      ...p,
+      speed_processor_args: { ...p.speed_processor_args, whole: true },
+      accel_y: JSON.parse(JSON.stringify(p.accel_x))
+    }));
+  };
+
+  const handleSelectXAxis = () => {
+    setLinkXY(false);
+    setActiveCurveAxis("x");
+    updateActiveProfile(p => ({
+      ...p,
+      speed_processor_args: { ...p.speed_processor_args, whole: false }
+    }));
+  };
+
+  const handleSelectYAxis = () => {
+    setLinkXY(false);
+    setActiveCurveAxis("y");
+    updateActiveProfile(p => ({
+      ...p,
+      speed_processor_args: { ...p.speed_processor_args, whole: false }
+    }));
   };
 
   return (
@@ -378,7 +409,12 @@ function App() {
                 {profiles.map((p, idx) => (
                   <div 
                     key={idx}
-                    onClick={() => { setActiveProfileIndex(idx); navigateTo("profiles"); }}
+                    onClick={() => { 
+                      setActiveProfileIndex(idx); 
+                      setLinkXY(profiles[idx].speed_processor_args?.whole ?? true);
+                      setActiveCurveAxis("x");
+                      navigateTo("profiles"); 
+                    }}
                     style={{ 
                       padding: "0.5rem", 
                       fontSize: "0.85rem",
@@ -503,9 +539,9 @@ function App() {
                 </button>
 
                 <div style={{ display: "flex", gap: "0.25rem", background: "var(--bg-input)", padding: "0.25rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
-                  <button className="btn" style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: linkXY ? "var(--color-primary)" : "transparent", color: linkXY ? "#fff" : "var(--text-muted)", border: "none" }} onClick={() => setLinkXY(true)}>Link X/Y</button>
-                  <button className="btn" style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: !linkXY && activeCurveAxis === "x" ? "var(--color-primary)" : "transparent", color: !linkXY && activeCurveAxis === "x" ? "#fff" : "var(--text-muted)", border: "none" }} onClick={() => { setLinkXY(false); setActiveCurveAxis("x"); }}>X Axis</button>
-                  <button className="btn" style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: !linkXY && activeCurveAxis === "y" ? "var(--color-primary)" : "transparent", color: !linkXY && activeCurveAxis === "y" ? "#fff" : "var(--text-muted)", border: "none" }} onClick={() => { setLinkXY(false); setActiveCurveAxis("y"); }}>Y Axis</button>
+                  <button className="btn" style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: linkXY ? "var(--color-primary)" : "transparent", color: linkXY ? "#fff" : "var(--text-muted)", border: "none" }} onClick={handleLinkXY}>Link X/Y</button>
+                  <button className="btn" style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: !linkXY && activeCurveAxis === "x" ? "var(--color-primary)" : "transparent", color: !linkXY && activeCurveAxis === "x" ? "#fff" : "var(--text-muted)", border: "none" }} onClick={handleSelectXAxis}>X Axis</button>
+                  <button className="btn" style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: !linkXY && activeCurveAxis === "y" ? "var(--color-primary)" : "transparent", color: !linkXY && activeCurveAxis === "y" ? "#fff" : "var(--text-muted)", border: "none" }} onClick={handleSelectYAxis}>Y Axis</button>
                 </div>
               </>
             )}
@@ -1164,11 +1200,19 @@ function App() {
                 visibleGraphs={visibleGraphs} 
                 isExpanded={isExpanded} 
                 onUpdateLookupPoint={(axis, newTable) => {
-                  const prop = axis === "x" ? "accel_x" : "accel_y";
-                  updateProfile(prop, {
-                    ...activeProfile[prop],
-                    lookup_table: newTable
-                  });
+                  if (linkXY) {
+                    updateActiveProfile(p => ({
+                      ...p,
+                      accel_x: { ...p.accel_x, lookup_table: copyLookupTable(newTable) },
+                      accel_y: { ...p.accel_y, lookup_table: copyLookupTable(newTable) },
+                    }));
+                  } else {
+                    const prop = axis === "x" ? "accel_x" : "accel_y";
+                    updateProfile(prop, {
+                      ...activeProfile[prop],
+                      lookup_table: newTable
+                    });
+                  }
                 }}
               />
             </div>
