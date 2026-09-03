@@ -59,20 +59,35 @@ export function DevicesView({
           
           <div style={{ flex: 1, padding: "0.5rem", overflowY: "auto" }}>
             <ul className="sidebar-list">
-              {devices.map(d => (
-                <li 
-                  key={d.id} 
-                  className={`sidebar-list-item ${selectedDeviceId === d.id ? "active" : ""}`}
-                  onClick={() => setSelectedDeviceId(d.id)}
-                  style={{ padding: "0.75rem", display: "flex", alignItems: "center", gap: "0.75rem" }}
-                >
-                  <Monitor size={16} />
-                  <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                    <span style={{ fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.name}</span>
-                    <span style={{ fontSize: "0.65rem", color: selectedDeviceId === d.id ? "var(--bg-app)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{d.id}</span>
-                  </div>
-                </li>
-              ))}
+              {devices.map(d => {
+                const isSelected = selectedDeviceId === d.id;
+                return (
+                  <li 
+                    key={d.id} 
+                    className={`device-list-item ${isSelected ? "active" : ""}`}
+                    onClick={() => setSelectedDeviceId(d.id)}
+                    style={{ 
+                      padding: "0.75rem 1rem", 
+                      display: "flex", 
+                      alignItems: "center", 
+                      gap: "0.75rem",
+                      borderRadius: "var(--radius-md)",
+                      cursor: "pointer",
+                      backgroundColor: isSelected ? "var(--color-primary-bg)" : "transparent",
+                      color: isSelected ? "var(--color-primary)" : "var(--text-main)",
+                      fontWeight: isSelected ? 600 : 500,
+                      borderLeft: isSelected ? "3px solid var(--color-primary)" : "3px solid transparent",
+                      transition: "all 0.15s ease",
+                      marginBottom: "0.25rem"
+                    }}
+                  >
+                    <Monitor size={18} style={{ color: isSelected ? "var(--color-primary)" : "var(--text-muted)", flexShrink: 0 }} />
+                    <span style={{ fontSize: "0.9rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {d.name}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>
