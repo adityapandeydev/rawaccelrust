@@ -92,6 +92,13 @@ impl ClassicLegacy {
             sign,
         }
     }
+
+    pub fn evaluate(&self, x: f64, args: &accel_args) -> f64 {
+        if x <= args.input_offset {
+            return 1.0;
+        }
+        self.sign * classic_base_fn(x, self.accel_raised, args).min(self.cap) + 1.0
+    }
 }
 
 #[repr(C)]
@@ -167,6 +174,18 @@ impl ClassicGain {
             sign,
         }
     }
+
+    pub fn evaluate(&self, x: f64, args: &accel_args) -> f64 {
+        if x <= args.input_offset {
+            return 1.0;
+        }
+        let output = if x < self.cap.x {
+            classic_base_fn(x, self.accel_raised, args)
+        } else {
+            self.constant / x + self.cap.y
+        };
+        self.sign * output + 1.0
+    }
 }
 
 fn classic_base_fn(x: f64, accel_raised: f64, args: &accel_args) -> f64 {
@@ -223,6 +242,17 @@ impl JumpLegacy {
         let smooth_rate = jump_smooth_rate(args, step.x);
         Self { step, smooth_rate }
     }
+
+    pub fn evaluate(&self, x: f64) -> f64 {
+        if self.smooth_rate != 0.0 {
+            let decay = (self.smooth_rate * (self.step.x - x)).exp();
+            self.step.y / (1.0 + decay) + 1.0
+        } else if x < self.step.x {
+            1.0
+        } else {
+            1.0 + self.step.y
+        }
+    }
 }
 
 #[repr(C)]
@@ -246,6 +276,20 @@ impl JumpGain {
             c,
         }
     }
+
+    pub fn evaluate(&self, x: f64) -> f64 {
+        if x <= 0.0 {
+            return 1.0;
+        }
+        if self.smooth_rate != 0.0 {
+            let antideriv = jump_smooth_antideriv(x, self.step, self.smooth_rate);
+            1.0 + (antideriv + self.c) / x
+        } else if x < self.step.x {
+            1.0
+        } else {
+            1.0 + self.step.y * (x - self.step.x) / x
+        }
+    }
 }
 
 // ── Natural ──────────────────────────────────────────────────────────────
@@ -266,6 +310,15 @@ impl NaturalLegacy {
             accel,
             limit,
         }
+    }
+
+    pub fn evaluate(&self, x: f64) -> f64 {
+        if x <= self.offset {
+            return 1.0;
+        }
+        let offset_x = self.offset - x;
+        let decay = (self.accel * offset_x).exp();
+        self.limit * (1.0 - (self.offset - decay * offset_x) / x) + 1.0
     }
 }
 
@@ -288,6 +341,16 @@ impl NaturalGain {
             limit,
             constant,
         }
+    }
+
+    pub fn evaluate(&self, x: f64) -> f64 {
+        if x <= self.offset {
+            return 1.0;
+        }
+        let offset_x = self.offset - x;
+        let decay = (self.accel * offset_x).exp();
+        let output = self.limit * (decay / self.accel - offset_x) + self.constant;
+        output / x + 1.0
     }
 }
 
@@ -381,6 +444,11 @@ impl PowerLegacy {
             constant,
             cap,
         }
+    }
+
+    pub fn evaluate(&self, x: f64, args: &accel_args) -> f64 {
+        let base = power_base_fn(x, args, self.offset, self.scale, self.constant);
+        base.min(self.cap)
     }
 }
 
@@ -481,6 +549,14 @@ impl PowerGain {
             constant_b,
         }
     }
+
+    pub fn evaluate(&self, x: f64, args: &accel_args) -> f64 {
+        if x < self.cap.x {
+            power_base_fn(x, args, self.offset, self.scale, self.constant)
+        } else {
+            self.cap.y + self.constant_b / x
+        }
+    }
 }
 
 // ── Tiered ───────────────────────────────────────────────────────────────
@@ -521,6 +597,30 @@ impl TieredLinearLegacy {
             x2_end: args.tiered_input_offset2 + args.tiered_transition2,
             inv_trans2,
         }
+    }
+
+    pub fn evaluate(&self, x: f64) -> f64 {
+        if x <= self.x1 {
+            return self.m1;
+        }
+        if x < self.x1_end {
+            if self.inv_trans1 <= 0.0 {
+                return self.m2;
+            }
+            let t = (x - self.x1) * self.inv_trans1;
+            return self.m1 + t * (self.m2 - self.m1);
+        }
+        if x <= self.x2 {
+            return self.m2;
+        }
+        if x < self.x2_end {
+            if self.inv_trans2 <= 0.0 {
+                return self.m3;
+            }
+            let t = (x - self.x2) * self.inv_trans2;
+            return self.m2 + t * (self.m3 - self.m2);
+        }
+        self.m3
     }
 }
 
@@ -584,6 +684,29 @@ impl TieredNaturalLegacy {
             a2,
         }
     }
+
+    pub fn evaluate(&self, x: f64) -> f64 {
+        if x <= self.x1 {
+            return self.m1;
+        }
+        if x < self.x2 {
+            if self.l1 == 0.0 {
+                return self.m1;
+            }
+            let dx = x - self.x1;
+            let decay = (-self.a1 * dx).exp();
+            let v = self.m1 * self.x1 + self.m1 * dx + self.l1 * dx * (1.0 - decay);
+            return v / x;
+        }
+        if self.l2 == 0.0 {
+            let dx2 = x - self.x2;
+            return (self.v2 + self.m2_prime * dx2) / x;
+        }
+        let dx2 = x - self.x2;
+        let decay2 = (-self.a2 * dx2).exp();
+        let v = self.v2 + self.m2_prime * dx2 + self.l2 * dx2 * (1.0 - decay2);
+        v / x
+    }
 }
 
 #[repr(C)]
@@ -646,6 +769,29 @@ impl TieredNaturalGain {
             a2,
         }
     }
+
+    pub fn evaluate(&self, x: f64) -> f64 {
+        if x <= self.x1 {
+            return self.m1;
+        }
+        if x < self.x2 {
+            if self.l1 == 0.0 {
+                return self.m1;
+            }
+            let dx = x - self.x1;
+            let decay = (-self.a1 * dx).exp();
+            let v = self.m1 * self.x1 + self.m1 * dx + self.l1 * (dx - (1.0 - decay) / self.a1);
+            return v / x;
+        }
+        if self.l2 == 0.0 {
+            let dx2 = x - self.x2;
+            return (self.v2 + self.m2_prime * dx2) / x;
+        }
+        let dx2 = x - self.x2;
+        let decay2 = (-self.a2 * dx2).exp();
+        let v = self.v2 + self.m2_prime * dx2 + self.l2 * (dx2 - (1.0 - decay2) / self.a2);
+        v / x
+    }
 }
 
 // ── Lookup ───────────────────────────────────────────────────────────────
@@ -662,6 +808,54 @@ impl Lookup {
         Self {
             size: args.length / 2,
             velocity: args.gain,
+        }
+    }
+
+    pub fn evaluate(&self, x: f64, args: &accel_args) -> f64 {
+        if x <= 0.0 || self.size < 2 {
+            return 1.0;
+        }
+        let data = &args.data;
+        let mut lo = 0usize;
+        let mut hi = (self.size - 2) as isize;
+
+        while (lo as isize) <= hi {
+            let mid = ((lo as isize + hi) / 2) as usize;
+            let px = data[mid * 2] as f64;
+            let py = data[mid * 2 + 1] as f64;
+
+            if x < px {
+                hi = mid as isize - 1;
+            } else if x > px {
+                lo = mid + 1;
+            } else {
+                let mut y = py;
+                if self.velocity {
+                    y /= x;
+                }
+                return y;
+            }
+        }
+
+        if lo > 0 && lo < self.size as usize {
+            let ax = data[(lo - 1) * 2] as f64;
+            let ay = data[(lo - 1) * 2 + 1] as f64;
+            let bx = data[lo * 2] as f64;
+            let by = data[lo * 2 + 1] as f64;
+            let t = (x - ax) / (bx - ax);
+            let mut y = ay + t * (by - ay);
+            if self.velocity {
+                y /= x;
+            }
+            return y;
+        }
+
+        let y0 = data[1] as f64;
+        let x0 = data[0] as f64;
+        if self.velocity && x0 > 0.0 {
+            y0 / x0
+        } else {
+            y0
         }
     }
 }
@@ -899,3 +1093,518 @@ pub fn init_data(settings: &mut modifier_settings) {
     settings.data.rot_direction = direction(settings.prof.degrees_rotation);
     settings.data.flags = compute_flags(&settings.prof);
 }
+
+/// Evaluates any acceleration curve at an arbitrary input speed `x` (counts/ms).
+/// Used for mathematical verification and userspace simulations.
+pub fn evaluate_curve(args: &accel_args, x: f64) -> f64 {
+    match args.mode {
+        accel_mode::classic => {
+            if args.gain {
+                ClassicGain::new(args).evaluate(x, args)
+            } else {
+                ClassicLegacy::new(args).evaluate(x, args)
+            }
+        }
+        accel_mode::jump => {
+            if args.gain {
+                JumpGain::new(args).evaluate(x)
+            } else {
+                JumpLegacy::new(args).evaluate(x)
+            }
+        }
+        accel_mode::natural => {
+            if args.gain {
+                NaturalGain::new(args).evaluate(x)
+            } else {
+                NaturalLegacy::new(args).evaluate(x)
+            }
+        }
+        accel_mode::power => {
+            if args.gain {
+                PowerGain::new(args).evaluate(x, args)
+            } else {
+                PowerLegacy::new(args).evaluate(x, args)
+            }
+        }
+        accel_mode::tiered => {
+            if args.t_type == models::tiered_type::linear {
+                TieredLinearLegacy::new(args).evaluate(x)
+            } else if args.gain {
+                TieredNaturalGain::new(args).evaluate(x)
+            } else {
+                TieredNaturalLegacy::new(args).evaluate(x)
+            }
+        }
+        accel_mode::synchronous => {
+            SynchronousLegacy::new(args).evaluate(x)
+        }
+        accel_mode::lookup => {
+            Lookup::new(args).evaluate(x, args)
+        }
+        accel_mode::noaccel => 1.0,
+    }
+}
+
+// ── Mathematical Reference & Parity Test Suite ───────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{accel_args, accel_mode, cap_mode, tiered_type, ACCEL_UNION_SIZE};
+    use std::mem::size_of;
+
+    // ── 1. Binary Memory Layout & ABI Size Tests ─────────────────────────
+
+    #[test]
+    fn test_struct_sizes_fit_in_accel_union() {
+        assert!(size_of::<ClassicLegacy>() <= ACCEL_UNION_SIZE, "ClassicLegacy exceeds 72 bytes");
+        assert!(size_of::<ClassicGain>() <= ACCEL_UNION_SIZE, "ClassicGain exceeds 72 bytes");
+        assert!(size_of::<JumpLegacy>() <= ACCEL_UNION_SIZE, "JumpLegacy exceeds 72 bytes");
+        assert!(size_of::<JumpGain>() <= ACCEL_UNION_SIZE, "JumpGain exceeds 72 bytes");
+        assert!(size_of::<NaturalLegacy>() <= ACCEL_UNION_SIZE, "NaturalLegacy exceeds 72 bytes");
+        assert!(size_of::<NaturalGain>() <= ACCEL_UNION_SIZE, "NaturalGain exceeds 72 bytes");
+        assert!(size_of::<PowerLegacy>() <= ACCEL_UNION_SIZE, "PowerLegacy exceeds 72 bytes");
+        assert!(size_of::<PowerGain>() <= ACCEL_UNION_SIZE, "PowerGain exceeds 72 bytes");
+        assert_eq!(size_of::<TieredLinearLegacy>(), 72, "TieredLinearLegacy must be exactly 72 bytes");
+        assert_eq!(size_of::<TieredNaturalLegacy>(), 72, "TieredNaturalLegacy must be exactly 72 bytes");
+        assert_eq!(size_of::<TieredNaturalGain>(), 72, "TieredNaturalGain must be exactly 72 bytes");
+        assert_eq!(size_of::<SynchronousLegacy>(), 72, "SynchronousLegacy must be exactly 72 bytes");
+        assert!(size_of::<SynchronousGain>() <= ACCEL_UNION_SIZE, "SynchronousGain exceeds 72 bytes");
+        assert!(size_of::<Lookup>() <= ACCEL_UNION_SIZE, "Lookup exceeds 72 bytes");
+        assert_eq!(size_of::<accel_union>(), 72, "accel_union buffer must be 72 bytes");
+    }
+
+    // ── 2. Classic Mode Tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_classic_legacy_offset_and_scaling() {
+        let args = accel_args {
+            mode: accel_mode::classic,
+            gain: false,
+            acceleration: 0.01,
+            exponent_classic: 2.0,
+            input_offset: 10.0,
+            cap: vec2d { x: 0.0, y: 0.0 }, // No cap
+            cap_mode: cap_mode::out,
+            ..Default::default()
+        };
+
+        // Below offset: sensitivity is strictly 1.0
+        assert_eq!(evaluate_curve(&args, 0.0), 1.0);
+        assert_eq!(evaluate_curve(&args, 5.0), 1.0);
+        assert_eq!(evaluate_curve(&args, 10.0), 1.0);
+
+        // Above offset: f(x) = (a * (x - offset)^exp) / x + 1
+        // At x = 20: 0.01 * (10)^2 / 20 + 1 = 0.01 * 100 / 20 + 1 = 0.05 + 1 = 1.05
+        let sens_20 = evaluate_curve(&args, 20.0);
+        assert!((sens_20 - 1.05).abs() < 1e-6);
+
+        // At x = 30: 0.01 * (20)^2 / 30 + 1 = 4 / 30 + 1 = 1.1333333
+        let sens_30 = evaluate_curve(&args, 30.0);
+        assert!((sens_30 - (1.0 + 4.0 / 30.0)).abs() < 1e-6);
+        assert!(sens_30 > sens_20, "Classic acceleration must be strictly monotonically increasing");
+    }
+
+    #[test]
+    fn test_classic_legacy_caps_in_out_io() {
+        // Output Cap (cap_mode::out)
+        let out_cap_args = accel_args {
+            mode: accel_mode::classic,
+            gain: false,
+            acceleration: 0.05,
+            exponent_classic: 2.0,
+            input_offset: 0.0,
+            cap: vec2d { x: 0.0, y: 1.5 }, // output cap at 1.5
+            cap_mode: cap_mode::out,
+            ..Default::default()
+        };
+        assert!(evaluate_curve(&out_cap_args, 100.0) <= 1.5 + 1e-6);
+        assert!((evaluate_curve(&out_cap_args, 500.0) - 1.5).abs() < 1e-6);
+
+        // Input Cap (cap_mode::in_)
+        let in_cap_args = accel_args {
+            mode: accel_mode::classic,
+            gain: false,
+            acceleration: 0.01,
+            exponent_classic: 2.0,
+            input_offset: 0.0,
+            cap: vec2d { x: 20.0, y: 0.0 }, // input cap at speed 20.0
+            cap_mode: cap_mode::in_,
+            ..Default::default()
+        };
+        let val_at_cap = evaluate_curve(&in_cap_args, 20.0);
+        let val_above_cap = evaluate_curve(&in_cap_args, 100.0);
+        assert!((val_at_cap - val_above_cap).abs() < 1e-6, "Sensitivity must saturate beyond input cap threshold");
+
+        // Input-Output Cap (cap_mode::io)
+        let io_cap_args = accel_args {
+            mode: accel_mode::classic,
+            gain: false,
+            exponent_classic: 2.0,
+            input_offset: 0.0,
+            cap: vec2d { x: 25.0, y: 1.75 }, // forced (25.0, 1.75) point
+            cap_mode: cap_mode::io,
+            ..Default::default()
+        };
+        let val_at_io = evaluate_curve(&io_cap_args, 25.0);
+        assert!((val_at_io - 1.75).abs() < 1e-4, "IO cap curve must pass precisely through (cap.x, cap.y)");
+    }
+
+    #[test]
+    fn test_classic_gain_mode_evaluation() {
+        let args = accel_args {
+            mode: accel_mode::classic,
+            gain: true,
+            acceleration: 0.02,
+            exponent_classic: 2.0,
+            input_offset: 5.0,
+            cap: vec2d { x: 0.0, y: 2.0 },
+            cap_mode: cap_mode::out,
+            ..Default::default()
+        };
+
+        assert_eq!(evaluate_curve(&args, 0.0), 1.0);
+        assert_eq!(evaluate_curve(&args, 5.0), 1.0);
+        let sens = evaluate_curve(&args, 15.0);
+        assert!(sens > 1.0);
+        assert!(evaluate_curve(&args, 1000.0) <= 2.0 + 1e-6);
+    }
+
+    // ── 3. Natural Mode Tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_natural_legacy_asymptotic_limit() {
+        let args = accel_args {
+            mode: accel_mode::natural,
+            gain: false,
+            decay_rate: 0.1,
+            limit: 2.0,
+            input_offset: 5.0,
+            ..Default::default()
+        };
+
+        // Offset check
+        assert_eq!(evaluate_curve(&args, 0.0), 1.0);
+        assert_eq!(evaluate_curve(&args, 5.0), 1.0);
+
+        // Monotonic growth bounded by limit
+        let mut prev = 1.0;
+        for speed in [6.0, 10.0, 20.0, 50.0, 100.0] {
+            let current = evaluate_curve(&args, speed);
+            assert!(current > prev, "Natural curve must increase monotonically");
+            assert!(current < 2.0, "Natural curve must remain strictly below limit");
+            prev = current;
+        }
+
+        // Asymptotic check at high speed
+        let high_speed = evaluate_curve(&args, 5000.0);
+        assert!((high_speed - 2.0).abs() < 0.01, "Natural curve must approach limit asymptotically");
+    }
+
+    #[test]
+    fn test_natural_gain_mode() {
+        let args = accel_args {
+            mode: accel_mode::natural,
+            gain: true,
+            decay_rate: 0.1,
+            limit: 2.5,
+            input_offset: 0.0,
+            ..Default::default()
+        };
+
+        assert_eq!(evaluate_curve(&args, 0.0), 1.0);
+        let val_50 = evaluate_curve(&args, 50.0);
+        let val_100 = evaluate_curve(&args, 100.0);
+        assert!(val_100 > val_50);
+        assert!(val_100 <= 2.5);
+    }
+
+    // ── 4. Jump Mode Tests ───────────────────────────────────────────────
+
+    #[test]
+    fn test_jump_legacy_instant_step() {
+        let args = accel_args {
+            mode: accel_mode::jump,
+            gain: false,
+            smooth: 0.0, // Instant step
+            cap: vec2d { x: 15.0, y: 2.0 },
+            ..Default::default()
+        };
+
+        assert_eq!(evaluate_curve(&args, 0.0), 1.0);
+        assert_eq!(evaluate_curve(&args, 14.99), 1.0);
+        assert_eq!(evaluate_curve(&args, 15.0), 2.0);
+        assert_eq!(evaluate_curve(&args, 50.0), 2.0);
+    }
+
+    #[test]
+    fn test_jump_legacy_smooth_sigmoid() {
+        let args = accel_args {
+            mode: accel_mode::jump,
+            gain: false,
+            smooth: 0.5,
+            cap: vec2d { x: 20.0, y: 2.0 },
+            ..Default::default()
+        };
+
+        let at_mid = evaluate_curve(&args, 20.0);
+        // At threshold midpoint x = 20, sigmoid should evaluate exactly to 1.5
+        assert!((at_mid - 1.5).abs() < 1e-6, "Jump smooth sigmoid must pass through midpoint at cap.x");
+
+        let before_mid = evaluate_curve(&args, 15.0);
+        let after_mid = evaluate_curve(&args, 25.0);
+        assert!(before_mid > 1.0 && before_mid < 1.5);
+        assert!(after_mid > 1.5 && after_mid < 2.0);
+    }
+
+    #[test]
+    fn test_jump_gain_smooth() {
+        let args = accel_args {
+            mode: accel_mode::jump,
+            gain: true,
+            smooth: 0.5,
+            cap: vec2d { x: 20.0, y: 2.0 },
+            ..Default::default()
+        };
+
+        assert_eq!(evaluate_curve(&args, 0.0), 1.0);
+        let val_10 = evaluate_curve(&args, 10.0);
+        let val_20 = evaluate_curve(&args, 20.0);
+        let val_40 = evaluate_curve(&args, 40.0);
+        assert!(val_10 >= 1.0);
+        assert!(val_20 > val_10);
+        assert!(val_40 > val_20);
+    }
+
+    // ── 5. Power Mode Tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_power_legacy_scaling_and_offset() {
+        let args = accel_args {
+            mode: accel_mode::power,
+            gain: false,
+            scale: 0.8,
+            exponent_power: 0.2,
+            output_offset: 0.6,
+            cap: vec2d { x: 0.0, y: 2.5 },
+            cap_mode: cap_mode::out,
+            ..Default::default()
+        };
+
+        // Output below offset point (offset.x = 0.0390625) must return output_offset
+        let low_speed = evaluate_curve(&args, 0.02);
+        assert!((low_speed - 0.6).abs() < 1e-4);
+        assert!(evaluate_curve(&args, 0.1) > 0.6);
+
+        // Monotonic growth
+        let val_10 = evaluate_curve(&args, 10.0);
+        let val_50 = evaluate_curve(&args, 50.0);
+        assert!(val_50 > val_10);
+        assert!(val_50 <= 2.5);
+    }
+
+    // ── 6. Synchronous Mode Tests ────────────────────────────────────────
+
+    #[test]
+    fn test_synchronous_legacy_symmetry() {
+        let args = accel_args {
+            mode: accel_mode::synchronous,
+            motivity: 2.0,
+            sync_speed: 10.0,
+            gamma: 1.0,
+            smooth: 0.0, // linear clamp
+            ..Default::default()
+        };
+
+        // At syncspeed: sensitivity is exactly 1.0
+        let at_sync = evaluate_curve(&args, 10.0);
+        assert!((at_sync - 1.0).abs() < 1e-6);
+
+        // Below syncspeed: clamped to 1 / motivity = 0.5
+        let min_sens = evaluate_curve(&args, 0.1);
+        assert!((min_sens - 0.5).abs() < 1e-6);
+
+        // Above syncspeed: clamped to motivity = 2.0
+        let max_sens = evaluate_curve(&args, 100.0);
+        assert!((max_sens - 2.0).abs() < 1e-6);
+    }
+
+    // ── 7. Tiered Mode Tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_tiered_linear_three_zones_and_plateaus() {
+        let args = accel_args {
+            mode: accel_mode::tiered,
+            t_type: tiered_type::linear,
+            tiered_multiplier1: 1.0,
+            tiered_input_offset1: 10.0,
+            tiered_multiplier2: 1.5,
+            tiered_transition1: 10.0, // Transition 1: [10.0, 20.0]
+            tiered_input_offset2: 30.0,
+            tiered_multiplier3: 2.0,
+            tiered_transition2: 10.0, // Transition 2: [30.0, 40.0]
+            ..Default::default()
+        };
+
+        // Tier 1 plateau: x <= 10.0
+        assert_eq!(evaluate_curve(&args, 0.0), 1.0);
+        assert_eq!(evaluate_curve(&args, 5.0), 1.0);
+        assert_eq!(evaluate_curve(&args, 10.0), 1.0);
+
+        // Transition 1 linear interpolation: [10.0, 20.0]
+        assert_eq!(evaluate_curve(&args, 15.0), 1.25); // midpoint: (1.0 + 1.5) / 2
+        assert_eq!(evaluate_curve(&args, 20.0), 1.5);
+
+        // Tier 2 plateau: [20.0, 30.0]
+        assert_eq!(evaluate_curve(&args, 25.0), 1.5);
+        assert_eq!(evaluate_curve(&args, 30.0), 1.5);
+
+        // Transition 2 linear interpolation: [30.0, 40.0]
+        assert_eq!(evaluate_curve(&args, 35.0), 1.75); // midpoint: (1.5 + 2.0) / 2
+        assert_eq!(evaluate_curve(&args, 40.0), 2.0);
+
+        // Tier 3 plateau: x >= 40.0
+        assert_eq!(evaluate_curve(&args, 50.0), 2.0);
+        assert_eq!(evaluate_curve(&args, 500.0), 2.0);
+    }
+
+    #[test]
+    fn test_tiered_natural_continuity_at_boundary() {
+        let args = accel_args {
+            mode: accel_mode::tiered,
+            t_type: tiered_type::natural,
+            gain: false,
+            tiered_multiplier1: 1.0,
+            tiered_input_offset1: 10.0,
+            tiered_multiplier2: 1.6,
+            tiered_input_offset2: 30.0,
+            tiered_multiplier3: 2.2,
+            tiered_decay_rate1: 0.1,
+            tiered_decay_rate2: 0.05,
+            ..Default::default()
+        };
+
+        // Below offset 1: multiplier 1
+        assert_eq!(evaluate_curve(&args, 5.0), 1.0);
+        assert_eq!(evaluate_curve(&args, 10.0), 1.0);
+
+        // In tier 1-2 interval: monotonic growth
+        let v_15 = evaluate_curve(&args, 15.0);
+        let v_25 = evaluate_curve(&args, 25.0);
+        assert!(v_15 > 1.0 && v_15 < 1.6);
+        assert!(v_25 > v_15 && v_25 < 1.6);
+
+        // Continuity check at offset 2 (x = 30.0)
+        let eps = 1e-4;
+        let left_val = evaluate_curve(&args, 30.0 - eps);
+        let exact_val = evaluate_curve(&args, 30.0);
+        let right_val = evaluate_curve(&args, 30.0 + eps);
+        assert!((left_val - exact_val).abs() < 1e-3, "Tiered natural must be continuous at boundary");
+        assert!((right_val - exact_val).abs() < 1e-3, "Tiered natural must be continuous at boundary");
+
+        // High speed tier 3 asymptotic progression towards multiplier 3
+        let v_high = evaluate_curve(&args, 500.0);
+        assert!(v_high > 1.6 && v_high <= 2.2);
+    }
+
+    #[test]
+    fn test_tiered_natural_gain_mode() {
+        let args = accel_args {
+            mode: accel_mode::tiered,
+            t_type: tiered_type::natural,
+            gain: true,
+            tiered_multiplier1: 1.0,
+            tiered_input_offset1: 5.0,
+            tiered_multiplier2: 1.5,
+            tiered_input_offset2: 25.0,
+            tiered_multiplier3: 2.0,
+            tiered_decay_rate1: 0.1,
+            tiered_decay_rate2: 0.1,
+            ..Default::default()
+        };
+
+        assert_eq!(evaluate_curve(&args, 5.0), 1.0);
+        let val_15 = evaluate_curve(&args, 15.0);
+        let val_25 = evaluate_curve(&args, 25.0);
+        let val_50 = evaluate_curve(&args, 50.0);
+        assert!(val_15 > 1.0);
+        assert!(val_25 > val_15);
+        assert!(val_50 > val_25);
+    }
+
+    // ── 8. Lookup Table (LUT) Mode Tests ─────────────────────────────────
+
+    #[test]
+    fn test_lookup_piecewise_linear_interpolation() {
+        let mut data = [0.0f32; models::LUT_RAW_DATA_CAPACITY];
+        // Points: (10.0, 1.0), (20.0, 1.4), (40.0, 2.0)
+        data[0] = 10.0;
+        data[1] = 1.0;
+        data[2] = 20.0;
+        data[3] = 1.4;
+        data[4] = 40.0;
+        data[5] = 2.0;
+
+        let args = accel_args {
+            mode: accel_mode::lookup,
+            gain: false,
+            length: 6, // 3 points * 2
+            data,
+            ..Default::default()
+        };
+
+        // Exact points
+        assert!((evaluate_curve(&args, 10.0) - 1.0).abs() < 1e-4);
+        assert!((evaluate_curve(&args, 20.0) - 1.4).abs() < 1e-4);
+        assert!((evaluate_curve(&args, 40.0) - 2.0).abs() < 1e-4);
+
+        // Linear interpolation midpoints
+        // Between 10 and 20 at x=15: lerp(1.0, 1.4, 0.5) = 1.2
+        assert!((evaluate_curve(&args, 15.0) - 1.2).abs() < 1e-4);
+        // Between 20 and 40 at x=30: lerp(1.4, 2.0, 0.5) = 1.7
+        assert!((evaluate_curve(&args, 30.0) - 1.7).abs() < 1e-4);
+    }
+
+    // ── 9. Buffer Initialization and Flag Integrity ─────────────────────
+
+    #[test]
+    fn test_init_data_settings_buffer_integrity() {
+        let mut settings = modifier_settings::default();
+        settings.prof.degrees_rotation = 45.0;
+        settings.prof.speed_max = 100.0;
+        settings.prof.speed_min = 0.0;
+        settings.prof.lr_output_dpi_ratio = 1.2;
+        settings.prof.ud_output_dpi_ratio = 1.0;
+        settings.prof.accel_x = accel_args {
+            mode: accel_mode::tiered,
+            t_type: tiered_type::linear,
+            tiered_multiplier1: 1.0,
+            tiered_input_offset1: 10.0,
+            tiered_multiplier2: 1.5,
+            tiered_transition1: 15.0,
+            tiered_input_offset2: 30.0,
+            tiered_multiplier3: 2.0,
+            tiered_transition2: 20.0,
+            ..Default::default()
+        };
+        settings.prof.accel_y = settings.prof.accel_x;
+
+        init_data(&mut settings);
+
+        // Verify computed flags
+        assert!(settings.data.flags.apply_rotate);
+        assert!(settings.data.flags.clamp_speed);
+        assert!(settings.data.flags.apply_dir_mul_x);
+        assert!(!settings.data.flags.apply_dir_mul_y);
+
+        // Verify rotation direction unit vector: 45 degrees -> (cos 45, sin 45)
+        let expected_rot = std::f64::consts::FRAC_1_SQRT_2;
+        assert!((settings.data.rot_direction.x - expected_rot).abs() < 1e-6);
+        assert!((settings.data.rot_direction.y - expected_rot).abs() < 1e-6);
+
+        // Verify union memory is populated (not all zeroes)
+        assert!(settings.data.accel_x.memory.iter().any(|&b| b != 0));
+        assert!(settings.data.accel_y.memory.iter().any(|&b| b != 0));
+    }
+}
+
