@@ -65,6 +65,8 @@ Tauri's optional application-data deletion also removes WebView preferences,
 including theme and notification choices. It does not request driver removal.
 
 BUILD AND OFFLINE CHECKS (Windows x64)
+See CURVE-LABORATORY.txt in the source checkout for offline capture inspection
+and calibration prerequisites. It does not enable live driver measurements.
 Install developer tools globally, not in this repository. Run npm ci for this
 application's dependencies, npm test, npm run build, and cargo test --locked from
 src-tauri. If a sandbox denies Temp-file replacements, point process-local TEMP

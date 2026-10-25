@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "source": "synthetic",
+  "timestamp_domain": "userspace-arrival-ns",
+  "device_id": "synthetic-mouse",
+  "packets": [
+    { "sequence": 0, "device_id": "synthetic-mouse", "arrival_ns": 0,
+      "flags": 8, "x": 6, "y": -8, "extra_information": 4294705155 },
+    { "sequence": 1, "device_id": "synthetic-mouse", "arrival_ns": 1000000,
+      "flags": 8, "x": -6, "y": 8, "extra_information": 327677 }
+  ]
+}

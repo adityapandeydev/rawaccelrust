@@ -1,0 +1,127 @@
+Curve Laboratory - offline preparation
+
+STATUS AND SCOPE
+This phase prepares verification; it does not install or build a kernel driver,
+enable Test Mode, change startup registration, or send settings to a live driver.
+The application keeps the stock signed-driver protocol by default. Tiered Linear
+and Natural stay editable and previewable; live Tiered verification awaits an
+upstream compatible signed driver. The original roadmap's kernel installation
+step is deferred under the user's 2026-10-25 offline-only instruction.
+
+OFFLINE TOOLS
+From rawaccel-userspace:
+  npm run test:math-reference
+  npm run test:abi
+  npm run test:laboratory
+  npm run lab:inspect -- scripts/fixtures/laboratory/synthetic-capture.json
+
+The math tool builds a user-mode C++ oracle including the actual modified common/
+operators: 112 configurations and 6068 samples, including both Tiered submodes.
+Existing Rust/TypeScript tests consume the same reviewed fixtures. Tolerance is
+absolute error <= 1e-10 + 1e-10 * abs(reference); Synchronous tables compare exact
+float32 bits. These are sampled arithmetic checks, not measurements of a driver.
+The ABI tool checks the custom source and pinned upstream stock layouts and full
+settings packet bytes. It never builds, installs, or opens the driver.
+
+lab:inspect reads only the explicit capture file and emits JSON to stdout.
+It has no capture, Apply, registry, network or driver APIs. It does not load
+settings.json. Exit 0 means the capture was structurally readable, not that a
+curve passed. The fixture is synthetic and must never be shown as measured data.
+The full UI laboratory is deferred until a measurement method is validated;
+the existing graph preview and all its controls stay available unchanged.
+
+WHAT THE EXISTING SOURCE ESTABLISHES
+driver/driver.cpp, RawaccelCallback:
+- Only enabled relative-input processing enters the modification branch.
+- With set_extra_info, the driver converts LastX and LastY to signed shorts and
+  packs them into ExtraInformation before modifying the counts.
+- On little-endian Windows x64, low 16 bits are input X, high 16 bits input Y.
+- Modified floating output includes per-device fractional carry, truncates to
+  LONG and updates LastX/LastY when the carry validity check passes.
+- Packets are forwarded to the upper class callback afterward. Installed filter
+  ordering and forwarding into WM_INPUT still need controlled validation.
+- Dynamic time is derived from kernel performance-counter time divided by the
+  number of packets in the callback batch, then clamped. With time locked, the
+  configured minimum interval is used. A userspace arrival gap cannot recreate
+  this batch timing in general.
+
+ExtraInformation has no tag, validity bit, sequence number or processing timestamp.
+Signed-short narrowing can lose information, including values that decode well
+inside the short limits. Zero may represent real zero movement or no diagnostic
+data. Other filters/devices may use or overwrite this field. Decoding it provides
+a candidate pair, not verified pre-filter telemetry. Version matching alone does
+not prove how the installed binary fills it.
+
+The current mouse_tracker.rs sums absolute X/Y and path lengths from all relative
+WM_INPUT packets, then emits roughly 16 ms aggregates. It drops device identity,
+ExtraInformation, per-packet arrival times and callback-batch boundaries. Do not
+use those aggregates as per-packet expected-versus-actual samples. Graph tracker
+dots remain theoretical projections of that aggregate estimate.
+
+OFFLINE CAPTURE CONTRACT - schema_version 1
+source: synthetic or wm-input (an assertion, never independent evidence).
+timestamp_domain: userspace-arrival-ns, monotonic relative to this capture.
+device_id: one nonempty device identifier; prefer a session pseudonym for exports.
+packets: 1..50000 objects, file at most 16 MiB:
+  sequence: contiguous zero-based index assigned by the collector.
+  device_id: identical to the capture's selected device.
+  arrival_ns: integer >= 0, strictly increasing, max signed 64-bit.
+  flags: original RAWMOUSE usFlags (uint16); absolute/unknown flags are rejected.
+  x, y: original reported lLastX/lLastY signed 32-bit relative counts.
+  extra_information: original ulExtraInformation uint32; do not replace missing
+    data with zero or reinterpret a negative JSON integer as unsigned silently.
+
+Equal/batched arrival timestamps require a future explicit batching contract;
+they are rejected here instead of guessed. Missing MOUSE_MOVE_NOCOALESCE is counted
+as potentially coalesced, not proof that a packet actually was coalesced. A local
+contiguous sequence cannot prove no packets were lost upstream of the collector.
+Unknown metadata is ignored; a file field such as calibrated:true cannot enable
+a verification verdict. The report deliberately omits device paths and full
+packets, does not compute gain, and always returns curve_verdict:not_measured and
+kernel_latency_ns:null. User arrival spacing is neither hardware polling rate nor
+kernel processing time. One packet produces no arrival-interval summary.
+
+REQUIRED CONTROLLED CALIBRATION - future separately authorized session
+1. Identify the installed signed driver release/binary, filter stack, one physical
+   relative-input device, and exact effective profile/device settings. Record
+   driver protocol and whether the device is mapped, ignored or unassigned.
+2. Preserve the user's settings and original startup setup before approved live
+   changes. Disable competing writers only with permission. Agree a recovery
+   procedure and an input device that remains usable during the experiment.
+3. Collect per-device RAWINPUT packets, RAWMOUSE fields and monotonic arrival
+   timestamps. Verify device identity and no absolute-device mixing. Retain packet
+   order and any dropped/batched counts; never invent callback timestamps.
+4. With explicit Apply authorization, compare a controlled unity configuration
+   against a simple known constant scale for both positive/negative axes and
+   reversals. Independently confirm diagnostic enablement and the relationship
+   between ExtraInformation and reported counts. Do not infer it solely from
+   matching-looking numbers. Keep counts inside a demonstrated input range;
+   decoded short-boundary checks alone cannot rule out narrowing wraparound.
+5. Account for effective DPI, domain/range weights, rotations, snapping, clamping,
+   whole/component geometry, smoothing, fractional carry, callback batching, OS
+   cursor settings, clipping, coalescing and capture overhead. Cursor positions
+   are screen pixels, not automatically driver output counts.
+6. Start with controlled stateless configurations. Establish an error budget from
+   integer output quantization/carry and the actual capture method. The offline
+   floating arithmetic tolerance is NOT an appropriate live packet tolerance.
+   Stateful curves require exact processing intervals and initialized smoothing/
+   carry state. If these cannot be observed, report comparison unavailable.
+7. Validate calibration independently before implementing an expected/measured
+   scatter plot. No pass/fail verdict while provenance or error bounds are unknown.
+   Arrival-time percentiles or frontend frame intervals must never be labelled
+   kernel latency. Real latency needs paired instrumentation at justified points,
+   a shared/calibrated clock and measured instrumentation overhead, or an external
+   measurement setup. Existing ExtraInformation cannot establish that latency.
+8. Only after an upstream compatible signed Tiered release is available, repeat
+   the approved procedure for Tiered Linear/Natural transitions and both axes.
+   Source-compatible packet encoding is not live signed-driver verification.
+
+PRIMARY REFERENCES
+Microsoft RAWMOUSE: relative/absolute counts, coalescing flag, extra information,
+and Raw Input independence from Control Panel pointer-speed scaling:
+https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-rawmouse
+Microsoft mouse class callback: filters may transform forwarded mouse packets:
+https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/kbdmou/nc-kbdmou-pservice_callback_routine
+
+These documents describe the APIs; source inspection plus controlled calibration
+is still required to establish this installed filter stack's observation points.
