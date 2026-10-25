@@ -9,8 +9,6 @@
     "build": "tsc && vite build",
     "test:math": "node --test scripts/math.test.mjs",
     "test:ui": "npm run build && node scripts/check-ui.cjs",
-    "test:laboratory": "python -m unittest discover -s scripts -p test_capture_inspector.py",
-    "lab:inspect": "python scripts/inspect_capture.py",
     "bundle:windows": "tauri build --bundles nsis -- --locked && node scripts/check-installer.cjs",
     "bundle:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1",
     "test:math-reference": "python scripts/check_math_reference.py",
