@@ -18,7 +18,7 @@ export function useProfileEditor(setModalState: Notify) {
   const [snapshotOrigin, setSnapshotOrigin] = useState<'loaded' | 'saved'>('loaded');
   const markSaved = (snapshot: string) => { setSavedSnapshot(snapshot); setSnapshotOrigin('saved'); };
   const linkXY = activeProfile.speed_processor_args.whole;
-  const replaceDocument = useCallback((document: SettingsDocument) => {
+  const replaceDocument = useCallback((document: SettingsDocument, markLoaded = true) => {
     const { profiles, devices, metadata } = splitSettingsDocument(document);
     setSettingsMetadata(metadata);
     if (profiles && profiles.length > 0) {
@@ -27,7 +27,7 @@ export function useProfileEditor(setModalState: Notify) {
       setActiveCurveAxis('x');
     }
     if (devices) setDeviceConfig(devices);
-    if (profiles?.length) {
+    if (profiles?.length && markLoaded) {
       setSavedSnapshot(serializeSettingsDocument(metadata, profiles, devices ?? []));
       setSnapshotOrigin('loaded');
     }

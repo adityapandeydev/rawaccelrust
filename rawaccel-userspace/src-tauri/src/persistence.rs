@@ -98,7 +98,7 @@ pub(crate) fn load(
                 return Ok(LoadReport {
                     settings_json,
                     source: path.display().to_string(),
-                    recovered: is_backup || !warnings.is_empty(),
+                    recovered: is_backup || path != paths.primary || !warnings.is_empty(),
                     migrated,
                     warnings,
                 });
@@ -565,6 +565,20 @@ mod tests {
         assert_eq!(report.settings_json, "{\"older\":true}");
         assert!(report.recovered);
         assert!(report.source.ends_with(".bak"));
+    }
+
+    #[test]
+    fn missing_authoritative_file_reports_recovery_from_a_secondary_copy() {
+        let dir = TestDirectory::new();
+        let paths = dir.paths();
+        let mirror = paths.mirror.as_ref().unwrap();
+        fs::create_dir_all(mirror.parent().unwrap()).unwrap();
+        fs::write(mirror, "{\"recovered\":true}").unwrap();
+        let report = load(&paths, parse_test_json).unwrap();
+        assert!(
+            report.recovered,
+            "A secondary load needs explicit saving before silent startup can use it"
+        );
     }
 
     #[test]

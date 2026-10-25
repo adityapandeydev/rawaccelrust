@@ -103,6 +103,9 @@ const server = http.createServer((req,res)=>{
     await page.locator('#import-settings-upload').setInputFiles(upload);
     await page.getByRole('button',{name:'Replace edits',exact:true}).click();
     assert.equal(await page.getByRole('textbox',{name:'Profile name'}).inputValue(),'Imported profile');
+    assert.equal(await page.locator('.document-status strong').textContent(),'Unsaved changes');
+    await page.getByRole('button',{name:'Revert',exact:true}).click();
+    assert.equal(await page.getByRole('textbox',{name:'Profile name'}).inputValue(),'Default Profile');
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     await page.screenshot({path:path.join(artifacts,'startup-settings-dark.png'),fullPage:true});
     await page.getByRole('button',{name:'Switch to light theme'}).click();

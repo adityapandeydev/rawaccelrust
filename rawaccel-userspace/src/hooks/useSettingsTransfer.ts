@@ -48,7 +48,7 @@ export function useSettingsTransfer(editor: ProfileEditor, notify: Notify, confi
       const migrated = await invoke<string>('import_settings', { rawJson: text });
       const document = JSON.parse(migrated);
       latest.current.confirmReplace(() => {
-        replaceDocument(document);
+        replaceDocument(document, false);
         notify({ isOpen: true, kind: 'info', title: 'Settings Imported', message: 'Settings loaded into the editor. Use Apply & Save to update the driver and startup settings.' });
       });
     } catch (error) {

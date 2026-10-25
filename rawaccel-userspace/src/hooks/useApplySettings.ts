@@ -30,7 +30,6 @@ export function useApplySettings(editor: ProfileEditor, driverStatus: ReturnType
         throw new Error(validationError);
       }
       try {
-        console.log('Applying Settings...', profiles);
         const settingsJson = serializeSettingsDocument(settingsMetadata, profiles, deviceConfig);
         const result = await invoke<SettingsApplyReport>('apply_settings', { settingsJson });
         if (result.applied) setAppliedSnapshot(settingsJson);
@@ -38,7 +37,6 @@ export function useApplySettings(editor: ProfileEditor, driverStatus: ReturnType
         const outcome = describeApplyOutcome(result);
         if (outcome.notification) notify(outcome.notification);
         else if (outcome.succeeded) notify({ isOpen: true, kind: 'info', title: 'Settings applied & saved', message: 'Saved settings will also be used for sign-in restoration when enabled.' });
-        if (outcome.succeeded) console.log('Settings applied and saved successfully.');
         return outcome.succeeded;
       } catch (error) {
         console.error('Failed to apply settings:', error);
