@@ -9,14 +9,14 @@ fs.mkdirSync(artifacts, {recursive:true});
 const root = path.resolve(__dirname, '../dist');
 const status = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../src-tauri/tests/fixtures/driver-status/stock-connected.json')));
 const mock = `<script>
-window.mockCalls=[]; window.mockEnabled=false; window.mockReject=false;
+window.mockCalls=[]; window.mockEnabled=false; window.mockReject=false; window.mockPathMismatch=false;
 window.__TAURI_INTERNALS__={transformCallback:()=>1,invoke:async(cmd,args={})=>{
 window.mockCalls.push({cmd,args});
 if(cmd==='get_driver_status')return ${JSON.stringify(status)};
 if(cmd==='get_devices')return [];
 if(cmd==='load_settings'){if(location.search.includes('delayload'))return await new Promise(resolve=>window.mockResolveLoad=resolve);throw 'No settings.json found';}
-if(cmd==='get_startup_info')return {enabled:window.mockEnabled,registration_error:null,settings_path:'C:\\\\Users\\\\Example\\\\AppData\\\\Local\\\\RawAccel\\\\settings.json',mirror_path:'D:\\\\Custom Apps\\\\RawAccel\\\\settings.json',executable_path:'D:\\\\Custom Apps\\\\RawAccel\\\\RawAccel.exe',portable:false,last_result:{restored:false,timestamp_secs:1792454400,settings_path:'C:\\\\Users\\\\Example\\\\AppData\\\\Local\\\\RawAccel\\\\settings.json',attempts:10,error:'Driver not ready'},diagnostic_error:null};
-if(cmd==='set_startup_enabled'){if(window.mockReject)throw 'Startup registration denied';window.mockEnabled=args.enabled;return;}
+if(cmd==='get_startup_info')return {enabled:window.mockEnabled,registration_error:window.mockPathMismatch?'Startup path needs updating':null,needs_path_update:window.mockPathMismatch,settings_path:'C:\\\\Users\\\\Example\\\\AppData\\\\Local\\\\RawAccel\\\\settings.json',mirror_path:'D:\\\\Custom Apps\\\\RawAccel\\\\settings.json',executable_path:'D:\\\\Custom Apps\\\\RawAccel\\\\RawAccel.exe',portable:false,last_result:{restored:false,timestamp_secs:1792454400,settings_path:'C:\\\\Users\\\\Example\\\\AppData\\\\Local\\\\RawAccel\\\\settings.json',attempts:10,error:'Driver not ready'},diagnostic_error:null};
+if(cmd==='set_startup_enabled'){if(window.mockReject)throw 'Startup registration denied';window.mockEnabled=args.enabled;window.mockPathMismatch=false;return;}
 if(cmd==='open_settings_folder')return;
 if(cmd==='apply_settings')return {applied:true,saved:true,saved_paths:['mock settings.json'],warnings:[],save_error:null};
 if(cmd==='import_settings')return args.rawJson;
@@ -46,6 +46,14 @@ const server = http.createServer((req,res)=>{
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     const checkbox=page.getByRole('checkbox',{name:'Restore settings at sign-in'});
     await checkbox.waitFor();
+    await page.evaluate(()=>{window.mockPathMismatch=true;});
+    await page.getByRole('button',{name:'Refresh status'}).click();
+    await page.getByRole('alert').filter({hasText:'Startup path needs updating'}).waitFor();
+    assert.equal(await checkbox.isChecked(),false);
+    await page.getByRole('button',{name:'Update startup path'}).click();
+    await page.getByRole('button',{name:'Refresh status'}).waitFor();
+    assert.equal(await checkbox.isChecked(),true);
+    await checkbox.uncheck();
     await checkbox.check();
     await page.getByRole('button',{name:'Update startup path'}).waitFor();
     assert.equal(await checkbox.isChecked(),true);

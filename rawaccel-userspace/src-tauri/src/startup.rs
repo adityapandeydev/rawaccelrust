@@ -27,12 +27,34 @@ pub struct RestoreReport {
 pub struct StartupInfo {
     pub enabled: Option<bool>,
     pub registration_error: Option<String>,
+    pub needs_path_update: bool,
     pub settings_path: String,
     pub mirror_path: Option<String>,
     pub executable_path: String,
     pub portable: bool,
     pub last_result: Option<RestoreReport>,
     pub diagnostic_error: Option<String>,
+}
+
+fn registration_matches(command: &str, registration: &auto_launch::AutoLaunch) -> bool {
+    command
+        .strip_suffix(" --silent")
+        .is_some_and(|path| path.eq_ignore_ascii_case(registration.get_app_path()))
+}
+
+fn registered_command() -> Result<Option<String>, String> {
+    use winreg::{
+        enums::{HKEY_CURRENT_USER, KEY_READ},
+        RegKey,
+    };
+    let result = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", KEY_READ)
+        .and_then(|key| key.get_value::<String, _>("RawAccel"));
+    match result {
+        Ok(command) => Ok(Some(command)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("Cannot read Windows startup command: {error}")),
+    }
 }
 
 fn registration_for(exe: &Path) -> Result<auto_launch::AutoLaunch, String> {
@@ -60,7 +82,15 @@ fn registration_for(exe: &Path) -> Result<auto_launch::AutoLaunch, String> {
 pub fn info() -> Result<StartupInfo, String> {
     let paths = crate::config::settings_paths()?;
     let exe = std::env::current_exe().map_err(|error| error.to_string())?;
-    let (enabled, registration_error) = match registration_for(&exe)?.is_enabled() {
+    let registration = registration_for(&exe)?;
+    let command = registered_command();
+    let matches = command
+        .as_ref()
+        .ok()
+        .and_then(|value| value.as_deref())
+        .is_some_and(|value| registration_matches(value, &registration));
+    let needs_path_update = command.as_ref().is_ok_and(|value| value.is_some()) && !matches;
+    let (mut enabled, mut registration_error) = match registration.is_enabled() {
         Ok(enabled) => (Some(enabled), None),
         Err(auto_launch::Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
             (Some(false), None)
@@ -70,6 +100,18 @@ pub fn info() -> Result<StartupInfo, String> {
             Some(format!("Cannot read Windows startup registration: {error}")),
         ),
     };
+    match command {
+        Err(error) => {
+            enabled = None;
+            registration_error = Some(error);
+        }
+        Ok(_) if needs_path_update => {
+            enabled = Some(false);
+            registration_error = Some("The RawAccel startup entry points to another executable or uses different arguments. Update the startup path to restore settings with this copy.".into());
+        }
+        Ok(None) => enabled = Some(false),
+        _ => {}
+    }
     let (last_result, diagnostic_error) = match read_report(&report_path(&paths)) {
         Ok(report) => (report, None),
         Err(error) => (None, Some(error)),
@@ -77,6 +119,7 @@ pub fn info() -> Result<StartupInfo, String> {
     Ok(StartupInfo {
         enabled,
         registration_error,
+        needs_path_update,
         settings_path: paths.primary.display().to_string(),
         mirror_path: paths.mirror.map(|path| path.display().to_string()),
         executable_path: exe.display().to_string(),
@@ -97,7 +140,14 @@ pub fn set_enabled(enabled: bool) -> Result<(), String> {
     if enabled {
         registration.enable()
     } else {
-        registration.disable()
+        if let Some(command) = registered_command()? {
+            if !registration_matches(&command, &registration) {
+                return Err("The startup entry belongs to another executable or uses different arguments; it was not removed.".into());
+            }
+            registration.disable()
+        } else {
+            Ok(())
+        }
     }
     .map_err(|error| format!("Cannot update Windows startup: {error}"))
 }
@@ -385,5 +435,26 @@ mod tests {
         assert!(registration_for(Path::new(&long))
             .unwrap_err()
             .contains("too long"));
+    }
+
+    #[test]
+    fn startup_ownership_requires_this_executable_and_the_exact_silent_argument() {
+        let registration = registration_for(Path::new(r"C:\Apps\RawAccel.exe")).unwrap();
+        assert!(registration_matches(
+            r#""C:\Apps\RawAccel.exe" --silent"#,
+            &registration
+        ));
+        assert!(registration_matches(
+            r#""c:\apps\rawaccel.exe" --silent"#,
+            &registration
+        ));
+        for command in [
+            r#""D:\Other\RawAccel.exe" --silent"#,
+            r#""C:\Apps\RawAccel.exe" --SILENT"#,
+            r#""C:\Apps\RawAccel.exe""#,
+            r#""C:\Apps\RawAccel.exe" --silent --other"#,
+        ] {
+            assert!(!registration_matches(command, &registration));
+        }
     }
 }

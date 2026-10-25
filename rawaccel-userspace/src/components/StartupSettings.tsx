@@ -5,6 +5,7 @@ import { Power } from 'lucide-react';
 interface StartupInfo {
   enabled: boolean | null;
   registration_error: string | null;
+  needs_path_update: boolean;
   settings_path: string;
   mirror_path: string | null;
   executable_path: string;
@@ -67,7 +68,7 @@ export function StartupSettings() {
     {(error || info?.registration_error) && <p className="inline-notice" role="alert">{error ?? info?.registration_error}</p>}
     <div className="settings-actions">
       <button className="btn" disabled={busy} onClick={() => void update()}>{busy ? 'Checking…' : 'Refresh status'}</button>
-      {info?.enabled && <button className="btn" disabled={busy} onClick={() => void update(true)}>Update startup path</button>}
+      {(info?.enabled || info?.needs_path_update) && <button className="btn" disabled={busy} onClick={() => void update(true)}>Update startup path</button>}
     </div>
     {info && <>
       <dl className="settings-paths">
