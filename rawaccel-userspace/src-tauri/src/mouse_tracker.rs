@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -15,6 +16,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 #[derive(Clone, serde::Serialize)]
 pub struct MouseSpeed {
+    pub available: bool,
     pub speed_x: f64,
     pub speed_y: f64,
     pub speed_whole: f64,
@@ -35,13 +37,14 @@ impl MouseState {
         self.distance += x.hypot(y);
     }
 
-    fn take(&mut self, milliseconds: f64) -> MouseSpeed {
-        let divisor = if milliseconds.is_finite() && milliseconds > 0.0 {
+    fn take(&mut self, milliseconds: f64, available: bool) -> MouseSpeed {
+        let divisor = if available && milliseconds.is_finite() && milliseconds > 0.0 {
             milliseconds
         } else {
             f64::INFINITY
         };
         let result = MouseSpeed {
+            available,
             speed_x: self.dx / divisor,
             speed_y: self.dy / divisor,
             speed_whole: self.distance / divisor,
@@ -60,6 +63,7 @@ static MOUSE_STATE: Mutex<MouseState> = Mutex::new(MouseState {
     dy: 0.0,
     distance: 0.0,
 });
+static TRACKER_AVAILABLE: AtomicBool = AtomicBool::new(false);
 
 unsafe extern "system" fn window_proc(
     hwnd: HWND,
@@ -108,7 +112,13 @@ pub fn start(app_handle: AppHandle) {
     // 1. Thread to pump messages and collect raw input
     thread::spawn(move || {
         unsafe {
-            let h_instance = GetModuleHandleW(None).unwrap();
+            let h_instance = match GetModuleHandleW(None) {
+                Ok(instance) => instance,
+                Err(error) => {
+                    eprintln!("Mouse tracker initialization failed: {error}");
+                    return;
+                }
+            };
             let class_name = windows::core::w!("RawAccelMouseTracker");
 
             let wc = WNDCLASSW {
@@ -120,7 +130,7 @@ pub fn start(app_handle: AppHandle) {
 
             RegisterClassW(&wc);
 
-            let hwnd = CreateWindowExW(
+            let hwnd = match CreateWindowExW(
                 Default::default(),
                 class_name,
                 windows::core::w!("RawAccelMouseTrackerWindow"),
@@ -133,8 +143,13 @@ pub fn start(app_handle: AppHandle) {
                 None,
                 Some(h_instance.into()),
                 None,
-            )
-            .unwrap();
+            ) {
+                Ok(hwnd) => hwnd,
+                Err(error) => {
+                    eprintln!("Mouse tracker window failed: {error}");
+                    return;
+                }
+            };
 
             // Register for raw input
             let rid = RAWINPUTDEVICE {
@@ -152,6 +167,7 @@ pub fn start(app_handle: AppHandle) {
                 return;
             }
 
+            TRACKER_AVAILABLE.store(true, Ordering::Release);
             // Run message loop
             let mut msg = MSG::default();
             loop {
@@ -169,6 +185,7 @@ pub fn start(app_handle: AppHandle) {
                     }
                 }
             }
+            TRACKER_AVAILABLE.store(false, Ordering::Release);
             let _ = DestroyWindow(hwnd);
         }
     });
@@ -183,9 +200,10 @@ pub fn start(app_handle: AppHandle) {
 
             if dt >= 16.0 {
                 let speed = if let Ok(mut state) = MOUSE_STATE.lock() {
-                    state.take(dt)
+                    state.take(dt, TRACKER_AVAILABLE.load(Ordering::Acquire))
                 } else {
                     MouseSpeed {
+                        available: false,
                         speed_x: 0.0,
                         speed_y: 0.0,
                         speed_whole: 0.0,
@@ -215,12 +233,12 @@ mod tests {
         let mut state = empty();
         state.record(3, 4);
         state.record(-3, -4);
-        let speed = state.take(2.0);
+        let speed = state.take(2.0, true);
         assert_eq!(
             (speed.speed_x, speed.speed_y, speed.speed_whole),
             (3.0, 4.0, 5.0)
         );
-        assert_eq!(state.take(16.0).speed_whole, 0.0);
+        assert_eq!(state.take(16.0, true).speed_whole, 0.0);
     }
 
     #[test]
@@ -228,7 +246,7 @@ mod tests {
         let mut state = empty();
         state.record(3, 0);
         state.record(0, 4);
-        assert_eq!(state.take(1.0).speed_whole, 7.0);
+        assert_eq!(state.take(1.0, true).speed_whole, 7.0);
     }
 
     #[test]
@@ -236,11 +254,26 @@ mod tests {
         for duration in [0.0, -1.0, f64::NAN, f64::INFINITY] {
             let mut state = empty();
             state.record(i32::MIN, i32::MAX);
-            assert_eq!(state.take(duration).speed_whole, 0.0);
-            assert_eq!(state.take(16.0).speed_x, 0.0);
+            assert_eq!(state.take(duration, true).speed_whole, 0.0);
+            assert_eq!(state.take(16.0, true).speed_x, 0.0);
         }
         let mut state = empty();
         state.record(i32::MIN, i32::MAX);
-        assert!(state.take(0.125).speed_whole.is_finite());
+        assert!(state.take(0.125, true).speed_whole.is_finite());
+    }
+
+    #[test]
+    fn unavailable_tracker_clears_stale_motion_and_reports_failure() {
+        let mut state = empty();
+        state.record(3, 4);
+        let failed = state.take(16.0, false);
+        assert!(!failed.available);
+        assert_eq!(
+            (failed.speed_x, failed.speed_y, failed.speed_whole),
+            (0.0, 0.0, 0.0)
+        );
+        let stationary = state.take(16.0, true);
+        assert!(stationary.available);
+        assert_eq!(stationary.speed_whole, 0.0);
     }
 }

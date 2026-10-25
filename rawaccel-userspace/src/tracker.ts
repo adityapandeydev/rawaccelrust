@@ -1,10 +1,12 @@
 export interface MouseSpeed {
+  available?: boolean;
   speed_x: number;
   speed_y: number;
   speed_whole: number;
 }
 
 export function trackerInputs(whole: boolean, speed: MouseSpeed): { axis: 'x' | 'y'; speed: number }[] {
+  if (speed.available === false) return [];
   // Curve equality says nothing about Combined vs By Component processing.
   const inputs = whole ? [{ axis: 'x' as const, speed: speed.speed_whole }]
     : [{ axis: 'x' as const, speed: speed.speed_x }, { axis: 'y' as const, speed: speed.speed_y }];

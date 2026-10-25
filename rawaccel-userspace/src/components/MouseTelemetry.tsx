@@ -13,7 +13,10 @@ export function MouseTelemetryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     const unlisten = listen<MouseSpeed>('mouse-speed', event => {
-      if (active) setMouseSpeed(event.payload);
+      if (active) {
+        setMouseSpeed(event.payload);
+        setTrackerUnavailable(event.payload.available === false);
+      }
     }).catch(() => {
       if (active) setTrackerUnavailable(true);
     });

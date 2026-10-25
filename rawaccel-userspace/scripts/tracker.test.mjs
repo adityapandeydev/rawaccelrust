@@ -8,3 +8,9 @@ test('processing mode selects tracker axes even for identical curves', () => {
   assert.deepEqual(trackerInputs(false, speed), [{ axis: 'x', speed: 3 }, { axis: 'y', speed: 4 }]);
   assert.equal(trackerInputs(false, { ...speed, speed_x: NaN }).length, 1);
 });
+
+test('unavailable tracking never produces theoretical curve dots', () => {
+  const speed = {speed_x:3,speed_y:4,speed_whole:5,available:false};
+  assert.deepEqual(trackerInputs(true,speed),[]);
+  assert.deepEqual(trackerInputs(false,speed),[]);
+});

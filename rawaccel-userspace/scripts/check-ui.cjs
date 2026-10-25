@@ -10,7 +10,7 @@ const root = path.resolve(__dirname, '../dist');
 const status = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../src-tauri/tests/fixtures/driver-status/stock-connected.json')));
 const mock = `<script>
 window.mockCalls=[]; window.mockEnabled=false; window.mockReject=false; window.mockPathMismatch=false;
-window.__TAURI_INTERNALS__={transformCallback:()=>1,invoke:async(cmd,args={})=>{
+window.mockCallbacks={};window.mockNext=0;window.__TAURI_INTERNALS__={transformCallback:callback=>{const id=++window.mockNext;window.mockCallbacks[id]=callback;return id;},invoke:async(cmd,args={})=>{
 window.mockCalls.push({cmd,args});
 if(cmd==='get_driver_status')return ${JSON.stringify(status)};
 if(cmd==='get_devices')return [];
@@ -46,6 +46,17 @@ const server = http.createServer((req,res)=>{
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     const checkbox=page.getByRole('checkbox',{name:'Restore settings at sign-in'});
     await checkbox.waitFor();
+    await page.evaluate(()=>{
+      const handler=window.mockCalls.findLast(call=>call.cmd==='plugin:event|listen'&&call.args.event==='mouse-speed').args.handler;
+      window.mockCallbacks[handler]({payload:{available:false,speed_x:0,speed_y:0,speed_whole:0}});
+    });
+    await page.getByText('Tracker unavailable',{exact:true}).waitFor();
+    assert.equal(await page.locator('.live-input strong').textContent(),'—');
+    await page.evaluate(()=>{
+      const handler=window.mockCalls.findLast(call=>call.cmd==='plugin:event|listen'&&call.args.event==='mouse-speed').args.handler;
+      window.mockCallbacks[handler]({payload:{available:true,speed_x:3,speed_y:4,speed_whole:5}});
+    });
+    await page.waitForFunction(()=>document.querySelector('.live-input strong').textContent==='5.0');
     await page.evaluate(()=>{window.mockPathMismatch=true;});
     await page.getByRole('button',{name:'Refresh status'}).click();
     await page.getByRole('alert').filter({hasText:'Startup path needs updating'}).waitFor();
