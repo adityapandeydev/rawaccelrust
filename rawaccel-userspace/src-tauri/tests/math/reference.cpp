@@ -11,40 +11,6 @@
 #include "accel-union.hpp"
 namespace ra = rawaccel;
 
-// Tiered's C++ constructors are intentionally empty: userspace supplies constants.
-// Initialize those constants here independently, then exercise the real operators.
-void prepare_tiered(ra::tiered_base& curve, const ra::accel_args& a) {
-    if (a.t_type == ra::tiered_type::linear) {
-        curve.linear = {a.tiered_multiplier1, a.tiered_input_offset1,
-            a.tiered_multiplier2, a.tiered_input_offset1 + a.tiered_transition1,
-            a.tiered_transition1 > 0 ? 1 / a.tiered_transition1 : 0,
-            a.tiered_multiplier3, a.tiered_input_offset2,
-            a.tiered_input_offset2 + a.tiered_transition2,
-            a.tiered_transition2 > 0 ? 1 / a.tiered_transition2 : 0};
-        return;
-    }
-    auto& n = curve.natural;
-    n.m1 = a.tiered_multiplier1; n.x1 = a.tiered_input_offset1;
-    n.l1 = a.tiered_multiplier2 - n.m1;
-    n.a1 = n.l1 == 0 ? 0 : a.tiered_decay_rate1 / std::abs(n.l1);
-    n.x2 = a.tiered_input_offset2;
-    double dx = n.x2 - n.x1;
-    double decay = n.l1 == 0 ? 1 : std::exp(-n.a1 * dx);
-    n.v2 = n.m1 * n.x1 + n.m1 * dx;
-    n.m2_prime = n.m1;
-    if (n.l1 != 0) {
-        if (a.gain) {
-            n.v2 += n.l1 * (dx - (1 - decay) / n.a1);
-            n.m2_prime += n.l1 * (1 - decay);
-        } else {
-            n.v2 += n.l1 * dx * (1 - decay);
-            n.m2_prime += n.l1 * (1 - decay + dx * n.a1 * decay);
-        }
-    }
-    n.l2 = a.tiered_multiplier3 - n.m2_prime;
-    n.a2 = n.l2 == 0 ? 0 : a.tiered_decay_rate2 / std::abs(n.l2);
-}
-
 void number(double value) {
     if (std::isnan(value)) std::cout << "\"NaN\"";
     else if (!std::isfinite(value)) std::cout << (value > 0 ? "\"Infinity\"" : "\"-Infinity\"");
@@ -84,10 +50,6 @@ int main() {
         if (!std::cin) return 5;
         ra::accel_union curve{};
         curve.init(a);
-        if (a.mode == ra::accel_mode::tiered) {
-            if (a.gain) prepare_tiered(curve.tiered_g, a);
-            else prepare_tiered(curve.tiered_l, a);
-        }
         std::cout << "{\"expected\":[";
         for (size_t i = 0; i < xs.size(); ++i) {
             if (i) std::cout << ',';

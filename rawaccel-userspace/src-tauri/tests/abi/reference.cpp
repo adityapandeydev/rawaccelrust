@@ -346,11 +346,9 @@ void settings_packet(const std::string& path) {
         args->mode = ra::accel_mode::tiered; args->gain = false;
         args->tiered_transition1 = 8; args->tiered_transition2 = 16; args->tiered_input_offset2 = 16;
     }
+    // The Tiered Linear constructor yields exact binary fractions here:
+    // {1, 0, 1.5, 8, 0.125, 2, 16, 32, 0.0625}.
     for (auto& modifier : modifiers) ra::init_data(modifier);
-    // This branch intentionally precomputes native Tiered in Rust, not its C++ constructor.
-    // Exact binary fractions isolate ABI/packing from transcendental curve-math parity.
-    modifiers[1].data.accel_x.tiered_l.linear = {1, 0, 1.5, 8, 0.125, 2, 16, 32, 0.0625};
-    modifiers[1].data.accel_y.tiered_l.linear = modifiers[1].data.accel_x.tiered_l.linear;
     wcscpy_s(devices[0].id, L"mouseA"); wcscpy_s(devices[0].profile, L"Tiered");
     devices[0].config.dpi = 800; devices[0].config.polling_rate = 2000;
     devices[0].config.clamp.min = 1; devices[0].config.clamp.max = 8;

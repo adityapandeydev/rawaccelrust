@@ -8,7 +8,7 @@
     "accel-noaccel.hpp": "a3fd7d5cbd973fc91f468caf0f570b5961ff3343d5f558bea994f113501bacbb",
     "accel-power.hpp": "e1ef7f9c482a3b1130d5db7b47ae86566bd4a8e985e7a0ba692da906ccc8d96d",
     "accel-synchronous.hpp": "680c332aad398e3d84d0c8079ba983c044f1f4b3b3fb9d500e7851ccc5dadc0f",
-    "accel-tiered.hpp": "c00704d16adece90797a56c0b5ee263ef9db8569be3cde027ce832530811085b",
+    "accel-tiered.hpp": "d6d24204d4cafdf882cc1bf1618c93238c120439039b46120f6b6364a96d791a",
     "accel-union.hpp": "bf285c15f839d106076e053eeab81b79fca2c3234c2faa602d1aec511513742c",
     "math-vec2.hpp": "9758cdb7c1247ff0b098facdd6222eb05f3f12c1a78e8d4f55a2e5d3985105d8",
     "rawaccel-base.hpp": "5f15f2e647764d5bb95d6b7540461b32c571a80a046a0f769659d1ac8bc7b6fb",
@@ -22,7 +22,7 @@
   "absolute_tolerance": 1e-10,
   "relative_tolerance": 1e-10,
   "comparison": "abs(actual-reference) <= absolute + relative*abs(reference); nonfinite classifications must match; Synchronous tables compare exact f32 bits",
-  "limits": "Offline sampled verification, not proof over every valid real input or live kernel output. Tiered constants independently initialized because C++ constructors are empty. Negative speeds only exercise reference behavior.",
+  "limits": "Offline sampled verification, not proof over every valid real input or live kernel output. Negative speeds only exercise reference behavior.",
   "cases": [
     {
       "name": "noaccel-legacy",

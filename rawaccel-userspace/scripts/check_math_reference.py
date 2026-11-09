@@ -139,7 +139,7 @@ def main():
                 "headers_sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in headers},
                 "absolute_tolerance": 1e-10, "relative_tolerance": 1e-10,
                 "comparison": "abs(actual-reference) <= absolute + relative*abs(reference); nonfinite classifications must match; Synchronous tables compare exact f32 bits",
-                "limits": "Offline sampled verification, not proof over every valid real input or live kernel output. Tiered constants independently initialized because C++ constructors are empty. Negative speeds only exercise reference behavior.",
+                "limits": "Offline sampled verification, not proof over every valid real input or live kernel output. Negative speeds only exercise reference behavior.",
                 "cases": fixtures}
     serialized = json.dumps(document, indent=2, allow_nan=False) + "\n"
     if options.update:
