@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  userspace:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: rawaccel-userspace
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The stock ABI check reads headers from a pinned upstream commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: rawaccel-userspace/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rawaccel-userspace/src-tauri
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Frontend tests
+        run: npm test
+
+      - name: Type check and build frontend
+        run: npm run build
+
+      - name: Rust formatting
+        working-directory: rawaccel-userspace/src-tauri
+        run: cargo fmt --check
+
+      - name: Clippy (stock driver)
+        working-directory: rawaccel-userspace/src-tauri
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Clippy (custom Tiered driver)
+        working-directory: rawaccel-userspace/src-tauri
+        run: cargo clippy --all-targets --locked --features custom-tiered-driver -- -D warnings
+
+      - name: Rust tests (stock driver)
+        working-directory: rawaccel-userspace/src-tauri
+        run: cargo test --locked
+
+      - name: Rust tests (custom Tiered driver)
+        working-directory: rawaccel-userspace/src-tauri
+        run: cargo test --locked --features custom-tiered-driver
+
+      - name: C++ driver ABI matches Rust
+        run: python scripts/check_driver_abi.py
+
+      - name: Math reference checker regression tests
+        run: python scripts/test_check_math_reference.py
+
+      - name: C++ curve math matches the saved reference
+        run: python scripts/check_math_reference.py
