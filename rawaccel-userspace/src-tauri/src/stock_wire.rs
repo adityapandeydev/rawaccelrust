@@ -50,11 +50,17 @@ impl TryFrom<&ra::accel_args> for StockAccelArgs {
     fn try_from(value: &ra::accel_args) -> Result<Self, String> {
         let mode = match value.mode {
             ra::accel_mode::tiered => return Err("Tiered is preview only with the stock driver; switch to a supported mode before applying".into()),
+            // Map by name: custom and stock enum values differ for noaccel.
+            ra::accel_mode::classic => 0,
+            ra::accel_mode::jump => 1,
+            ra::accel_mode::natural => 2,
+            ra::accel_mode::synchronous => 3,
+            ra::accel_mode::power => 4,
+            ra::accel_mode::lookup => 5,
             ra::accel_mode::noaccel => 6,
-            other => other as i32,
         };
         Ok(Self {
-            mode: mode,
+            mode,
             gain: value.gain,
             input_offset: value.input_offset,
             output_offset: value.output_offset,

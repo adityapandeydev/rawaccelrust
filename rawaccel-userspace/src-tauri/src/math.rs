@@ -395,15 +395,12 @@ struct PowerLegacy {
 impl PowerLegacy {
     fn new(args: &accel_args) -> Self {
         let n = args.exponent_power;
-        let offset;
-        let scale;
-        let constant;
 
         // Mirrors C++ power_base constructor: if/else-if/else on cap_mode and gain
-        if args.cap_mode != cap_mode::io {
-            scale = args.scale;
+        let scale = if args.cap_mode != cap_mode::io {
+            args.scale
         } else if args.gain {
-            scale = power_scale_from_gain_point(args.cap.x, args.cap.y, n);
+            power_scale_from_gain_point(args.cap.x, args.cap.y, n)
         } else {
             // Legacy + io cap mode: offset ignored due to circular dependency
             let s = power_scale_from_output_point(args.cap.x, args.cap.y, n, 0.0);
@@ -413,13 +410,13 @@ impl PowerLegacy {
                 constant: 0.0,
                 cap: args.cap.y,
             };
-        }
+        };
 
-        offset = vec2d {
+        let offset = vec2d {
             x: power_gain_inverse(args.output_offset, n, scale),
             y: args.output_offset,
         };
-        constant = offset.x * offset.y * n / (n + 1.0);
+        let constant = offset.x * offset.y * n / (n + 1.0);
 
         let mut cap = f64::MAX;
         match args.cap_mode {
@@ -465,13 +462,11 @@ impl PowerGain {
     fn new(args: &accel_args) -> Self {
         let n = args.exponent_power;
         let mut offset = vec2d::default();
-        let scale;
-        let constant;
 
-        if args.cap_mode != cap_mode::io {
-            scale = args.scale;
+        let scale = if args.cap_mode != cap_mode::io {
+            args.scale
         } else if args.gain {
-            scale = power_scale_from_gain_point(args.cap.x, args.cap.y, n);
+            power_scale_from_gain_point(args.cap.x, args.cap.y, n)
         } else {
             let s = power_scale_from_output_point(args.cap.x, args.cap.y, n, 0.0);
             return Self {
@@ -484,26 +479,25 @@ impl PowerGain {
                 },
                 constant_b: 0.0,
             };
-        }
+        };
 
         offset.x = power_gain_inverse(args.output_offset, n, scale);
         offset.y = args.output_offset;
-        constant = offset.x * offset.y * n / (n + 1.0);
+        let constant = offset.x * offset.y * n / (n + 1.0);
 
         let mut cap = vec2d {
             x: f64::MAX,
             y: f64::MAX,
         };
-        let constant_b;
 
-        match args.cap_mode {
+        let constant_b = match args.cap_mode {
             cap_mode::io => {
                 cap = args.cap;
-                constant_b = power_integration_constant(
+                power_integration_constant(
                     cap.x,
                     cap.y,
                     power_base_fn(cap.x, args, offset, scale, constant),
-                );
+                )
             }
             cap_mode::in_ => {
                 if args.cap.x > 0.0 {
@@ -522,24 +516,24 @@ impl PowerGain {
                     cap.x = args.cap.x;
                     cap.y = power_gain_fn(args.cap.x, n, scale);
                 }
-                constant_b = power_integration_constant(
+                power_integration_constant(
                     cap.x,
                     cap.y,
                     power_base_fn(cap.x, args, offset, scale, constant),
-                );
+                )
             }
             _ => {
                 if args.cap.y > 0.0 {
                     cap.x = power_gain_inverse(args.cap.y, n, scale);
                     cap.y = args.cap.y;
                 }
-                constant_b = power_integration_constant(
+                power_integration_constant(
                     cap.x,
                     cap.y,
                     power_base_fn(cap.x, args, offset, scale, constant),
-                );
+                )
             }
-        }
+        };
 
         Self {
             offset,
@@ -849,8 +843,16 @@ impl Lookup {
             let t = (x - ax) / dx;
             let interpolated = ay + t * (by - ay);
             let mut y = if (t > 1.0) == (ay < by) {
-                if by < interpolated { interpolated } else { by }
-            } else if interpolated < by { interpolated } else { by };
+                if by < interpolated {
+                    interpolated
+                } else {
+                    by
+                }
+            } else if interpolated < by {
+                interpolated
+            } else {
+                by
+            };
             if self.velocity {
                 y /= x;
             }
@@ -1019,8 +1021,8 @@ impl SynchronousGain {
         // C++ ilogb uses the magnitude, including for negative reference inputs.
         let e = (x.abs().log2().floor() as i32).min(self.range_stop - 1);
         if e >= self.range_start {
-            let idx_f = self.range_num as f64
-                * ((e - self.range_start) as f64 + x * 2.0f64.powi(-e) - 1.0);
+            let idx_f =
+                self.range_num as f64 * ((e - self.range_start) as f64 + x * 2.0f64.powi(-e) - 1.0);
             let size = (self.range_stop - self.range_start) * self.range_num + 1;
             let idx = (idx_f as i32).min(size - 2) as u32 as usize;
             if idx < models::LUT_RAW_DATA_CAPACITY - 1 {
@@ -1031,7 +1033,11 @@ impl SynchronousGain {
             }
         }
         let y = args.data[0] as f64;
-        if self.velocity { y / self.x_start } else { y }
+        if self.velocity {
+            y / self.x_start
+        } else {
+            y
+        }
     }
 }
 
@@ -1039,7 +1045,6 @@ impl SynchronousGain {
 
 #[repr(C)]
 struct Noaccel;
-
 
 // Explicit curve encoders retain C layout and leave padding initialized.
 crate::wire::wire_struct!(ClassicLegacy, accel_raised, cap, sign);
@@ -1228,9 +1233,7 @@ pub fn evaluate_curve(args: &accel_args, x: f64) -> f64 {
                 SynchronousLegacy::new(args).evaluate(x)
             }
         }
-        accel_mode::lookup => {
-            Lookup::new(args).evaluate(x, args)
-        }
+        accel_mode::lookup => Lookup::new(args).evaluate(x, args),
         accel_mode::noaccel => 1.0,
     }
 }
@@ -1242,6 +1245,27 @@ pub fn evaluate_curve(args: &accel_args, x: f64) -> f64 {
 mod reference_tests;
 
 #[cfg(test)]
+pub(crate) fn curve_layouts() -> serde_json::Map<String, serde_json::Value> {
+    use std::mem::{align_of, offset_of, size_of};
+    let mut layouts = serde_json::Map::new();
+    layouts.insert("ClassicLegacy".into(), serde_json::json!({ "size": size_of::<ClassicLegacy>(), "align": align_of::<ClassicLegacy>(), "accel_raised": offset_of!(ClassicLegacy, accel_raised), "cap": offset_of!(ClassicLegacy, cap), "sign": offset_of!(ClassicLegacy, sign) }));
+    layouts.insert("ClassicGain".into(), serde_json::json!({ "size": size_of::<ClassicGain>(), "align": align_of::<ClassicGain>(), "accel_raised": offset_of!(ClassicGain, accel_raised), "cap": offset_of!(ClassicGain, cap), "constant": offset_of!(ClassicGain, constant), "sign": offset_of!(ClassicGain, sign) }));
+    layouts.insert("JumpLegacy".into(), serde_json::json!({ "size": size_of::<JumpLegacy>(), "align": align_of::<JumpLegacy>(), "step": offset_of!(JumpLegacy, step), "smooth_rate": offset_of!(JumpLegacy, smooth_rate) }));
+    layouts.insert("JumpGain".into(), serde_json::json!({ "size": size_of::<JumpGain>(), "align": align_of::<JumpGain>(), "step": offset_of!(JumpGain, step), "smooth_rate": offset_of!(JumpGain, smooth_rate), "c": offset_of!(JumpGain, c) }));
+    layouts.insert("NaturalLegacy".into(), serde_json::json!({ "size": size_of::<NaturalLegacy>(), "align": align_of::<NaturalLegacy>(), "offset": offset_of!(NaturalLegacy, offset), "accel": offset_of!(NaturalLegacy, accel), "limit": offset_of!(NaturalLegacy, limit) }));
+    layouts.insert("NaturalGain".into(), serde_json::json!({ "size": size_of::<NaturalGain>(), "align": align_of::<NaturalGain>(), "offset": offset_of!(NaturalGain, offset), "accel": offset_of!(NaturalGain, accel), "limit": offset_of!(NaturalGain, limit), "constant": offset_of!(NaturalGain, constant) }));
+    layouts.insert("PowerLegacy".into(), serde_json::json!({ "size": size_of::<PowerLegacy>(), "align": align_of::<PowerLegacy>(), "offset": offset_of!(PowerLegacy, offset), "scale": offset_of!(PowerLegacy, scale), "constant": offset_of!(PowerLegacy, constant), "cap": offset_of!(PowerLegacy, cap) }));
+    layouts.insert("PowerGain".into(), serde_json::json!({ "size": size_of::<PowerGain>(), "align": align_of::<PowerGain>(), "offset": offset_of!(PowerGain, offset), "scale": offset_of!(PowerGain, scale), "constant": offset_of!(PowerGain, constant), "cap": offset_of!(PowerGain, cap), "constant_b": offset_of!(PowerGain, constant_b) }));
+    layouts.insert("TieredLinearLegacy".into(), serde_json::json!({ "size": size_of::<TieredLinearLegacy>(), "align": align_of::<TieredLinearLegacy>(), "m1": offset_of!(TieredLinearLegacy, m1), "x1": offset_of!(TieredLinearLegacy, x1), "m2": offset_of!(TieredLinearLegacy, m2), "x1_end": offset_of!(TieredLinearLegacy, x1_end), "inv_trans1": offset_of!(TieredLinearLegacy, inv_trans1), "m3": offset_of!(TieredLinearLegacy, m3), "x2": offset_of!(TieredLinearLegacy, x2), "x2_end": offset_of!(TieredLinearLegacy, x2_end), "inv_trans2": offset_of!(TieredLinearLegacy, inv_trans2) }));
+    layouts.insert("TieredNaturalLegacy".into(), serde_json::json!({ "size": size_of::<TieredNaturalLegacy>(), "align": align_of::<TieredNaturalLegacy>(), "m1": offset_of!(TieredNaturalLegacy, m1), "x1": offset_of!(TieredNaturalLegacy, x1), "l1": offset_of!(TieredNaturalLegacy, l1), "a1": offset_of!(TieredNaturalLegacy, a1), "x2": offset_of!(TieredNaturalLegacy, x2), "v2": offset_of!(TieredNaturalLegacy, v2), "m2_prime": offset_of!(TieredNaturalLegacy, m2_prime), "l2": offset_of!(TieredNaturalLegacy, l2), "a2": offset_of!(TieredNaturalLegacy, a2) }));
+    layouts.insert("TieredNaturalGain".into(), serde_json::json!({ "size": size_of::<TieredNaturalGain>(), "align": align_of::<TieredNaturalGain>(), "m1": offset_of!(TieredNaturalGain, m1), "x1": offset_of!(TieredNaturalGain, x1), "l1": offset_of!(TieredNaturalGain, l1), "a1": offset_of!(TieredNaturalGain, a1), "x2": offset_of!(TieredNaturalGain, x2), "v2": offset_of!(TieredNaturalGain, v2), "m2_prime": offset_of!(TieredNaturalGain, m2_prime), "l2": offset_of!(TieredNaturalGain, l2), "a2": offset_of!(TieredNaturalGain, a2) }));
+    layouts.insert("Lookup".into(), serde_json::json!({ "size": size_of::<Lookup>(), "align": align_of::<Lookup>(), "size": offset_of!(Lookup, size), "velocity": offset_of!(Lookup, velocity) }));
+    layouts.insert("SynchronousLegacy".into(), serde_json::json!({ "size": size_of::<SynchronousLegacy>(), "align": align_of::<SynchronousLegacy>(), "log_motivity": offset_of!(SynchronousLegacy, log_motivity), "gamma_const": offset_of!(SynchronousLegacy, gamma_const), "log_syncspeed": offset_of!(SynchronousLegacy, log_syncspeed), "syncspeed": offset_of!(SynchronousLegacy, syncspeed), "sharpness": offset_of!(SynchronousLegacy, sharpness), "sharpness_recip": offset_of!(SynchronousLegacy, sharpness_recip), "use_linear_clamp": offset_of!(SynchronousLegacy, use_linear_clamp), "minimum_sens": offset_of!(SynchronousLegacy, minimum_sens), "maximum_sens": offset_of!(SynchronousLegacy, maximum_sens) }));
+    layouts.insert("SynchronousGain".into(), serde_json::json!({ "size": size_of::<SynchronousGain>(), "align": align_of::<SynchronousGain>(), "velocity": offset_of!(SynchronousGain, velocity), "range_start": offset_of!(SynchronousGain, range_start), "range_stop": offset_of!(SynchronousGain, range_stop), "range_num": offset_of!(SynchronousGain, range_num), "x_start": offset_of!(SynchronousGain, x_start) }));
+    layouts
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::{accel_args, accel_mode, cap_mode, tiered_type, ACCEL_UNION_SIZE};
@@ -1249,10 +1273,12 @@ mod tests {
 
     #[test]
     fn lookup_uses_packed_float_segment_width_and_zero_endpoint() {
-        let mut args = accel_args::default();
-        args.mode = accel_mode::lookup;
-        args.gain = false;
-        args.length = 4;
+        let mut args = accel_args {
+            mode: accel_mode::lookup,
+            gain: false,
+            length: 4,
+            ..Default::default()
+        };
         args.data[..4].copy_from_slice(&[0.1, 1.0, 10.0, 1.5]);
         assert_eq!(evaluate_curve(&args, 0.0), 0.0);
         assert_eq!(evaluate_curve(&args, -1.0), 0.0);
@@ -1262,13 +1288,15 @@ mod tests {
 
     #[test]
     fn synchronous_gain_uses_velocity_table_and_evaluates_its_integral() {
-        let mut args = accel_args::default();
-        args.mode = accel_mode::synchronous;
-        args.gain = true;
-        args.motivity = 2.0;
-        args.gamma = 1.0;
-        args.sync_speed = 10.0;
-        args.smooth = 0.0;
+        let mut args = accel_args {
+            mode: accel_mode::synchronous,
+            gain: true,
+            motivity: 2.0,
+            gamma: 1.0,
+            sync_speed: 10.0,
+            smooth: 0.0,
+            ..Default::default()
+        };
         init_accel_union(&mut accel_union::default(), &mut args);
         // C++ integrates the constant minimum gain (0.5) from 0 to 0.125.
         assert_eq!(args.data[0], 0.0625);
@@ -1284,21 +1312,71 @@ mod tests {
 
     #[test]
     fn test_struct_sizes_fit_in_accel_union() {
-        assert!(size_of::<ClassicLegacy>() <= ACCEL_UNION_SIZE, "ClassicLegacy exceeds 72 bytes");
-        assert!(size_of::<ClassicGain>() <= ACCEL_UNION_SIZE, "ClassicGain exceeds 72 bytes");
-        assert!(size_of::<JumpLegacy>() <= ACCEL_UNION_SIZE, "JumpLegacy exceeds 72 bytes");
-        assert!(size_of::<JumpGain>() <= ACCEL_UNION_SIZE, "JumpGain exceeds 72 bytes");
-        assert!(size_of::<NaturalLegacy>() <= ACCEL_UNION_SIZE, "NaturalLegacy exceeds 72 bytes");
-        assert!(size_of::<NaturalGain>() <= ACCEL_UNION_SIZE, "NaturalGain exceeds 72 bytes");
-        assert!(size_of::<PowerLegacy>() <= ACCEL_UNION_SIZE, "PowerLegacy exceeds 72 bytes");
-        assert!(size_of::<PowerGain>() <= ACCEL_UNION_SIZE, "PowerGain exceeds 72 bytes");
-        assert_eq!(size_of::<TieredLinearLegacy>(), 72, "TieredLinearLegacy must be exactly 72 bytes");
-        assert_eq!(size_of::<TieredNaturalLegacy>(), 72, "TieredNaturalLegacy must be exactly 72 bytes");
-        assert_eq!(size_of::<TieredNaturalGain>(), 72, "TieredNaturalGain must be exactly 72 bytes");
-        assert_eq!(size_of::<SynchronousLegacy>(), 72, "SynchronousLegacy must be exactly 72 bytes");
-        assert!(size_of::<SynchronousGain>() <= ACCEL_UNION_SIZE, "SynchronousGain exceeds 72 bytes");
-        assert!(size_of::<Lookup>() <= ACCEL_UNION_SIZE, "Lookup exceeds 72 bytes");
-        assert_eq!(size_of::<accel_union>(), 72, "accel_union buffer must be 72 bytes");
+        assert!(
+            size_of::<ClassicLegacy>() <= ACCEL_UNION_SIZE,
+            "ClassicLegacy exceeds 72 bytes"
+        );
+        assert!(
+            size_of::<ClassicGain>() <= ACCEL_UNION_SIZE,
+            "ClassicGain exceeds 72 bytes"
+        );
+        assert!(
+            size_of::<JumpLegacy>() <= ACCEL_UNION_SIZE,
+            "JumpLegacy exceeds 72 bytes"
+        );
+        assert!(
+            size_of::<JumpGain>() <= ACCEL_UNION_SIZE,
+            "JumpGain exceeds 72 bytes"
+        );
+        assert!(
+            size_of::<NaturalLegacy>() <= ACCEL_UNION_SIZE,
+            "NaturalLegacy exceeds 72 bytes"
+        );
+        assert!(
+            size_of::<NaturalGain>() <= ACCEL_UNION_SIZE,
+            "NaturalGain exceeds 72 bytes"
+        );
+        assert!(
+            size_of::<PowerLegacy>() <= ACCEL_UNION_SIZE,
+            "PowerLegacy exceeds 72 bytes"
+        );
+        assert!(
+            size_of::<PowerGain>() <= ACCEL_UNION_SIZE,
+            "PowerGain exceeds 72 bytes"
+        );
+        assert_eq!(
+            size_of::<TieredLinearLegacy>(),
+            72,
+            "TieredLinearLegacy must be exactly 72 bytes"
+        );
+        assert_eq!(
+            size_of::<TieredNaturalLegacy>(),
+            72,
+            "TieredNaturalLegacy must be exactly 72 bytes"
+        );
+        assert_eq!(
+            size_of::<TieredNaturalGain>(),
+            72,
+            "TieredNaturalGain must be exactly 72 bytes"
+        );
+        assert_eq!(
+            size_of::<SynchronousLegacy>(),
+            72,
+            "SynchronousLegacy must be exactly 72 bytes"
+        );
+        assert!(
+            size_of::<SynchronousGain>() <= ACCEL_UNION_SIZE,
+            "SynchronousGain exceeds 72 bytes"
+        );
+        assert!(
+            size_of::<Lookup>() <= ACCEL_UNION_SIZE,
+            "Lookup exceeds 72 bytes"
+        );
+        assert_eq!(
+            size_of::<accel_union>(),
+            72,
+            "accel_union buffer must be 72 bytes"
+        );
     }
 
     // ── 2. Classic Mode Tests ────────────────────────────────────────────
@@ -1329,7 +1407,10 @@ mod tests {
         // At x = 30: 0.01 * (20)^2 / 30 + 1 = 4 / 30 + 1 = 1.1333333
         let sens_30 = evaluate_curve(&args, 30.0);
         assert!((sens_30 - (1.0 + 4.0 / 30.0)).abs() < 1e-6);
-        assert!(sens_30 > sens_20, "Classic acceleration must be strictly monotonically increasing");
+        assert!(
+            sens_30 > sens_20,
+            "Classic acceleration must be strictly monotonically increasing"
+        );
     }
 
     #[test]
@@ -1361,7 +1442,10 @@ mod tests {
         };
         let val_at_cap = evaluate_curve(&in_cap_args, 20.0);
         let val_above_cap = evaluate_curve(&in_cap_args, 100.0);
-        assert!((val_at_cap - val_above_cap).abs() < 1e-6, "Sensitivity must saturate beyond input cap threshold");
+        assert!(
+            (val_at_cap - val_above_cap).abs() < 1e-6,
+            "Sensitivity must saturate beyond input cap threshold"
+        );
 
         // Input-Output Cap (cap_mode::io)
         let io_cap_args = accel_args {
@@ -1374,7 +1458,10 @@ mod tests {
             ..Default::default()
         };
         let val_at_io = evaluate_curve(&io_cap_args, 25.0);
-        assert!((val_at_io - 1.75).abs() < 1e-4, "IO cap curve must pass precisely through (cap.x, cap.y)");
+        assert!(
+            (val_at_io - 1.75).abs() < 1e-4,
+            "IO cap curve must pass precisely through (cap.x, cap.y)"
+        );
     }
 
     #[test]
@@ -1419,13 +1506,19 @@ mod tests {
         for speed in [6.0, 10.0, 20.0, 50.0, 100.0] {
             let current = evaluate_curve(&args, speed);
             assert!(current > prev, "Natural curve must increase monotonically");
-            assert!(current < 2.0, "Natural curve must remain strictly below limit");
+            assert!(
+                current < 2.0,
+                "Natural curve must remain strictly below limit"
+            );
             prev = current;
         }
 
         // Asymptotic check at high speed
         let high_speed = evaluate_curve(&args, 5000.0);
-        assert!((high_speed - 2.0).abs() < 0.01, "Natural curve must approach limit asymptotically");
+        assert!(
+            (high_speed - 2.0).abs() < 0.01,
+            "Natural curve must approach limit asymptotically"
+        );
     }
 
     #[test]
@@ -1476,7 +1569,10 @@ mod tests {
 
         let at_mid = evaluate_curve(&args, 20.0);
         // At threshold midpoint x = 20, sigmoid should evaluate exactly to 1.5
-        assert!((at_mid - 1.5).abs() < 1e-6, "Jump smooth sigmoid must pass through midpoint at cap.x");
+        assert!(
+            (at_mid - 1.5).abs() < 1e-6,
+            "Jump smooth sigmoid must pass through midpoint at cap.x"
+        );
 
         let before_mid = evaluate_curve(&args, 15.0);
         let after_mid = evaluate_curve(&args, 25.0);
@@ -1627,8 +1723,14 @@ mod tests {
         let left_val = evaluate_curve(&args, 30.0 - eps);
         let exact_val = evaluate_curve(&args, 30.0);
         let right_val = evaluate_curve(&args, 30.0 + eps);
-        assert!((left_val - exact_val).abs() < 1e-3, "Tiered natural must be continuous at boundary");
-        assert!((right_val - exact_val).abs() < 1e-3, "Tiered natural must be continuous at boundary");
+        assert!(
+            (left_val - exact_val).abs() < 1e-3,
+            "Tiered natural must be continuous at boundary"
+        );
+        assert!(
+            (right_val - exact_val).abs() < 1e-3,
+            "Tiered natural must be continuous at boundary"
+        );
 
         // High speed tier 3 asymptotic progression towards multiplier 3
         let v_high = evaluate_curve(&args, 500.0);
@@ -1734,26 +1836,4 @@ mod tests {
         assert!(settings.data.accel_x.memory.iter().any(|&b| b != 0));
         assert!(settings.data.accel_y.memory.iter().any(|&b| b != 0));
     }
-}
-
-
-#[cfg(test)]
-pub(crate) fn curve_layouts() -> serde_json::Map<String, serde_json::Value> {
-    use std::mem::{align_of, offset_of, size_of};
-    let mut layouts = serde_json::Map::new();
-    layouts.insert("ClassicLegacy".into(), serde_json::json!({ "size": size_of::<ClassicLegacy>(), "align": align_of::<ClassicLegacy>(), "accel_raised": offset_of!(ClassicLegacy, accel_raised), "cap": offset_of!(ClassicLegacy, cap), "sign": offset_of!(ClassicLegacy, sign) }));
-    layouts.insert("ClassicGain".into(), serde_json::json!({ "size": size_of::<ClassicGain>(), "align": align_of::<ClassicGain>(), "accel_raised": offset_of!(ClassicGain, accel_raised), "cap": offset_of!(ClassicGain, cap), "constant": offset_of!(ClassicGain, constant), "sign": offset_of!(ClassicGain, sign) }));
-    layouts.insert("JumpLegacy".into(), serde_json::json!({ "size": size_of::<JumpLegacy>(), "align": align_of::<JumpLegacy>(), "step": offset_of!(JumpLegacy, step), "smooth_rate": offset_of!(JumpLegacy, smooth_rate) }));
-    layouts.insert("JumpGain".into(), serde_json::json!({ "size": size_of::<JumpGain>(), "align": align_of::<JumpGain>(), "step": offset_of!(JumpGain, step), "smooth_rate": offset_of!(JumpGain, smooth_rate), "c": offset_of!(JumpGain, c) }));
-    layouts.insert("NaturalLegacy".into(), serde_json::json!({ "size": size_of::<NaturalLegacy>(), "align": align_of::<NaturalLegacy>(), "offset": offset_of!(NaturalLegacy, offset), "accel": offset_of!(NaturalLegacy, accel), "limit": offset_of!(NaturalLegacy, limit) }));
-    layouts.insert("NaturalGain".into(), serde_json::json!({ "size": size_of::<NaturalGain>(), "align": align_of::<NaturalGain>(), "offset": offset_of!(NaturalGain, offset), "accel": offset_of!(NaturalGain, accel), "limit": offset_of!(NaturalGain, limit), "constant": offset_of!(NaturalGain, constant) }));
-    layouts.insert("PowerLegacy".into(), serde_json::json!({ "size": size_of::<PowerLegacy>(), "align": align_of::<PowerLegacy>(), "offset": offset_of!(PowerLegacy, offset), "scale": offset_of!(PowerLegacy, scale), "constant": offset_of!(PowerLegacy, constant), "cap": offset_of!(PowerLegacy, cap) }));
-    layouts.insert("PowerGain".into(), serde_json::json!({ "size": size_of::<PowerGain>(), "align": align_of::<PowerGain>(), "offset": offset_of!(PowerGain, offset), "scale": offset_of!(PowerGain, scale), "constant": offset_of!(PowerGain, constant), "cap": offset_of!(PowerGain, cap), "constant_b": offset_of!(PowerGain, constant_b) }));
-    layouts.insert("TieredLinearLegacy".into(), serde_json::json!({ "size": size_of::<TieredLinearLegacy>(), "align": align_of::<TieredLinearLegacy>(), "m1": offset_of!(TieredLinearLegacy, m1), "x1": offset_of!(TieredLinearLegacy, x1), "m2": offset_of!(TieredLinearLegacy, m2), "x1_end": offset_of!(TieredLinearLegacy, x1_end), "inv_trans1": offset_of!(TieredLinearLegacy, inv_trans1), "m3": offset_of!(TieredLinearLegacy, m3), "x2": offset_of!(TieredLinearLegacy, x2), "x2_end": offset_of!(TieredLinearLegacy, x2_end), "inv_trans2": offset_of!(TieredLinearLegacy, inv_trans2) }));
-    layouts.insert("TieredNaturalLegacy".into(), serde_json::json!({ "size": size_of::<TieredNaturalLegacy>(), "align": align_of::<TieredNaturalLegacy>(), "m1": offset_of!(TieredNaturalLegacy, m1), "x1": offset_of!(TieredNaturalLegacy, x1), "l1": offset_of!(TieredNaturalLegacy, l1), "a1": offset_of!(TieredNaturalLegacy, a1), "x2": offset_of!(TieredNaturalLegacy, x2), "v2": offset_of!(TieredNaturalLegacy, v2), "m2_prime": offset_of!(TieredNaturalLegacy, m2_prime), "l2": offset_of!(TieredNaturalLegacy, l2), "a2": offset_of!(TieredNaturalLegacy, a2) }));
-    layouts.insert("TieredNaturalGain".into(), serde_json::json!({ "size": size_of::<TieredNaturalGain>(), "align": align_of::<TieredNaturalGain>(), "m1": offset_of!(TieredNaturalGain, m1), "x1": offset_of!(TieredNaturalGain, x1), "l1": offset_of!(TieredNaturalGain, l1), "a1": offset_of!(TieredNaturalGain, a1), "x2": offset_of!(TieredNaturalGain, x2), "v2": offset_of!(TieredNaturalGain, v2), "m2_prime": offset_of!(TieredNaturalGain, m2_prime), "l2": offset_of!(TieredNaturalGain, l2), "a2": offset_of!(TieredNaturalGain, a2) }));
-    layouts.insert("Lookup".into(), serde_json::json!({ "size": size_of::<Lookup>(), "align": align_of::<Lookup>(), "size": offset_of!(Lookup, size), "velocity": offset_of!(Lookup, velocity) }));
-    layouts.insert("SynchronousLegacy".into(), serde_json::json!({ "size": size_of::<SynchronousLegacy>(), "align": align_of::<SynchronousLegacy>(), "log_motivity": offset_of!(SynchronousLegacy, log_motivity), "gamma_const": offset_of!(SynchronousLegacy, gamma_const), "log_syncspeed": offset_of!(SynchronousLegacy, log_syncspeed), "syncspeed": offset_of!(SynchronousLegacy, syncspeed), "sharpness": offset_of!(SynchronousLegacy, sharpness), "sharpness_recip": offset_of!(SynchronousLegacy, sharpness_recip), "use_linear_clamp": offset_of!(SynchronousLegacy, use_linear_clamp), "minimum_sens": offset_of!(SynchronousLegacy, minimum_sens), "maximum_sens": offset_of!(SynchronousLegacy, maximum_sens) }));
-    layouts.insert("SynchronousGain".into(), serde_json::json!({ "size": size_of::<SynchronousGain>(), "align": align_of::<SynchronousGain>(), "velocity": offset_of!(SynchronousGain, velocity), "range_start": offset_of!(SynchronousGain, range_start), "range_stop": offset_of!(SynchronousGain, range_stop), "range_num": offset_of!(SynchronousGain, range_num), "x_start": offset_of!(SynchronousGain, x_start) }));
-    layouts
 }

@@ -172,9 +172,11 @@ mod tests {
     }
     #[test]
     fn native_conversion_preserves_values_and_rejects_silent_repairs() {
-        let mut p = AppProfile::default();
-        p.output_dpi = -800.0;
-        p.yx_output_dpi_ratio = -2.0;
+        let mut p = AppProfile {
+            output_dpi: -800.0,
+            yx_output_dpi_ratio: -2.0,
+            ..Default::default()
+        };
         p.accel_x.acceleration = 0.0; // Inactive in No Accel mode.
         let native = p.to_native().unwrap();
         assert_eq!(native.output_dpi, -800.0);
@@ -182,8 +184,10 @@ mod tests {
         assert_eq!(native.accel_x.acceleration, 0.0);
         p.output_dpi = 0.0;
         assert!(p.to_native().is_err());
-        let mut a = AppAccelArgs::default();
-        a.mode = "unknown".into();
+        let mut a = AppAccelArgs {
+            mode: "unknown".into(),
+            ..Default::default()
+        };
         assert!(a.to_native().is_err());
         a.mode = "noaccel".into();
         a.lookup_table = vec![AppVec2D { x: 1.0, y: 1.0 }; models::LUT_POINTS_CAPACITY + 1];

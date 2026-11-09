@@ -8,7 +8,9 @@ pub const SETTINGS_SCHEMA_VERSION: u64 = 1;
 pub(crate) fn settings_schema_version(value: &serde_json::Value) -> Result<u64, String> {
     let version = match value.get("schema_version") {
         None => 0, // The original Rust format had no schema marker.
-        Some(value) => value.as_u64().ok_or("schema_version must be a non-negative integer")?,
+        Some(value) => value
+            .as_u64()
+            .ok_or("schema_version must be a non-negative integer")?,
     };
     if version > SETTINGS_SCHEMA_VERSION {
         return Err(format!("Unsupported settings schema version {version}; this app supports up to {SETTINGS_SCHEMA_VERSION}. The file has not been changed."));
@@ -19,7 +21,8 @@ pub(crate) fn settings_schema_version(value: &serde_json::Value) -> Result<u64, 
 /// Legacy import / portable settings beside the executable, never relative to CWD.
 pub fn get_local_settings_path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|error| error.to_string())?;
-    exe.parent().map(|parent| parent.join("settings.json"))
+    exe.parent()
+        .map(|parent| parent.join("settings.json"))
         .ok_or_else(|| "Cannot locate the RawAccel executable directory".to_string())
 }
 
@@ -43,47 +46,87 @@ fn detect_settings_format(value: &serde_json::Value) -> Result<SettingsFormat, S
     let mut legacy = false;
     let mut modern = object.contains_key("schema_version");
     for profile in profiles {
-        let profile = profile.as_object().ok_or("Each profile must be an object")?;
+        let profile = profile
+            .as_object()
+            .ok_or("Each profile must be an object")?;
         legacy |= [
-            "argsX", "argsY", "domainXY", "rangeXY", "inputSpeedArgs",
-            "Whole or horizontal accel parameters", "Vertical accel parameters",
+            "argsX",
+            "argsY",
+            "domainXY",
+            "rangeXY",
+            "inputSpeedArgs",
+            "Whole or horizontal accel parameters",
+            "Vertical accel parameters",
             "Stretches domain for horizontal vs vertical inputs",
             "Stretches accel range for horizontal vs vertical inputs",
-            "Input speed calculation parameters", "Output DPI",
-        ].iter().any(|key| profile.contains_key(*key));
+            "Input speed calculation parameters",
+            "Output DPI",
+        ]
+        .iter()
+        .any(|key| profile.contains_key(*key));
         modern |= [
-            "accel_x", "accel_y", "domain_weights", "range_weights",
-            "speed_processor_args", "output_dpi",
-        ].iter().any(|key| profile.contains_key(*key));
+            "accel_x",
+            "accel_y",
+            "domain_weights",
+            "range_weights",
+            "speed_processor_args",
+            "output_dpi",
+        ]
+        .iter()
+        .any(|key| profile.contains_key(*key));
     }
     if legacy && modern {
-        return Err("Mixed modern and legacy settings are not supported; use one format per document".to_string());
+        return Err(
+            "Mixed modern and legacy settings are not supported; use one format per document"
+                .to_string(),
+        );
     }
-    Ok(if legacy { SettingsFormat::Legacy } else { SettingsFormat::Modern })
+    Ok(if legacy {
+        SettingsFormat::Legacy
+    } else {
+        SettingsFormat::Modern
+    })
 }
 
 /// Normalize recognized aliases in memory while retaining all JSON metadata.
 pub fn normalize_settings_json(raw_json: &str) -> Result<serde_json::Value, String> {
-    let mut value: serde_json::Value = serde_json::from_str(raw_json)
-        .map_err(|error| format!("Invalid JSON: {error}"))?;
+    let mut value: serde_json::Value =
+        serde_json::from_str(raw_json).map_err(|error| format!("Invalid JSON: {error}"))?;
     settings_schema_version(&value)?;
     let format = detect_settings_format(&value)?;
     if format == SettingsFormat::Legacy {
         value = crate::migration::migrate(value)?;
     }
     crate::settings_defaults::complete_profiles(&mut value)?;
-    value.as_object_mut().unwrap().entry("devices").or_insert_with(|| serde_json::json!([]));
-    let config: AppConfig = serde_json::from_value(value.clone())
-        .map_err(|error| format!("Invalid {} settings: {error}", if format == SettingsFormat::Modern { "modern" } else { "legacy" }))?;
+    value
+        .as_object_mut()
+        .ok_or("Settings must be a JSON object")?
+        .entry("devices")
+        .or_insert_with(|| serde_json::json!([]));
+    let config: AppConfig = serde_json::from_value(value.clone()).map_err(|error| {
+        format!(
+            "Invalid {} settings: {error}",
+            if format == SettingsFormat::Modern {
+                "modern"
+            } else {
+                "legacy"
+            }
+        )
+    })?;
     config.validate()?;
-    value.as_object_mut().unwrap().insert("schema_version".to_string(), serde_json::json!(SETTINGS_SCHEMA_VERSION));
+    value
+        .as_object_mut()
+        .ok_or("Settings must be a JSON object")?
+        .insert(
+            "schema_version".to_string(),
+            serde_json::json!(SETTINGS_SCHEMA_VERSION),
+        );
     Ok(value)
 }
 
 /// Driver-facing models contain only supported fields; the document retains metadata.
 pub fn parse_or_migrate_settings(raw_json: &str) -> Result<AppConfig, String> {
-    serde_json::from_value(normalize_settings_json(raw_json)?)
-        .map_err(|error| error.to_string())
+    serde_json::from_value(normalize_settings_json(raw_json)?).map_err(|error| error.to_string())
 }
 /// Loads and validates candidates without rewriting originals or normalizing files.
 pub fn load_settings_with_report() -> Result<crate::persistence::LoadReport, String> {
@@ -100,15 +143,14 @@ pub fn load_settings_from_disk() -> Result<String, String> {
 }
 
 pub(crate) fn parse_settings_for_load(raw: &str) -> Result<String, String> {
-    let value: serde_json::Value = serde_json::from_str(raw)
-        .map_err(|error| format!("Invalid JSON: {error}"))?;
+    let value: serde_json::Value =
+        serde_json::from_str(raw).map_err(|error| format!("Invalid JSON: {error}"))?;
     let format = detect_settings_format(&value)?;
     let document = normalize_settings_json(raw)?;
     match format {
         SettingsFormat::Modern if value == document => Ok(raw.to_string()),
         // Migration is in memory only; explicit saving retains the original.
-        _ => serde_json::to_string_pretty(&document)
-            .map_err(|error| error.to_string()),
+        _ => serde_json::to_string_pretty(&document).map_err(|error| error.to_string()),
     }
 }
 
@@ -119,7 +161,9 @@ pub(crate) fn settings_paths() -> Result<crate::persistence::SettingsPaths, Stri
 }
 
 /// The authoritative save must succeed; failure to update its mirror is a warning.
-pub fn save_settings_to_disk(settings_json: &str) -> Result<crate::persistence::SaveReport, String> {
+pub fn save_settings_to_disk(
+    settings_json: &str,
+) -> Result<crate::persistence::SaveReport, String> {
     crate::persistence::save(settings_json, &settings_paths()?)
 }
 
@@ -139,7 +183,9 @@ impl AppConfig {
         if self.profiles.is_empty() {
             return Err("At least one profile is required".to_string());
         }
-        if let Some(defaults) = &self.default_device_config { defaults.to_native()?; }
+        if let Some(defaults) = &self.default_device_config {
+            defaults.to_native()?;
+        }
 
         let mut profile_names = std::collections::HashSet::new();
         for profile in &self.profiles {
@@ -155,13 +201,27 @@ impl AppConfig {
             validate_profile(profile)?;
         }
 
-        let inherited = self.default_device_config.as_ref().map(|d| d.to_native()).transpose()?.map(|d| d.clamp).unwrap_or_default();
+        let inherited = self
+            .default_device_config
+            .as_ref()
+            .map(|d| d.to_native())
+            .transpose()?
+            .map(|d| d.clamp)
+            .unwrap_or_default();
         let mut device_ids = std::collections::HashSet::new();
         for dev in &self.devices {
             crate::validation::wire_string(&dev.id, models::MAX_DEV_ID_LEN, "Device ID")?;
-            if !device_ids.insert(&dev.id) { return Err(format!("Duplicate device ID '{}'", dev.id)); }
-            crate::validation::device_numbers(dev.dpi, dev.polling_rate, dev.clamp_min, dev.clamp_max, inherited)
-                .map_err(|error| format!("Device '{}': {error}", dev.id))?;
+            if !device_ids.insert(&dev.id) {
+                return Err(format!("Duplicate device ID '{}'", dev.id));
+            }
+            crate::validation::device_numbers(
+                dev.dpi,
+                dev.polling_rate,
+                dev.clamp_min,
+                dev.clamp_max,
+                inherited,
+            )
+            .map_err(|error| format!("Device '{}': {error}", dev.id))?;
             if let Some(ref pid) = dev.profile_id {
                 crate::validation::wire_string(pid, models::MAX_NAME_LEN, "Mapped profile name")?;
                 if !self.profiles.iter().any(|p| p.name == *pid) {
@@ -205,7 +265,11 @@ fn validate_lookup_table(
 
     let mut previous_x = 0.0;
     for (index, point) in points.iter().enumerate() {
-        if !point.x.is_finite() || !point.y.is_finite() || !(point.x as f32).is_finite() || !(point.y as f32).is_finite() {
+        if !point.x.is_finite()
+            || !point.y.is_finite()
+            || !(point.x as f32).is_finite()
+            || !(point.y as f32).is_finite()
+        {
             return Err(format!(
                 "Profile '{profile_name}' {axis} lookup point {} must contain finite numbers",
                 index + 1
@@ -228,58 +292,109 @@ fn validate_lookup_table(
     Ok(())
 }
 
-fn validate_accel_args(
-    profile_name: &str,
-    axis: &str,
-    args: &AppAccelArgs,
-) -> Result<(), String> {
-
-    if !["noaccel", "linear", "classic", "jump", "natural", "synchronous", "power", "lookup", "tiered"].contains(&args.mode.as_str()) {
-        return Err(format!("Profile '{}' {axis}: unknown acceleration mode '{}'", profile_name, args.mode));
+fn validate_accel_args(profile_name: &str, axis: &str, args: &AppAccelArgs) -> Result<(), String> {
+    if ![
+        "noaccel",
+        "linear",
+        "classic",
+        "jump",
+        "natural",
+        "synchronous",
+        "power",
+        "lookup",
+        "tiered",
+    ]
+    .contains(&args.mode.as_str())
+    {
+        return Err(format!(
+            "Profile '{}' {axis}: unknown acceleration mode '{}'",
+            profile_name, args.mode
+        ));
     }
     if !["in", "out", "io"].contains(&args.cap_mode.as_str()) {
-        return Err(format!("Profile '{}' {axis}: unknown cap mode '{}'", profile_name, args.cap_mode));
+        return Err(format!(
+            "Profile '{}' {axis}: unknown cap mode '{}'",
+            profile_name, args.cap_mode
+        ));
     }
     if !["linear", "natural"].contains(&args.t_type.as_str()) {
-        return Err(format!("Profile '{}' {axis}: unknown Tiered subtype '{}'", profile_name, args.t_type));
+        return Err(format!(
+            "Profile '{}' {axis}: unknown Tiered subtype '{}'",
+            profile_name, args.t_type
+        ));
     }
-    crate::validation::accel_numbers(args).map_err(|error| format!("Profile '{profile_name}' {axis}: {error}"))?;
+    crate::validation::accel_numbers(args)
+        .map_err(|error| format!("Profile '{profile_name}' {axis}: {error}"))?;
     validate_lookup_table(profile_name, axis, args)?;
-    let requires_cap = args.mode == "jump" || (["classic", "linear", "power"].contains(&args.mode.as_str()) && args.cap_mode == "io");
+    let requires_cap = args.mode == "jump"
+        || (["classic", "linear", "power"].contains(&args.mode.as_str()) && args.cap_mode == "io");
     if requires_cap && (args.cap.x == 0.0 || args.cap.y == 0.0) {
-        return Err(format!("Profile '{profile_name}' {axis}: both caps must be positive for this mode/cap style"));
+        return Err(format!(
+            "Profile '{profile_name}' {axis}: both caps must be positive for this mode/cap style"
+        ));
     }
-    if (["classic", "linear"].contains(&args.mode.as_str()) && args.cap_mode != "out" && args.cap.x > 0.0 && args.cap.x < args.input_offset)
-        || (args.mode == "power" && args.cap_mode != "in" && args.cap.y > 0.0 && args.cap.y < args.output_offset) {
-        return Err(format!("Profile '{profile_name}' {axis}: cap cannot be less than offset"));
+    if (["classic", "linear"].contains(&args.mode.as_str())
+        && args.cap_mode != "out"
+        && args.cap.x > 0.0
+        && args.cap.x < args.input_offset)
+        || (args.mode == "power"
+            && args.cap_mode != "in"
+            && args.cap.y > 0.0
+            && args.cap.y < args.output_offset)
+    {
+        return Err(format!(
+            "Profile '{profile_name}' {axis}: cap cannot be less than offset"
+        ));
     }
-    if ["jump", "synchronous"].contains(&args.mode.as_str()) && !(0.0..=1.0).contains(&args.smooth) {
-        return Err(format!("Profile '{profile_name}' {axis}: smooth must be between 0 and 1"));
+    if ["jump", "synchronous"].contains(&args.mode.as_str()) && !(0.0..=1.0).contains(&args.smooth)
+    {
+        return Err(format!(
+            "Profile '{profile_name}' {axis}: smooth must be between 0 and 1"
+        ));
     }
     if args.input_offset < 0.0 {
-        return Err(format!("Profile '{profile_name}' {axis}: offset can not be negative"));
+        return Err(format!(
+            "Profile '{profile_name}' {axis}: offset can not be negative"
+        ));
     }
     if args.output_offset < 0.0 {
-        return Err(format!("Profile '{profile_name}' {axis}: offset can not be negative"));
+        return Err(format!(
+            "Profile '{profile_name}' {axis}: offset can not be negative"
+        ));
     }
     if args.cap.x < 0.0 || args.cap.y < 0.0 {
-        return Err(format!("Profile '{profile_name}' {axis}: cap can not be negative"));
+        return Err(format!(
+            "Profile '{profile_name}' {axis}: cap can not be negative"
+        ));
     }
 
     match args.mode.as_str() {
         "tiered" => {
-            if args.tiered_multiplier1 <= 0.0 || args.tiered_multiplier2 <= 0.0 || args.tiered_multiplier3 <= 0.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: tiered multipliers must be positive"));
+            if args.tiered_multiplier1 <= 0.0
+                || args.tiered_multiplier2 <= 0.0
+                || args.tiered_multiplier3 <= 0.0
+            {
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: tiered multipliers must be positive"
+                ));
             }
             if args.tiered_input_offset1 < 0.0 || args.tiered_input_offset2 < 0.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: offset can not be negative"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: offset can not be negative"
+                ));
             }
             if args.t_type == "linear" {
-                if !(args.tiered_input_offset1 + args.tiered_transition1).is_finite() || !(args.tiered_input_offset2 + args.tiered_transition2).is_finite() {
-                    return Err(format!("Profile '{profile_name}' {axis}: transition endpoints must be finite"));
+                if !(args.tiered_input_offset1 + args.tiered_transition1).is_finite()
+                    || !(args.tiered_input_offset2 + args.tiered_transition2).is_finite()
+                {
+                    return Err(format!(
+                        "Profile '{profile_name}' {axis}: transition endpoints must be finite"
+                    ));
                 }
                 if args.tiered_transition1 <= 0.0 || args.tiered_transition2 <= 0.0 {
-                    return Err(format!("Profile '{profile_name}' {axis}: transition width must be positive"));
+                    return Err(format!(
+                        "Profile '{profile_name}' {axis}: transition width must be positive"
+                    ));
                 }
                 if args.tiered_input_offset2 < args.tiered_input_offset1 + args.tiered_transition1 {
                     return Err(format!("Profile '{profile_name}' {axis}: second offset must be greater than or equal to first transition end"));
@@ -289,53 +404,77 @@ fn validate_accel_args(
                     return Err(format!("Profile '{profile_name}' {axis}: second offset must be greater than first offset"));
                 }
                 if args.tiered_decay_rate1 <= 0.0 || args.tiered_decay_rate2 <= 0.0 {
-                    return Err(format!("Profile '{profile_name}' {axis}: decay rate must be positive"));
+                    return Err(format!(
+                        "Profile '{profile_name}' {axis}: decay rate must be positive"
+                    ));
                 }
             }
         }
         "classic" => {
             if args.acceleration <= 0.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: acceleration must be positive"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: acceleration must be positive"
+                ));
             }
             if args.exponent_classic <= 1.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: exponent must be greater than 1"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: exponent must be greater than 1"
+                ));
             }
         }
         "linear" => {
             if args.acceleration <= 0.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: acceleration must be positive"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: acceleration must be positive"
+                ));
             }
         }
         "natural" => {
             if args.decay_rate <= 0.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: decay rate must be positive"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: decay rate must be positive"
+                ));
             }
             if args.limit <= 0.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: limit must be positive"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: limit must be positive"
+                ));
             }
         }
         "power" => {
             if args.scale <= 0.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: scale must be positive"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: scale must be positive"
+                ));
             }
             if args.exponent_power <= 0.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: exponent must be positive"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: exponent must be positive"
+                ));
             }
         }
         "jump" => {
             if args.smooth < 0.0 || args.smooth > 1.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: smooth must be between 0 and 1"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: smooth must be between 0 and 1"
+                ));
             }
         }
         "synchronous" => {
             if args.sync_speed <= 0.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: synchronous speed must be positive"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: synchronous speed must be positive"
+                ));
             }
             if args.motivity <= 1.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: motivity must be greater than 1"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: motivity must be greater than 1"
+                ));
             }
             if args.gamma <= 0.0 {
-                return Err(format!("Profile '{profile_name}' {axis}: gamma must be positive"));
+                return Err(format!(
+                    "Profile '{profile_name}' {axis}: gamma must be positive"
+                ));
             }
         }
         _ => {}
@@ -359,7 +498,13 @@ pub struct AppDeviceDefaults {
 
 impl AppDeviceDefaults {
     pub fn to_native(&self) -> Result<models::device_config, String> {
-        crate::validation::device_numbers(self.dpi, self.polling_rate, self.clamp_min, self.clamp_max, models::time_clamp::default())?;
+        crate::validation::device_numbers(
+            self.dpi,
+            self.polling_rate,
+            self.clamp_min,
+            self.clamp_max,
+            models::time_clamp::default(),
+        )?;
         let defaults = models::time_clamp::default();
         Ok(models::device_config {
             disable: self.disable,
@@ -368,8 +513,16 @@ impl AppDeviceDefaults {
             dpi: self.dpi as i32,
             polling_rate: self.polling_rate as i32,
             clamp: models::time_clamp {
-                min: if self.clamp_min == 0.0 { defaults.min } else { self.clamp_min },
-                max: if self.clamp_max == 0.0 { defaults.max } else { self.clamp_max },
+                min: if self.clamp_min == 0.0 {
+                    defaults.min
+                } else {
+                    self.clamp_min
+                },
+                max: if self.clamp_max == 0.0 {
+                    defaults.max
+                } else {
+                    self.clamp_max
+                },
             },
         })
     }
@@ -552,8 +705,14 @@ impl AppProfile {
         prof.ud_output_dpi_ratio = self.ud_output_dpi_ratio;
         prof.output_dpi = self.output_dpi;
         prof.yx_output_dpi_ratio = self.yx_output_dpi_ratio;
-        prof.range_weights = models::vec2d { x: self.range_weights.x, y: self.range_weights.y };
-        prof.domain_weights = models::vec2d { x: self.domain_weights.x, y: self.domain_weights.y };
+        prof.range_weights = models::vec2d {
+            x: self.range_weights.x,
+            y: self.range_weights.y,
+        };
+        prof.domain_weights = models::vec2d {
+            x: self.domain_weights.x,
+            y: self.domain_weights.y,
+        };
 
         prof.speed_processor_args = models::speed_args {
             whole: self.speed_processor_args.whole,
@@ -570,54 +729,59 @@ impl AppProfile {
 impl AppAccelArgs {
     pub fn to_native(&self) -> Result<models::accel_args, String> {
         validate_accel_args("Curve", "", self)?;
-        let mut args = models::accel_args::default();
-
-        args.mode = match self.mode.as_str() {
-            "classic" => models::accel_mode::classic,
-            "linear" => models::accel_mode::classic,
-            "jump" => models::accel_mode::jump,
-            "natural" => models::accel_mode::natural,
-            "synchronous" => models::accel_mode::synchronous,
-            "power" => models::accel_mode::power,
-            "lookup" => models::accel_mode::lookup,
-            "tiered" => models::accel_mode::tiered,
-            _ => models::accel_mode::noaccel,
-        };
-        args.gain = self.gain;
-        args.input_offset = self.input_offset;
-        args.output_offset = self.output_offset;
-        args.acceleration = self.acceleration;
-        args.decay_rate = self.decay_rate;
-        args.gamma = self.gamma;
-        args.motivity = self.motivity;
-        args.scale = self.scale;
-        args.exponent_power = self.exponent_power;
-        args.limit = self.limit;
-        args.sync_speed = self.sync_speed;
-        args.smooth = self.smooth;
-        // Linear is the UI alias for Classic with exponent 2.
-        args.exponent_classic = if self.mode == "linear" { 2.0 } else { self.exponent_classic };
-        args.t_type = match self.t_type.as_str() {
-            "natural" => models::tiered_type::natural,
-            _ => models::tiered_type::linear,
-        };
-        args.tiered_multiplier1 = self.tiered_multiplier1;
-        args.tiered_input_offset1 = self.tiered_input_offset1;
-        args.tiered_multiplier2 = self.tiered_multiplier2;
-        args.tiered_transition1 = self.tiered_transition1;
-        args.tiered_input_offset2 = self.tiered_input_offset2;
-        args.tiered_multiplier3 = self.tiered_multiplier3;
-        args.tiered_transition2 = self.tiered_transition2;
-        args.tiered_decay_rate1 = self.tiered_decay_rate1;
-        args.tiered_decay_rate2 = self.tiered_decay_rate2;
-        args.cap = models::vec2d {
-            x: self.cap.x,
-            y: self.cap.y,
-        };
-        args.cap_mode = match self.cap_mode.as_str() {
-            "in" => models::cap_mode::in_,
-            "io" => models::cap_mode::io,
-            _ => models::cap_mode::out,
+        let mut args = models::accel_args {
+            mode: match self.mode.as_str() {
+                "classic" => models::accel_mode::classic,
+                "linear" => models::accel_mode::classic,
+                "jump" => models::accel_mode::jump,
+                "natural" => models::accel_mode::natural,
+                "synchronous" => models::accel_mode::synchronous,
+                "power" => models::accel_mode::power,
+                "lookup" => models::accel_mode::lookup,
+                "tiered" => models::accel_mode::tiered,
+                _ => models::accel_mode::noaccel,
+            },
+            gain: self.gain,
+            input_offset: self.input_offset,
+            output_offset: self.output_offset,
+            acceleration: self.acceleration,
+            decay_rate: self.decay_rate,
+            gamma: self.gamma,
+            motivity: self.motivity,
+            scale: self.scale,
+            exponent_power: self.exponent_power,
+            limit: self.limit,
+            sync_speed: self.sync_speed,
+            smooth: self.smooth,
+            // Linear is the UI alias for Classic with exponent 2.
+            exponent_classic: if self.mode == "linear" {
+                2.0
+            } else {
+                self.exponent_classic
+            },
+            t_type: match self.t_type.as_str() {
+                "natural" => models::tiered_type::natural,
+                _ => models::tiered_type::linear,
+            },
+            tiered_multiplier1: self.tiered_multiplier1,
+            tiered_input_offset1: self.tiered_input_offset1,
+            tiered_multiplier2: self.tiered_multiplier2,
+            tiered_transition1: self.tiered_transition1,
+            tiered_input_offset2: self.tiered_input_offset2,
+            tiered_multiplier3: self.tiered_multiplier3,
+            tiered_transition2: self.tiered_transition2,
+            tiered_decay_rate1: self.tiered_decay_rate1,
+            tiered_decay_rate2: self.tiered_decay_rate2,
+            cap: models::vec2d {
+                x: self.cap.x,
+                y: self.cap.y,
+            },
+            cap_mode: match self.cap_mode.as_str() {
+                "in" => models::cap_mode::in_,
+                "io" => models::cap_mode::io,
+                _ => models::cap_mode::out,
+            },
+            ..Default::default()
         };
 
         let num_points = self.lookup_table.len();
@@ -640,7 +804,10 @@ mod tests {
 
     #[test]
     fn shared_defaults_match_native_acceleration_and_speed_defaults() {
-        assert_eq!(crate::settings_defaults::document()["schema_version"], SETTINGS_SCHEMA_VERSION);
+        assert_eq!(
+            crate::settings_defaults::document()["schema_version"],
+            SETTINGS_SCHEMA_VERSION
+        );
         let actual = AppAccelArgs::default().to_native().unwrap();
         let expected = models::accel_args::default();
         assert_eq!(actual.mode, expected.mode);
@@ -649,26 +816,59 @@ mod tests {
         assert_eq!(actual.cap_mode, expected.cap_mode);
         assert_eq!(actual.data, expected.data);
         assert_eq!(actual.length, expected.length);
-        let values = |args: &models::accel_args| [
-            args.input_offset, args.output_offset, args.acceleration, args.decay_rate,
-            args.gamma, args.motivity, args.exponent_classic, args.scale,
-            args.exponent_power, args.limit, args.sync_speed, args.smooth,
-            args.tiered_multiplier1, args.tiered_input_offset1, args.tiered_multiplier2,
-            args.tiered_transition1, args.tiered_input_offset2, args.tiered_multiplier3,
-            args.tiered_transition2, args.tiered_decay_rate1, args.tiered_decay_rate2,
-            args.cap.x, args.cap.y,
-        ];
+        let values = |args: &models::accel_args| {
+            [
+                args.input_offset,
+                args.output_offset,
+                args.acceleration,
+                args.decay_rate,
+                args.gamma,
+                args.motivity,
+                args.exponent_classic,
+                args.scale,
+                args.exponent_power,
+                args.limit,
+                args.sync_speed,
+                args.smooth,
+                args.tiered_multiplier1,
+                args.tiered_input_offset1,
+                args.tiered_multiplier2,
+                args.tiered_transition1,
+                args.tiered_input_offset2,
+                args.tiered_multiplier3,
+                args.tiered_transition2,
+                args.tiered_decay_rate1,
+                args.tiered_decay_rate2,
+                args.cap.x,
+                args.cap.y,
+            ]
+        };
         assert_eq!(values(&actual), values(&expected));
         let speed = AppSpeedArgs::default();
         let native_speed = models::speed_args::default();
         assert_eq!(speed.whole, native_speed.whole);
-        assert_eq!([speed.lp_norm, speed.input_speed_smooth_halflife, speed.scale_smooth_halflife, speed.output_speed_smooth_halflife],
-            [native_speed.lp_norm, native_speed.input_speed_smooth_halflife, native_speed.scale_smooth_halflife, native_speed.output_speed_smooth_halflife]);
+        assert_eq!(
+            [
+                speed.lp_norm,
+                speed.input_speed_smooth_halflife,
+                speed.scale_smooth_halflife,
+                speed.output_speed_smooth_halflife
+            ],
+            [
+                native_speed.lp_norm,
+                native_speed.input_speed_smooth_halflife,
+                native_speed.scale_smooth_halflife,
+                native_speed.output_speed_smooth_halflife
+            ]
+        );
     }
 
     #[test]
     fn omitted_modern_fields_receive_the_same_canonical_defaults() {
-        let value = normalize_settings_json(r#"{"profiles":[{"name":"Partial","accel_x":{"mode":"classic"}}]}"#).unwrap();
+        let value = normalize_settings_json(
+            r#"{"profiles":[{"name":"Partial","accel_x":{"mode":"classic"}}]}"#,
+        )
+        .unwrap();
         let config: AppConfig = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(config.profiles[0].accel_x.acceleration, 0.005);
         assert_eq!(config.profiles[0].accel_y.mode, "noaccel");
@@ -702,18 +902,24 @@ mod tests {
     fn unknown_selectors_are_rejected_on_both_axes_even_when_combined() {
         for axis in ["accel_x", "accel_y"] {
             for field in ["mode", "cap_mode", "t_type"] {
-                let mut value = normalize_settings_json(r#"{"profiles":[{"name":"Selectors"}]}"#).unwrap();
+                let mut value =
+                    normalize_settings_json(r#"{"profiles":[{"name":"Selectors"}]}"#).unwrap();
                 value["profiles"][0][axis][field] = serde_json::json!("unsupported");
-                assert!(normalize_settings_json(&value.to_string()).unwrap_err().contains("unknown"));
+                assert!(normalize_settings_json(&value.to_string())
+                    .unwrap_err()
+                    .contains("unknown"));
             }
         }
     }
 
     #[test]
     fn defaults_do_not_hide_wrong_types_nulls_or_missing_names() {
-        for raw in [r#"{"profiles":[{}]}"#, r#"{"profiles":[{"name":"Bad","accel_x":null}]}"#,
+        for raw in [
+            r#"{"profiles":[{}]}"#,
+            r#"{"profiles":[{"name":"Bad","accel_x":null}]}"#,
             r#"{"profiles":[{"name":"Bad","speed_processor_args":"wrong"}]}"#,
-            r#"{"profiles":[{"name":"Bad","accel_x":{"cap":null}}]}"#] {
+            r#"{"profiles":[{"name":"Bad","accel_x":{"cap":null}}]}"#,
+        ] {
             assert!(normalize_settings_json(raw).is_err(), "Accepted {raw}");
         }
     }
@@ -725,14 +931,26 @@ mod tests {
         assert_eq!(expected["schema_version"], SETTINGS_SCHEMA_VERSION);
         let mut zero: serde_json::Value = serde_json::from_str(raw).unwrap();
         zero["schema_version"] = serde_json::json!(0);
-        assert_eq!(normalize_settings_json(&zero.to_string()).unwrap(), expected);
-        assert_eq!(normalize_settings_json(&expected.to_string()).unwrap(), expected);
+        assert_eq!(
+            normalize_settings_json(&zero.to_string()).unwrap(),
+            expected
+        );
+        assert_eq!(
+            normalize_settings_json(&expected.to_string()).unwrap(),
+            expected
+        );
     }
 
     #[test]
     fn future_or_malformed_schema_markers_are_rejected() {
         let raw = include_str!("../tests/fixtures/settings/modern-complete.json");
-        for marker in [serde_json::json!(2), serde_json::json!(-1), serde_json::json!(1.5), serde_json::json!("1"), serde_json::Value::Null] {
+        for marker in [
+            serde_json::json!(2),
+            serde_json::json!(-1),
+            serde_json::json!(1.5),
+            serde_json::json!("1"),
+            serde_json::Value::Null,
+        ] {
             let mut value: serde_json::Value = serde_json::from_str(raw).unwrap();
             value["schema_version"] = marker;
             assert!(normalize_settings_json(&value.to_string()).is_err());
@@ -754,7 +972,10 @@ mod tests {
         assert_eq!(args.lookup_csv_backup.as_ref().unwrap()[0].y, 3.0);
         assert_eq!(args.lookup_csv_backup_gain, Some(false));
         assert_eq!(args.to_native().unwrap().data[..4], [1.0, 2.0, 8.0, 12.0]);
-        assert_eq!(normalize_settings_json(&document.to_string()).unwrap(), original);
+        assert_eq!(
+            normalize_settings_json(&document.to_string()).unwrap(),
+            original
+        );
     }
 
     #[test]
@@ -767,10 +988,19 @@ mod tests {
         assert_eq!(profile.accel_x.mode, "natural");
         assert_eq!(profile.accel_x.input_offset, 3.0);
         assert_eq!(profile.accel_y.mode, "lookup");
-        assert_eq!(profile.accel_y.to_native().unwrap().data[..4], [1.0, 2.0, 5.0, 3.0]);
-        assert_eq!(profile.speed_processor_args.input_speed_smooth_halflife, 2.0);
+        assert_eq!(
+            profile.accel_y.to_native().unwrap().data[..4],
+            [1.0, 2.0, 5.0, 3.0]
+        );
+        assert_eq!(
+            profile.speed_processor_args.input_speed_smooth_halflife,
+            2.0
+        );
         assert_eq!(profile.speed_processor_args.scale_smooth_halflife, 4.0);
-        assert_eq!(profile.speed_processor_args.output_speed_smooth_halflife, 6.0);
+        assert_eq!(
+            profile.speed_processor_args.output_speed_smooth_halflife,
+            6.0
+        );
         let device = &config.devices[0];
         assert!(device.disable && device.set_extra_info && device.poll_time_lock);
         assert_eq!(device.clamp_min, 0.125);
@@ -780,14 +1010,26 @@ mod tests {
         assert_eq!(defaults.dpi, 800);
         assert!(defaults.set_extra_info && defaults.poll_time_lock);
         assert_eq!(defaults.clamp.max, 90.0);
-        assert_eq!(document["editor_metadata"]["note"], "Preserved legacy extension");
-        assert_eq!(normalize_settings_json(&document.to_string()).unwrap(), document);
+        assert_eq!(
+            document["editor_metadata"]["note"],
+            "Preserved legacy extension"
+        );
+        assert_eq!(
+            normalize_settings_json(&document.to_string()).unwrap(),
+            document
+        );
     }
 
     #[test]
     fn legacy_wrong_types_and_incomplete_lut_pairs_are_rejected() {
-        let original: serde_json::Value = serde_json::from_str(include_str!("../tests/fixtures/settings/legacy-wrapper.json")).unwrap();
-        for (field, value) in [("data", serde_json::json!([1,2,3])), ("data", serde_json::json!([1,"bad",3,4]))] {
+        let original: serde_json::Value = serde_json::from_str(include_str!(
+            "../tests/fixtures/settings/legacy-wrapper.json"
+        ))
+        .unwrap();
+        for (field, value) in [
+            ("data", serde_json::json!([1, 2, 3])),
+            ("data", serde_json::json!([1, "bad", 3, 4])),
+        ] {
             let mut invalid = original.clone();
             invalid["profiles"][0]["Vertical accel parameters"][field] = value;
             assert!(normalize_settings_json(&invalid.to_string()).is_err());
@@ -808,7 +1050,10 @@ mod tests {
     #[test]
     fn malformed_modern_fields_are_not_defaulted_by_legacy_migration() {
         let config = AppConfig {
-            profiles: vec![AppProfile { name: "Modern".to_string(), ..Default::default() }],
+            profiles: vec![AppProfile {
+                name: "Modern".to_string(),
+                ..Default::default()
+            }],
             devices: vec![],
 
             default_device_config: None,
@@ -825,7 +1070,9 @@ mod tests {
     #[test]
     fn mixed_legacy_and_modern_documents_are_rejected() {
         let raw = r#"{"profiles":[{"argsX":{"mode":"natural"}}, {"accel_x":{"mode":"tiered"}}]}"#;
-        assert!(parse_or_migrate_settings(raw).unwrap_err().contains("Mixed modern and legacy"));
+        assert!(parse_or_migrate_settings(raw)
+            .unwrap_err()
+            .contains("Mixed modern and legacy"));
     }
 
     #[test]
@@ -984,7 +1231,10 @@ mod tests {
     #[test]
     fn appdata_settings_path_resolves_rawaccel_subfolder() {
         if let Some(path) = super::get_appdata_settings_path() {
-            assert!(path.ends_with("RawAccel\\settings.json") || path.ends_with("RawAccel/settings.json"));
+            assert!(
+                path.ends_with("RawAccel\\settings.json")
+                    || path.ends_with("RawAccel/settings.json")
+            );
         }
     }
 
@@ -1047,15 +1297,22 @@ mod tests {
         }"####;
 
         let migrated = super::parse_or_migrate_settings(legacy_json);
-        assert!(migrated.is_ok(), "Failed to migrate legacy settings: {:?}", migrated.err());
+        assert!(
+            migrated.is_ok(),
+            "Failed to migrate legacy settings: {:?}",
+            migrated.err()
+        );
         let config = migrated.unwrap();
         assert_eq!(config.profiles.len(), 1);
         assert_eq!(config.profiles[0].name, "Old Profile");
         assert_eq!(config.profiles[0].accel_x.mode, "natural");
         assert_eq!(config.profiles[0].accel_x.cap_mode, "out");
-        assert_eq!(config.profiles[0].speed_processor_args.whole, true);
+        assert!(config.profiles[0].speed_processor_args.whole);
         assert_eq!(config.devices.len(), 1);
-        assert_eq!(config.devices[0].profile_id, Some("Old Profile".to_string()));
+        assert_eq!(
+            config.devices[0].profile_id,
+            Some("Old Profile".to_string())
+        );
     }
 
     #[test]

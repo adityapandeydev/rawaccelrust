@@ -56,7 +56,9 @@ pub(crate) fn property_string(bytes: &[u8], returned: u32) -> Option<String> {
         return None;
     }
     let units: Vec<u16> = bytes
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
         .collect();
     if units.last() != Some(&0) {

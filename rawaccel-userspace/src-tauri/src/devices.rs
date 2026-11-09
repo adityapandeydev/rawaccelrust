@@ -122,7 +122,9 @@ pub fn get_connected_devices() -> Vec<DeviceInfo> {
             None => continue,
         };
         let interface_name: Vec<u16> = name_bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
             .collect();
         if crate::input_buffers::terminated(&interface_name).is_none() {

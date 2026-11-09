@@ -76,7 +76,7 @@ fn accel(value: &mut Value) -> Result<(), String> {
             );
         }
         let mut points = Vec::new();
-        for pair in values[..length].chunks_exact(2) {
+        for pair in values[..length].as_chunks::<2>().0 {
             if !pair[0].is_number() || !pair[1].is_number() {
                 return Err("Legacy LUT points must contain numbers".to_string());
             }

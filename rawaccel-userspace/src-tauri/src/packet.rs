@@ -34,10 +34,12 @@ fn encode_layout(config: &AppConfig, native_tiered: bool) -> Result<Vec<u8>, Str
         .try_reserve_exact(total)
         .map_err(|_| "Unable to allocate settings packet")?;
     bytes.resize(total, 0);
-    let mut base = ra::io_base::default();
-    base.modifier_data_size =
-        u32::try_from(config.profiles.len()).map_err(|_| "Too many profiles")?;
-    base.device_data_size = u32::try_from(config.devices.len()).map_err(|_| "Too many devices")?;
+    let mut base = ra::io_base {
+        modifier_data_size: u32::try_from(config.profiles.len())
+            .map_err(|_| "Too many profiles")?,
+        device_data_size: u32::try_from(config.devices.len()).map_err(|_| "Too many devices")?,
+        ..Default::default()
+    };
     if let Some(defaults) = &config.default_device_config {
         base.default_dev_cfg = defaults.to_native()?;
     }
@@ -181,8 +183,10 @@ mod tests {
     }
     #[test]
     fn union_padding_and_unused_tail_are_zero_after_reinitialization() {
-        let mut settings = ra::modifier_settings::default();
-        settings.prof = crate::config::AppProfile::default().to_native().unwrap();
+        let mut settings = ra::modifier_settings {
+            prof: crate::config::AppProfile::default().to_native().unwrap(),
+            ..Default::default()
+        };
         settings.prof.accel_x.mode = ra::accel_mode::synchronous;
         settings.prof.accel_x.gain = false;
         settings.data.accel_x.memory.fill(0xa5);

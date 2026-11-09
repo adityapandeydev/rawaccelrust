@@ -1,23 +1,23 @@
-mod driver_contract;
-mod stock_wire;
-mod driver_status;
 #[cfg(test)]
 mod abi_tests;
-mod input_buffers;
-mod wire;
-mod packet;
-mod validation;
 mod apply;
-mod migration;
-mod settings_defaults;
 pub mod config;
 pub mod devices;
 pub mod driver;
+mod driver_contract;
+mod driver_status;
+mod input_buffers;
 pub mod math;
+mod migration;
 pub mod models;
 pub mod mouse_tracker;
+mod packet;
 pub mod persistence;
+mod settings_defaults;
 pub mod startup;
+mod stock_wire;
+mod validation;
+mod wire;
 
 #[tauri::command]
 fn get_startup_info() -> Result<startup::StartupInfo, String> {
@@ -35,21 +35,29 @@ fn open_settings_folder(app: tauri::AppHandle) -> Result<(), String> {
     let path = config::settings_paths()?.primary;
     let folder = path.parent().ok_or("Settings directory is unavailable")?;
     std::fs::create_dir_all(folder).map_err(|error| error.to_string())?;
-    app.opener().open_path(folder.display().to_string(), None::<&str>)
+    app.opener()
+        .open_path(folder.display().to_string(), None::<&str>)
         .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
 async fn get_driver_status() -> Result<driver_status::DriverStatus, String> {
-    tauri::async_runtime::spawn_blocking(driver_status::get).await
+    tauri::async_runtime::spawn_blocking(driver_status::get)
+        .await
         .map_err(|error| format!("Driver status worker failed: {error}"))
 }
 
 #[tauri::command]
 async fn apply_settings(settings_json: String) -> Result<apply::ApplyReport, String> {
-    tauri::async_runtime::spawn_blocking(move || apply::apply_with(
-        &settings_json, driver::apply_config, config::save_settings_to_disk,
-    )).await.map_err(|error| format!("Apply worker failed: {error}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        apply::apply_with(
+            &settings_json,
+            driver::apply_config,
+            config::save_settings_to_disk,
+        )
+    })
+    .await
+    .map_err(|error| format!("Apply worker failed: {error}"))?
 }
 
 #[tauri::command]
