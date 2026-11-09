@@ -145,9 +145,59 @@ def main():
     if options.update:
         FIXTURE.parent.mkdir(parents=True, exist_ok=True)
         FIXTURE.write_text(serialized, encoding="utf-8")
-    elif not FIXTURE.exists() or FIXTURE.read_text(encoding="utf-8") != serialized:
-        raise RuntimeError("C++ mathematical reference changed; review before --update")
+    else:
+        if not FIXTURE.exists():
+            raise RuntimeError("C++ mathematical reference fixture is missing; review before --update")
+        reviewed = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        problems = compare(reviewed, json.loads(serialized))
+        if problems:
+            shown = "\n  ".join(problems[:20])
+            more = f"\n  ... and {len(problems) - 20} more" if len(problems) > 20 else ""
+            raise RuntimeError(f"C++ mathematical reference changed; review before --update:\n  {shown}{more}")
     print(f"C++ reference verified: {len(fixtures)} cases, {sum(len(c['xs']) for c in fixtures)} samples")
+
+
+def is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def compare(reviewed, actual):
+    """Compare a fresh oracle run with the reviewed fixture.
+
+    Finite curve outputs use the reviewed fixture's absolute and relative
+    tolerances, so insignificant library or formatting differences pass.
+    Everything else is exact: metadata (including header hashes), case names
+    and inputs, nonfinite classifications, and Synchronous f32 table bits.
+    """
+    problems = []
+    for key in sorted(set(reviewed) | set(actual)):
+        if key != "cases" and reviewed.get(key) != actual.get(key):
+            problems.append(f"{key} differs")
+    absolute = reviewed["absolute_tolerance"]
+    relative = reviewed["relative_tolerance"]
+    expected_cases, actual_cases = reviewed.get("cases", []), actual.get("cases", [])
+    if len(expected_cases) != len(actual_cases):
+        problems.append(f"case count {len(actual_cases)} != reviewed {len(expected_cases)}")
+        return problems
+    for expected, result in zip(expected_cases, actual_cases):
+        name = expected.get("name")
+        for key in sorted(set(expected) | set(result)):
+            if key != "expected" and expected.get(key) != result.get(key):
+                problems.append(f"{name}: {key} differs")
+        reference, values = expected.get("expected", []), result.get("expected", [])
+        if len(reference) != len(values):
+            problems.append(f"{name}: {len(values)} samples != reviewed {len(reference)}")
+            continue
+        xs = expected.get("xs", [])
+        for i, (want, got) in enumerate(zip(reference, values)):
+            x = xs[i] if i < len(xs) else "?"
+            if is_number(want) and is_number(got):
+                if abs(got - want) > absolute + relative * abs(want):
+                    problems.append(f"{name}: x={x} got {got!r}, reviewed {want!r}")
+            elif want != got:
+                # Nonfinite values are serialized as "NaN"/"Infinity"/"-Infinity".
+                problems.append(f"{name}: x={x} got {got!r}, reviewed {want!r} (classification)")
+    return problems
 
 
 if __name__ == "__main__":
