@@ -35,6 +35,8 @@ namespace rawaccel {
         power,
         lookup,
         tiered,
+        // Keep last: unrecognized modes fall back to no acceleration.
+        // The stock 1.7 driver numbers noaccel 6; userspace maps it by name.
         noaccel
     };
 
@@ -64,7 +66,14 @@ namespace rawaccel {
         double sync_speed = 5;
         double smooth = 0.5;
 
-        // Tiered Mode specific parameters
+        vec2d cap = { 15, 1.5 };
+        cap_mode cap_mode = cap_mode::out;
+
+        int length = 0;
+        mutable float data[LUT_RAW_DATA_CAPACITY] = {};
+
+        // Tiered mode parameters. Kept after the stock fields so those
+        // fields keep their stock offsets.
         tiered_type t_type = tiered_type::linear;
         double tiered_multiplier1 = 1.0;
         double tiered_input_offset1 = 0.0;
@@ -75,12 +84,6 @@ namespace rawaccel {
         double tiered_transition2 = 25.0;
         double tiered_decay_rate1 = 0.1;
         double tiered_decay_rate2 = 0.1;
-
-        vec2d cap = { 15, 1.5 };
-        cap_mode cap_mode = cap_mode::out;
-
-        int length = 0;
-        mutable float data[LUT_RAW_DATA_CAPACITY] = {};
     };
 
     struct speed_args

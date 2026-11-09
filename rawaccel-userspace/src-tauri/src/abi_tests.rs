@@ -31,6 +31,10 @@ fn all_wire_fields_match_the_custom_cpp_contract() {
             limit,
             sync_speed,
             smooth,
+            cap,
+            cap_mode,
+            length,
+            data,
             t_type,
             tiered_multiplier1,
             tiered_input_offset1,
@@ -40,11 +44,7 @@ fn all_wire_fields_match_the_custom_cpp_contract() {
             tiered_multiplier3,
             tiered_transition2,
             tiered_decay_rate1,
-            tiered_decay_rate2,
-            cap,
-            cap_mode,
-            length,
-            data
+            tiered_decay_rate2
         ),
         expected["accel_args"],
         "accel_args"
@@ -341,7 +341,7 @@ impl Fill for f64 {
 impl Fill for bool {
     fn fill(&mut self, tag: &mut u32) {
         *tag += 1;
-        *self = *tag % 2 != 0;
+        *self = !(*tag).is_multiple_of(2);
     }
 }
 impl<T: Fill, const N: usize> Fill for [T; N] {
@@ -398,6 +398,10 @@ fill_struct!(
     limit,
     sync_speed,
     smooth,
+    cap,
+    cap_mode,
+    length,
+    data,
     t_type,
     tiered_multiplier1,
     tiered_input_offset1,
@@ -407,11 +411,7 @@ fill_struct!(
     tiered_multiplier3,
     tiered_transition2,
     tiered_decay_rate1,
-    tiered_decay_rate2,
-    cap,
-    cap_mode,
-    length,
-    data
+    tiered_decay_rate2
 );
 fill_struct!(
     speed_args,
@@ -511,7 +511,9 @@ fn complete_packet_bytes_match_native_cpp_objects_including_padding() {
         .collect();
     let expected: Vec<u8> = hex
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|p| u8::from_str_radix(std::str::from_utf8(p).unwrap(), 16).unwrap())
         .collect();
     assert_eq!(bytes.len(), expected.len());
@@ -535,7 +537,9 @@ fn validated_tiered_and_device_settings_packet_matches_cpp_reference() {
         .collect();
     let expected: Vec<u8> = hex
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|p| u8::from_str_radix(std::str::from_utf8(p).unwrap(), 16).unwrap())
         .collect();
     assert_eq!(actual.len(), expected.len());
@@ -623,7 +627,9 @@ fn stock_settings_packet_matches_actual_upstream_cpp_bytes() {
         .collect();
     let expected: Vec<u8> = hex
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|p| u8::from_str_radix(std::str::from_utf8(p).unwrap(), 16).unwrap())
         .collect();
     assert_eq!(actual.len(), expected.len());

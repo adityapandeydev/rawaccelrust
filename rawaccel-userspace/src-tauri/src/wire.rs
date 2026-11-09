@@ -73,6 +73,10 @@ wire_struct!(
     limit,
     sync_speed,
     smooth,
+    cap,
+    cap_mode,
+    length,
+    data,
     t_type,
     tiered_multiplier1,
     tiered_input_offset1,
@@ -82,11 +86,7 @@ wire_struct!(
     tiered_multiplier3,
     tiered_transition2,
     tiered_decay_rate1,
-    tiered_decay_rate2,
-    cap,
-    cap_mode,
-    length,
-    data
+    tiered_decay_rate2
 );
 wire_struct!(
     speed_args,

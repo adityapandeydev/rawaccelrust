@@ -149,6 +149,10 @@ void fill(accel_args& value, unsigned& tag) {
     fill(value.limit, tag);
     fill(value.sync_speed, tag);
     fill(value.smooth, tag);
+    fill(value.cap, tag);
+    fill(value.cap_mode, tag);
+    fill(value.length, tag);
+    fill(value.data, tag);
     fill(value.t_type, tag);
     fill(value.tiered_multiplier1, tag);
     fill(value.tiered_input_offset1, tag);
@@ -159,10 +163,6 @@ void fill(accel_args& value, unsigned& tag) {
     fill(value.tiered_transition2, tag);
     fill(value.tiered_decay_rate1, tag);
     fill(value.tiered_decay_rate2, tag);
-    fill(value.cap, tag);
-    fill(value.cap_mode, tag);
-    fill(value.length, tag);
-    fill(value.data, tag);
 }
 void fill(speed_args& value, unsigned& tag) {
     fill(value.whole, tag);

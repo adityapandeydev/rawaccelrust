@@ -14,7 +14,7 @@ pub const NORMALIZED_DPI: f64 = 1000.0;
 // Must match the integer values in the C driver header.
 
 #[repr(i32)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub enum accel_mode {
     classic = 0,
     jump = 1,
@@ -23,40 +23,27 @@ pub enum accel_mode {
     power = 4,
     lookup = 5,
     tiered = 6,
+    // Keep last: unrecognized modes fall back to no acceleration.
+    // The stock 1.7 driver numbers noaccel 6; stock_wire maps it by name.
+    #[default]
     noaccel = 7,
 }
 
-impl Default for accel_mode {
-    fn default() -> Self {
-        accel_mode::noaccel
-    }
-}
-
 #[repr(i32)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub enum tiered_type {
+    #[default]
     linear = 0,
     natural = 1,
 }
 
-impl Default for tiered_type {
-    fn default() -> Self {
-        tiered_type::linear
-    }
-}
-
 #[repr(i32)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub enum cap_mode {
     io = 0,
     in_ = 1,
+    #[default]
     out = 2,
-}
-
-impl Default for cap_mode {
-    fn default() -> Self {
-        cap_mode::out
-    }
 }
 
 // ── Math Primitives ──────────────────────────────────────────────────────
@@ -90,7 +77,14 @@ pub struct accel_args {
     pub sync_speed: f64,
     pub smooth: f64,
 
-    // Tiered Mode specific parameters
+    pub cap: vec2d,
+    pub cap_mode: cap_mode,
+
+    pub length: i32,
+    pub data: [f32; LUT_RAW_DATA_CAPACITY],
+
+    // Tiered mode parameters. Kept after the stock fields so those
+    // fields keep their stock offsets.
     pub t_type: tiered_type,
     pub tiered_multiplier1: f64,
     pub tiered_input_offset1: f64,
@@ -101,12 +95,6 @@ pub struct accel_args {
     pub tiered_transition2: f64,
     pub tiered_decay_rate1: f64,
     pub tiered_decay_rate2: f64,
-
-    pub cap: vec2d,
-    pub cap_mode: cap_mode,
-
-    pub length: i32,
-    pub data: [f32; LUT_RAW_DATA_CAPACITY],
 }
 
 impl Default for accel_args {
@@ -126,6 +114,10 @@ impl Default for accel_args {
             limit: 1.5,
             sync_speed: 5.0,
             smooth: 0.5,
+            cap: vec2d { x: 15.0, y: 1.5 },
+            cap_mode: cap_mode::out,
+            length: 0,
+            data: [0.0; LUT_RAW_DATA_CAPACITY],
             t_type: tiered_type::linear,
             tiered_multiplier1: 1.0,
             tiered_input_offset1: 0.0,
@@ -136,11 +128,6 @@ impl Default for accel_args {
             tiered_transition2: 25.0,
             tiered_decay_rate1: 0.1,
             tiered_decay_rate2: 0.1,
-
-            cap: vec2d { x: 15.0, y: 1.5 },
-            cap_mode: cap_mode::out,
-            length: 0,
-            data: [0.0; LUT_RAW_DATA_CAPACITY],
         }
     }
 }
@@ -230,11 +217,13 @@ impl Default for accel_union {
 impl accel_union {
     /// Encode only named curve fields; never copy uninitialized Rust padding.
     pub(crate) fn write<T: crate::wire::Wire>(&mut self, value: &T) {
-        assert!(std::mem::size_of::<T>() <= ACCEL_UNION_SIZE, "curve struct exceeds union capacity");
+        assert!(
+            std::mem::size_of::<T>() <= ACCEL_UNION_SIZE,
+            "curve struct exceeds union capacity"
+        );
         self.memory.fill(0);
         value.write(&mut self.memory);
     }
-
 }
 
 /// Inner data_t struct inside modifier_settings.
@@ -274,7 +263,7 @@ impl Default for time_clamp {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct device_config {
     pub disable: bool,
     pub set_extra_info: bool,
@@ -282,19 +271,6 @@ pub struct device_config {
     pub dpi: i32,
     pub polling_rate: i32,
     pub clamp: time_clamp,
-}
-
-impl Default for device_config {
-    fn default() -> Self {
-        Self {
-            disable: false,
-            set_extra_info: false,
-            poll_time_lock: false,
-            dpi: 0,
-            polling_rate: 0,
-            clamp: time_clamp::default(),
-        }
-    }
 }
 
 #[repr(C)]
