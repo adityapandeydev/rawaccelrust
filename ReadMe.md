@@ -6,15 +6,15 @@ The work is intended as a contribution to [RawAccel](https://github.com/RawAccel
 
 ## Features
 
-- Profiles, per-device assignments, and device settings for DPI, polling, time clamps, and diagnostic options.
+- Up to five profiles, edited from tabs in the top bar (rename, duplicate, reset, delete), with per-device assignments and device settings for DPI, polling, time clamps, and diagnostic options. Defaults for new mice can be set too.
 - No acceleration, Linear, Classic, Jump, Natural, Power, Synchronous, Lookup, and Tiered curve editing.
-- Sensitivity, Velocity, and Gain graphs: show any one, any pair, or all three. Combined and independent X/Y views keep distinct curve colors in light and dark themes.
+- One graph beside the curve settings: show Sensitivity, Velocity, and Gain in any combination. By-component views draw the Y axis dashed, and a live-input dot follows the mouse.
 - Tiered Linear and Natural submodes, with three sensitivity levels and two adjustable transitions.
-- Lookup-table editing, draggable points, CSV import, and table restoration.
+- Lookup-table editing in a point table or by dragging points on the graph, CSV import, and table restoration.
 - Output sensitivity, directional ratios, rotation, snapping, domain/range weights, speed limits, and smoothing controls.
 - Import of modern and original RawAccel settings, JSON export, validation, recovery copies, and explicit Apply & Save.
 - Silent restoration of saved settings at sign-in, using the same executable as the desktop application.
-- Light, dark, and system themes; saved window bounds and interface preferences; warnings before discarding unsaved edits.
+- Five colour themes (Signal Teal, Bordeaux & Silver, Redline, Graphite & Copper, Cobalt & Titanium), each with light and dark modes plus a system option; saved window bounds and interface preferences; warnings before discarding unsaved edits.
 
 ## Driver compatibility
 
@@ -48,7 +48,7 @@ npm run tauri -- dev
 ## Configure a mouse
 
 1. Create or import a profile and adjust its curve.
-2. Assign the profile to the intended mouse under Mappings. A disconnected device's saved configuration remains available.
+2. Assign the profile to the intended mouse on the Devices page. A disconnected device's saved configuration remains listed there.
 3. Use **Apply & Save** to send all supported profiles and device settings to the driver, then save the document.
 
 Editing a field or importing a file does not change the driver. Export saves an editor document without applying it. If Apply succeeds but saving fails, the application reports that distinction: the driver can have the new configuration while the saved file still contains the previous one.
