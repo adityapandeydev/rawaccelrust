@@ -31,7 +31,7 @@ export function Modal({ isOpen, title, message, onClose, onConfirm, confirmLabel
   const shown = useRef({ title, message, onConfirm, confirmLabel });
   if (isOpen) shown.current = { title, message, onConfirm, confirmLabel };
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !mounted) return;
     const previous = document.activeElement as HTMLElement | null;
     content.current?.querySelector<HTMLElement>('button')?.focus();
     const key = (event: KeyboardEvent) => {
@@ -44,7 +44,7 @@ export function Modal({ isOpen, title, message, onClose, onConfirm, confirmLabel
     };
     document.addEventListener('keydown', key);
     return () => { document.removeEventListener('keydown', key); previous?.focus(); };
-  }, [isOpen]);
+  }, [isOpen, mounted]);
   if (!mounted) return null;
   const s = shown.current;
   const lines = s.message.split('\n');

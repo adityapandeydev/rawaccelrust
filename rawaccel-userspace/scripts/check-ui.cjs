@@ -151,7 +151,11 @@ const activeName=page=>page.locator('.ptab[aria-selected="true"] .pname').textCo
     await page.getByRole('button',{name:'Profile actions'}).click();
     await page.getByRole('menuitem',{name:'Reset curve to defaults'}).click();
     await page.getByRole('dialog',{name:'Reset this profile?'}).waitFor();
+    assert.equal(await page.evaluate(()=>document.querySelector('[role=dialog]').contains(document.activeElement)),true,'dialog must receive focus on opening');
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await page.evaluate(()=>document.querySelector('[role=dialog]').contains(document.activeElement)),true,'dialog must trap keyboard focus');
     await page.getByRole('button',{name:'Cancel',exact:true}).click();
+    assert.equal(await page.getByRole('button',{name:'Profile actions'}).evaluate(button=>button===document.activeElement),true,'closing restores focus to the opener');
     await page.getByRole('button',{name:'Apply & Save',exact:true}).click();
     await page.locator('.notification-toast').waitFor();
     await page.getByRole('button',{name:'Dismiss notification'}).click();
