@@ -137,6 +137,21 @@ const activeName=page=>page.locator('.ptab[aria-selected="true"] .pname').textCo
     assert.equal(await page.locator('.statusbar .document-status').textContent(),'Unsaved changes');
     await page.getByRole('button',{name:'Revert to saved',exact:true}).click();
     assert.equal(await activeName(page),'Default Profile');
+    // Duplicate inserts a uniquely named copy.
+    await page.getByRole('button',{name:'Profile actions'}).click();
+    await page.getByRole('menuitem',{name:'Duplicate'}).click();
+    assert.equal(await activeName(page),'Default Profile (2)');
+    assert.equal(await page.locator('.ptab').count(),2);
+    // Defaults for new mice reach the document sent to the driver.
+    await page.getByRole('button',{name:'Devices',exact:true}).click();
+    await page.getByRole('option',{name:/Defaults for new mice/}).click();
+    await page.getByRole('spinbutton',{name:'Hardware DPI',exact:true}).fill('1600');
+    const applies=await page.evaluate(()=>window.mockCalls.filter(x=>x.cmd==='apply_settings').length);
+    await page.getByRole('button',{name:'Apply & Save',exact:true}).click();
+    await page.waitForFunction(n=>window.mockCalls.filter(x=>x.cmd==='apply_settings').length>n,applies);
+    const sent=JSON.parse(await page.evaluate(()=>window.mockCalls.findLast(x=>x.cmd==='apply_settings').args.settingsJson));
+    assert.equal(sent.default_device_config.dpi,1600);
+    assert.deepEqual(sent.profiles.map(p=>p.name),['Default Profile','Default Profile (2)']);
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     await page.screenshot({path:path.join(artifacts,'startup-settings-dark.png'),fullPage:true});
     await page.getByRole('button',{name:'Switch to light theme'}).click();
@@ -145,6 +160,14 @@ const activeName=page=>page.locator('.ptab[aria-selected="true"] .pname').textCo
     await page.screenshot({path:path.join(artifacts,'startup-settings-light-min.png'),fullPage:true});
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
     assert.equal(overflow,false);
+    // A colour theme choice persists across launches.
+    await page.getByRole('tab',{name:'Themes'}).click();
+    await page.getByRole('button',{name:/Bordeaux & Silver/}).click();
+    await page.waitForFunction(()=>document.documentElement.dataset.palette==='bordeaux');
+    page.once('dialog',dialog=>dialog.accept());
+    await page.reload();
+    await page.waitForFunction(()=>document.documentElement.dataset.palette==='bordeaux');
+    assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()),'#8A1538');
     assert.deepEqual(errors,[]);
     const late=await browser.newPage({viewport:{width:1440,height:1000}});
     late.on('pageerror',e=>errors.push(String(e)));
@@ -163,6 +186,6 @@ const activeName=page=>page.locator('.ptab[aria-selected="true"] .pname').textCo
     assert.equal(await activeName(late),'Keep early edits');
     await late.close();
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({checks:'startup controls; persistent preferences; language deferral; toast on/off; reset confirmation on/off; import discard protection; delayed load protection; browser close protection; themes; minimum width',pageErrors:errors,overflow,calls:await page.evaluate(()=>window.mockCalls.filter(x=>!x.cmd.startsWith('plugin:')).map(x=>x.cmd))},null,2));
+    console.log(JSON.stringify({checks:'startup controls; persistent preferences; duplicate; device defaults applied; persistent colour theme; language deferral; toast on/off; reset confirmation on/off; import discard protection; delayed load protection; browser close protection; themes; minimum width',pageErrors:errors,overflow,calls:await page.evaluate(()=>window.mockCalls.filter(x=>!x.cmd.startsWith('plugin:')).map(x=>x.cmd))},null,2));
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});
