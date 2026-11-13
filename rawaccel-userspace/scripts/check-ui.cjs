@@ -18,7 +18,7 @@ if(cmd==='load_settings'){if(location.search.includes('delayload'))return await 
 if(cmd==='get_startup_info')return {enabled:window.mockEnabled,registration_error:window.mockPathMismatch?'Startup path needs updating':null,needs_path_update:window.mockPathMismatch,settings_path:'C:\\\\Users\\\\Example\\\\AppData\\\\Local\\\\RawAccel\\\\settings.json',mirror_path:'D:\\\\Custom Apps\\\\RawAccel\\\\settings.json',executable_path:'D:\\\\Custom Apps\\\\RawAccel\\\\RawAccel.exe',portable:false,last_result:{restored:false,timestamp_secs:1792454400,settings_path:'C:\\\\Users\\\\Example\\\\AppData\\\\Local\\\\RawAccel\\\\settings.json',attempts:10,error:'Driver not ready'},diagnostic_error:null};
 if(cmd==='set_startup_enabled'){if(window.mockReject)throw 'Startup registration denied';window.mockEnabled=args.enabled;window.mockPathMismatch=false;return;}
 if(cmd==='open_settings_folder')return;
-if(cmd==='apply_settings')return {applied:true,saved:true,saved_paths:['mock settings.json'],warnings:[],save_error:null};
+if(cmd==='apply_settings'){if(window.mockApplyError)throw window.mockApplyError;return window.mockApplyResult??{applied:true,saved:true,saved_paths:['mock settings.json'],warnings:[],save_error:null};}
 if(cmd==='import_settings')return args.rawJson;
 if(cmd.startsWith('plugin:event|'))return 1;
 throw 'Unexpected mock command '+cmd;
@@ -48,6 +48,41 @@ const activeName=page=>page.locator('.ptab[aria-selected="true"] .pname').textCo
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const browser=await chromium.launch({headless:true,channel:process.env.PW_CHANNEL||'chrome'});
   try {
+    // The development bundle enables React Strict Mode's effect replay.
+    // Keep all native calls mocked while exercising the real development code.
+    if(process.argv.includes('--dev')) {
+      const {createServer}=await import('vite');
+      const dev=await createServer({server:{host:'127.0.0.1',port:0}});
+      try {
+        await dev.listen();
+        const devPage=await browser.newPage();
+        const url=dev.resolvedUrls.local[0];
+        await devPage.route(url+'**',async route=>{
+          if(route.request().resourceType()!=='document')return route.continue();
+          const response=await route.fetch();
+          await route.fulfill({response,body:(await response.text()).replace('<head>','<head>'+mock)});
+        });
+        await devPage.goto(url);
+        await devPage.waitForFunction(()=>document.querySelector('.apply')?.getAttribute('aria-disabled')==='false');
+        await devPage.getByRole('button',{name:'Apply & Save',exact:true}).click();
+        await devPage.waitForFunction(()=>document.querySelector('.apply').dataset.state==='done');
+        await devPage.waitForFunction(()=>document.querySelector('.apply').dataset.state==='idle');
+        await devPage.getByRole('button',{name:'Apply & Save',exact:true}).click();
+        await devPage.waitForFunction(()=>window.mockCalls.filter(c=>c.cmd==='apply_settings').length===2);
+        await devPage.waitForFunction(()=>document.querySelector('.apply').dataset.state==='idle');
+        await devPage.evaluate(()=>window.mockApplyResult={applied:true,saved:false,saved_paths:[],warnings:[],save_error:'Mock disk failure'});
+        await devPage.getByRole('button',{name:'Apply & Save',exact:true}).click();
+        await devPage.waitForFunction(()=>document.querySelector('.apply').dataset.state==='warn');
+        await devPage.waitForFunction(()=>document.querySelector('.apply').dataset.state==='idle');
+        await devPage.getByRole('dialog').getByRole('button',{name:'OK',exact:true}).click();
+        await devPage.evaluate(()=>window.mockApplyError='Mock driver failure');
+        await devPage.getByRole('button',{name:'Apply & Save',exact:true}).click();
+        await devPage.getByRole('dialog',{name:'Settings Were Not Applied'}).waitFor();
+        assert.equal(await devPage.locator('.apply').getAttribute('data-state'),'idle');
+        console.log('Development Strict Mode: Apply success, retry, partial save and driver failure recover');
+        await devPage.close();
+      } finally { await dev.close(); }
+    }
     const page=await browser.newPage({viewport:{width:1440,height:1000},colorScheme:'dark'});
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+server.address().port);

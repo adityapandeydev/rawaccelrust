@@ -146,7 +146,10 @@ export function ApplyButton({ onApply, disabledReason, onBlocked }: {
   const [shake, setShake] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; if (timer.current) clearTimeout(timer.current); }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; if (timer.current) clearTimeout(timer.current); };
+  }, []);
   const click = async () => {
     if (state !== 'idle') return;
     if (disabledReason) { setShake(n => n + 1); onBlocked(disabledReason); return; }
