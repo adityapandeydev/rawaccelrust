@@ -11,7 +11,7 @@ async function load() {
   const math = url(compile('math'));
   return import(url(compile('ui/graphSeries').replace(/from ['"]\.\.\/math['"]/, `from '${math}'`)));
 }
-const { axisBounds, graphDomain, sampleCurve, niceCeil, robustMax, lookupPointSensitivity, lookupStoredValue, SAMPLES } = await load();
+const { axisBounds, graphDomain, sampleCurve, niceCeil, robustMax, robustMin, lookupPointSensitivity, lookupStoredValue, SAMPLES } = await load();
 const defaults = JSON.parse(readFileSync(new URL('../src/settings-defaults.json', import.meta.url))).accel_args;
 const args = patch => ({ ...structuredClone(defaults), ...patch });
 
@@ -62,4 +62,25 @@ test('signed bounds contain negative LUT sensitivity and falling-velocity gain',
   const bounds = axisBounds([...s.gain], 1.5);
   assert.ok(bounds.min <= Math.min(...s.gain));
   assert.deepEqual(axisBounds([NaN, Infinity], 20), { min: 0, max: 20 });
+});
+
+test('a sampled gain impulse does not set the scale in either direction', () => {
+  assert.equal(robustMin([-9000, ...Array(400).fill(2)]), 2);
+  // Jump with Smooth 0 and Gain off: velocity steps, so gain is an impulse whose
+  // sampled height depends only on sample spacing.
+  const jump = args({ mode: 'jump', gain: false, smooth: 0, cap: { x: 20, y: 0.5 } });
+  for (const n of [201, 801]) {
+    const s = sampleCurve(jump, 80, n);
+    assert.ok(Math.min(...s.gain) < -20, 'the sampled impulse exists');
+    assert.deepEqual(axisBounds([...s.sensitivity, ...s.gain], 1.5), { min: 0, max: 1.5 });
+  }
+  const up = sampleCurve({ ...jump, cap: { x: 20, y: 2 } }, 80);
+  assert.equal(axisBounds([...up.sensitivity, ...up.gain], 1.5).max, 2.5);
+});
+
+test('editable lookup handles stay in view even when they look like spikes', () => {
+  const smooth = Array(400).fill(1);
+  assert.equal(axisBounds(smooth, 1.5, [-3]).min < -3, true);
+  assert.equal(axisBounds(smooth, 1.5, [9]).max >= 9, true);
+  assert.deepEqual(axisBounds(smooth, 1.5, [NaN]), { min: 0, max: 1.5 });
 });

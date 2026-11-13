@@ -45,20 +45,28 @@ export function niceCeil(value: number, floor: number): number {
   return step * power;
 }
 
-// Axis top that ignores isolated spikes (e.g. the gain of a sharp Jump),
-// which would otherwise flatten every other curve.
-export function robustMax(values: Iterable<number>): number {
+// Axis ends that ignore isolated spikes. A discontinuous curve (a Jump with
+// Smooth 0, a vertical lookup step) has an impulse for gain: unbounded and of
+// zero width. Its sampled height depends only on sample spacing, so it must
+// not set the scale; the line still runs off the plot edge to show it.
+function percentile(values: Iterable<number>, fraction: number): number {
   const finite = Array.from(values).filter(Number.isFinite).sort((a, b) => a - b);
   if (!finite.length) return 0;
-  return finite[Math.floor(0.995 * (finite.length - 1))];
+  return finite[Math.floor(fraction * (finite.length - 1))];
 }
+export const robustMax = (values: Iterable<number>) => percentile(values, 0.995);
+export const robustMin = (values: Iterable<number>) => percentile(values, 0.005);
 
-export function axisBounds(values: number[], floor: number) {
-  const finite = values.filter(Number.isFinite);
-  const min = Math.min(0, ...finite);
+// Signed axis range: spike-robust in both directions over sampled curves, but
+// `exact` values (editable lookup handles) always stay in view, since a narrow
+// point between samples would otherwise be dropped as a spike.
+export function axisBounds(values: number[], floor: number, exact: number[] = []) {
+  const finiteExact = exact.filter(Number.isFinite);
+  const low = Math.min(0, robustMin(values), ...finiteExact);
+  const high = Math.max(robustMax(values), ...finiteExact);
   return {
-    min: min < 0 ? -niceCeil(-min * 1.08, floor) : 0,
-    max: niceCeil(robustMax(finite) * 1.08, floor),
+    min: low < 0 ? -niceCeil(-low * 1.08, floor) : 0,
+    max: niceCeil(high * 1.08, floor),
   };
 }
 

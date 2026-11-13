@@ -62,9 +62,8 @@ export function CurveCanvas({ argsX, argsY, whole, editAxis, visible, expanded, 
         : [{ start: editArgs.tiered_input_offset1, end: null }, { start: editArgs.tiered_input_offset2, end: null }];
     const handles = editArgs.mode === 'lookup' && visible.sensitivity
       ? (editArgs.lookup_table ?? []).map(point => ({ x: point.x, y: lookupPointSensitivity(editArgs, point) })) : [];
-    // Include editable handles, including narrow features between sampled speeds.
-    left.push(...handles.map(handle => handle.y));
-    const leftBounds = axisBounds(left, 1.5), rightBounds = axisBounds(right, 20);
+    // Editable handles always stay in view, even narrow ones between samples.
+    const leftBounds = axisBounds(left, 1.5, handles.map(handle => handle.y)), rightBounds = axisBounds(right, 20);
     return { domain, series, bands, handles, left: leftBounds.max, right: rightBounds.max, leftMin: leftBounds.min, rightMin: rightBounds.min };
   }, [samples, visible, whole, editAxis, editArgs, domain]);
 
