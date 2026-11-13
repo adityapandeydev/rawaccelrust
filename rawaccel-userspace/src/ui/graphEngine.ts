@@ -201,12 +201,17 @@ export class GraphEngine {
       }
     }
     // Speed axis.
-    const stepX = cur.domain > 120 ? 20 : 10;
+    // At most ten intervals, even for LUTs near the f32 input limit.
+    const rough = Math.max(10, cur.domain / 10);
+    const power = 10 ** Math.floor(Math.log10(rough));
+    const stepX = ([1, 2, 5, 10].find(step => step * power >= rough) ?? 10) * power;
+    const countX = Math.min(10, Math.floor(cur.domain / stepX));
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    for (let x = 0; x <= cur.domain + 1e-6; x += stepX) {
+    for (let i = 0; i <= countX; i++) {
+      const x = i * stepX;
       const xx = Math.round(this.px(x)) + 0.5;
       ctx.beginPath(); ctx.moveTo(xx, top); ctx.lineTo(xx, bottom); ctx.stroke();
-      ctx.fillText(String(Math.round(x)), xx, bottom + 7);
+      ctx.fillText(x >= 1e6 ? x.toExponential(1) : String(Math.round(x)), xx, bottom + 7);
     }
     ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
     ctx.fillText('input speed, counts/ms', W - PAD.r - 6, bottom - 6);
