@@ -220,6 +220,28 @@ const activeName=page=>page.locator('.ptab[aria-selected="true"] .pname').textCo
     await reload;
     assert.equal(await activeName(late),'Keep early edits');
     await late.close();
+    const signed=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce',colorScheme:'dark'});
+    signed.on('pageerror',e=>errors.push(String(e)));
+    await signed.goto('http://127.0.0.1:'+server.address().port);
+    await signed.getByRole('radio',{name:'Lookup',exact:true}).click();
+    await signed.getByRole('spinbutton',{name:'Point 1 sensitivity',exact:true}).fill('-1');
+    await signed.getByRole('spinbutton',{name:'Point 2 sensitivity',exact:true}).fill('-0.5');
+    await signed.getByRole('spinbutton',{name:'Point 2 sensitivity',exact:true}).press('Tab');
+    const box=await signed.locator('canvas.overlay').boundingBox();
+    const plotW=box.width-46-54,plotH=box.height-30-28;
+    const screen=(x,y)=>({x:box.x+46+x/80*plotW,y:box.y+box.height-28-(y+1.5)/3*plotH});
+    const from=screen(0.1,-1),to=screen(10,-0.75);
+    await signed.mouse.move(from.x,from.y);
+    await signed.mouse.down();
+    await signed.mouse.move(to.x,to.y,{steps:5});
+    await signed.mouse.up();
+    const dragged=Number(await signed.getByRole('spinbutton',{name:'Point 1 sensitivity',exact:true}).inputValue());
+    assert.ok(dragged<0&&Math.abs(dragged+0.75)<0.05,'negative LUT values must stay negative when dragged');
+    await signed.screenshot({path:path.join(artifacts,'signed-lookup-dark.png')});
+    await signed.getByRole('button',{name:'Switch to light theme'}).click();
+    await signed.setViewportSize({width:1024,height:768});
+    await signed.screenshot({path:path.join(artifacts,'signed-lookup-light-min.png')});
+    await signed.close();
     assert.deepEqual(errors,[]);
     console.log(JSON.stringify({checks:'startup controls; persistent preferences; duplicate; device defaults applied; persistent colour theme; language deferral; toast on/off; reset confirmation on/off; import discard protection; delayed load protection; browser close protection; themes; minimum width',pageErrors:errors,overflow,calls:await page.evaluate(()=>window.mockCalls.filter(x=>!x.cmd.startsWith('plugin:')).map(x=>x.cmd))},null,2));
   }finally{await browser.close();server.close();}

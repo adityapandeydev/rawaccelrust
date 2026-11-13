@@ -3,7 +3,7 @@ import type { AccelArgs } from '../types';
 import { useMouseTelemetry } from '../components/MouseTelemetry';
 import { trackerInputs } from '../tracker';
 import { GraphEngine, type GraphSeries, type GraphTarget, type SeriesKind } from './graphEngine';
-import { graphDomain, lookupPointSensitivity, lookupStoredValue, niceCeil, robustMax, sampleCurve } from './graphSeries';
+import { axisBounds, graphDomain, lookupPointSensitivity, lookupStoredValue, sampleCurve } from './graphSeries';
 
 export type VisibleGraphs = Record<SeriesKind, boolean>;
 
@@ -62,7 +62,10 @@ export function CurveCanvas({ argsX, argsY, whole, editAxis, visible, expanded, 
         : [{ start: editArgs.tiered_input_offset1, end: null }, { start: editArgs.tiered_input_offset2, end: null }];
     const handles = editArgs.mode === 'lookup' && visible.sensitivity
       ? (editArgs.lookup_table ?? []).map(point => ({ x: point.x, y: lookupPointSensitivity(editArgs, point) })) : [];
-    return { domain, series, bands, handles, left: niceCeil(robustMax(left) * 1.08, 1.5), right: niceCeil(robustMax(right) * 1.08, 20) };
+    // Include editable handles, including narrow features between sampled speeds.
+    left.push(...handles.map(handle => handle.y));
+    const leftBounds = axisBounds(left, 1.5), rightBounds = axisBounds(right, 20);
+    return { domain, series, bands, handles, left: leftBounds.max, right: rightBounds.max, leftMin: leftBounds.min, rightMin: rightBounds.min };
   }, [samples, visible, whole, editAxis, editArgs, domain]);
 
   // Declared before the update effect: layout effects run in order, so the
@@ -121,7 +124,7 @@ export function CurveCanvas({ argsX, argsY, whole, editAxis, visible, expanded, 
     const low = drag.index > 0 ? table[drag.index - 1].x + 0.001 : 0.001;
     const high = drag.index < table.length - 1 ? table[drag.index + 1].x - 0.001 : e.domain;
     const nx = Math.max(low, Math.min(high, x));
-    next[drag.index] = { x: nx, y: lookupStoredValue(editArgs, nx, Math.max(0, y)) };
+    next[drag.index] = { x: nx, y: lookupStoredValue(editArgs, nx, y) };
     onLookupChange(drag.axis, next);
   };
   const endDrag = () => {

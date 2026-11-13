@@ -32,3 +32,21 @@ test('axis ticks stay bounded at large valid input speeds', () => {
     assert.ok(labels.every(([, x, y]) => Number.isFinite(x) && Number.isFinite(y)));
   }
 });
+
+test('negative sensitivity, velocity, handles and live dots share signed axes', () => {
+  const { engine, segments, dots } = renderer();
+  const values = new Float64Array([-1, 1]);
+  engine.setTarget(target({ leftMin: -2, rightMin: -100,
+    handles: [{ x: 40, y: -1 }],
+    series: new Map([
+      ['sensitivity-x', { kind: 'sensitivity', axis: 'x', values, dashed: false, alpha: 1 }],
+      ['velocity-x', { kind: 'velocity', axis: 'x', values: new Float64Array([-50, 50]), dashed: false, alpha: 1 }],
+    ]),
+  }), 'direct');
+  // Plot: x=46..846, y=30..572. -1 on [-2,2] is y=436.5.
+  assert.equal(engine.handleAt(446, 436.5), 0);
+  assert.equal(engine.toData(446, 436.5).y, -1);
+  assert.ok(segments.some(([, y]) => y === 436.5));
+  engine.drawLive([{ speed: 0, axis: 'x', values, hollow: false }]);
+  assert.ok(dots.some(([, y]) => y === 436.5));
+});

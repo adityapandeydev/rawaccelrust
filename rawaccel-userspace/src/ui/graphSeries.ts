@@ -53,6 +53,15 @@ export function robustMax(values: Iterable<number>): number {
   return finite[Math.floor(0.995 * (finite.length - 1))];
 }
 
+export function axisBounds(values: number[], floor: number) {
+  const finite = values.filter(Number.isFinite);
+  const min = Math.min(0, ...finite);
+  return {
+    min: min < 0 ? -niceCeil(-min * 1.08, floor) : 0,
+    max: niceCeil(robustMax(finite) * 1.08, floor),
+  };
+}
+
 // Lookup points are drawn and dragged on the sensitivity scale.
 export const lookupPointSensitivity = (args: AccelArgs, point: { x: number; y: number }) => args.gain ? point.y / point.x : point.y;
 export const lookupStoredValue = (args: AccelArgs, x: number, sensitivity: number) => args.gain ? sensitivity * x : sensitivity;

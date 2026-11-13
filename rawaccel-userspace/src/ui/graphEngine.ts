@@ -18,6 +18,8 @@ export interface GraphTarget {
   domain: number;
   left: number; // multiplier axis top (sensitivity and gain)
   right: number; // velocity axis top
+  leftMin: number;
+  rightMin: number;
   series: Map<string, GraphSeries>;
   bands: { start: number; end: number | null }[];
   handles: { x: number; y: number }[];
@@ -45,7 +47,7 @@ export class GraphEngine {
   private height = 0;
   private dpr = 1;
   private colors: GraphColors | null = null;
-  private current: GraphTarget = { domain: 80, left: 2, right: 100, series: new Map(), bands: [], handles: [] };
+  private current: GraphTarget = { domain: 80, left: 2, right: 100, leftMin: 0, rightMin: 0, series: new Map(), bands: [], handles: [] };
   private animation: { from: GraphTarget; to: GraphTarget; start: number; duration: number } | null = null;
   private frame = 0;
   private lastDots: LiveDot[] = [];
@@ -97,7 +99,7 @@ export class GraphEngine {
       from.series.set(key, { ...drawn, values: Float64Array.from(drawn.values) });
       to.series.set(key, { ...drawn, values: zeros, alpha: 0, leaving: true });
     }
-    if (how === 'grow') { from.domain = target.domain; from.left = target.left; from.right = target.right; }
+    if (how === 'grow') { from.domain = target.domain; from.left = target.left; from.right = target.right; from.leftMin = target.leftMin; from.rightMin = target.rightMin; }
     this.animation = { from, to, start: performance.now(), duration: how === 'grow' ? 700 : 380 };
     this.current.bands = target.bands;
     this.current.handles = target.handles;
@@ -123,7 +125,7 @@ export class GraphEngine {
       series.set(key, { ...to, values, alpha: from.alpha + (to.alpha - from.alpha) * e });
     }
     const lerp = (x: number, y: number) => x + (y - x) * e;
-    this.current = { ...this.current, series, domain: lerp(a.from.domain, a.to.domain), left: lerp(a.from.left, a.to.left), right: lerp(a.from.right, a.to.right) };
+    this.current = { ...this.current, series, domain: lerp(a.from.domain, a.to.domain), left: lerp(a.from.left, a.to.left), right: lerp(a.from.right, a.to.right), leftMin: lerp(a.from.leftMin, a.to.leftMin), rightMin: lerp(a.from.rightMin, a.to.rightMin) };
     this.draw();
     this.drawLive(this.lastDots);
     if (p < 1) { this.frame = requestAnimationFrame(this.step); return; }
@@ -135,8 +137,8 @@ export class GraphEngine {
 
   // Geometry shared by drawing and pointer hit-testing.
   private px = (x: number) => PAD.l + (x / this.current.domain) * (this.width - PAD.l - PAD.r);
-  private pyLeft = (v: number) => this.height - PAD.b - (v / this.current.left) * (this.height - PAD.t - PAD.b);
-  private pyRight = (v: number) => this.height - PAD.b - (v / this.current.right) * (this.height - PAD.t - PAD.b);
+  private pyLeft = (v: number) => this.height - PAD.b - ((v - this.current.leftMin) / (this.current.left - this.current.leftMin)) * (this.height - PAD.t - PAD.b);
+  private pyRight = (v: number) => this.height - PAD.b - ((v - this.current.rightMin) / (this.current.right - this.current.rightMin)) * (this.height - PAD.t - PAD.b);
 
   handleAt(clientX: number, clientY: number): number {
     const r = this.overlayCanvas.getBoundingClientRect();
@@ -154,7 +156,7 @@ export class GraphEngine {
     const plotW = this.width - PAD.l - PAD.r, plotH = this.height - PAD.t - PAD.b;
     return {
       x: clamp((clientX - r.left - PAD.l) / plotW, 0, 1) * this.current.domain,
-      y: clamp((this.height - PAD.b - (clientY - r.top)) / plotH, 0, 1) * this.current.left,
+      y: this.current.leftMin + clamp((this.height - PAD.b - (clientY - r.top)) / plotH, 0, 1) * (this.current.left - this.current.leftMin),
     };
   }
 
@@ -188,7 +190,7 @@ export class GraphEngine {
     ctx.strokeStyle = c.grid; ctx.lineWidth = 1;
     ctx.fillStyle = c.faint; ctx.textAlign = 'right';
     for (let i = 0; i <= ticks; i++) {
-      const v = (cur.left * i) / ticks, y = Math.round(this.pyLeft(v)) + 0.5;
+      const v = cur.leftMin + ((cur.left - cur.leftMin) * i) / ticks, y = Math.round(this.pyLeft(v)) + 0.5;
       ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
       ctx.fillText(fmt(v, cur.left < 4 ? 2 : 1), PAD.l - 8, y);
     }
@@ -196,7 +198,7 @@ export class GraphEngine {
     if (showRight) {
       ctx.textAlign = 'left';
       for (let i = 0; i <= ticks; i++) {
-        const v = (cur.right * i) / ticks;
+        const v = cur.rightMin + ((cur.right - cur.rightMin) * i) / ticks;
         ctx.fillText(fmt(v, 0), W - PAD.r + 8, Math.round(this.pyRight(v)) + 0.5);
       }
     }
@@ -244,7 +246,8 @@ export class GraphEngine {
       if (s.kind === 'sensitivity' && !s.dashed) {
         trace();
         ctx.save();
-        ctx.lineTo(this.px(cur.domain), bottom); ctx.lineTo(this.px(0), bottom); ctx.closePath();
+        const baseline = clamp(this.pyLeft(0), top, bottom);
+        ctx.lineTo(this.px(cur.domain), baseline); ctx.lineTo(this.px(0), baseline); ctx.closePath();
         const g = ctx.createLinearGradient(0, top, 0, bottom);
         g.addColorStop(0, color); g.addColorStop(1, 'transparent');
         ctx.globalAlpha = 0.1 * s.alpha; ctx.fillStyle = g; ctx.fill();

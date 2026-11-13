@@ -11,7 +11,7 @@ async function load() {
   const math = url(compile('math'));
   return import(url(compile('ui/graphSeries').replace(/from ['"]\.\.\/math['"]/, `from '${math}'`)));
 }
-const { graphDomain, sampleCurve, niceCeil, robustMax, lookupPointSensitivity, lookupStoredValue, SAMPLES } = await load();
+const { axisBounds, graphDomain, sampleCurve, niceCeil, robustMax, lookupPointSensitivity, lookupStoredValue, SAMPLES } = await load();
 const defaults = JSON.parse(readFileSync(new URL('../src/settings-defaults.json', import.meta.url))).accel_args;
 const args = patch => ({ ...structuredClone(defaults), ...patch });
 
@@ -49,4 +49,17 @@ test('lookup points convert between stored and displayed sensitivity', () => {
   const sensTable = args({ mode: 'lookup', gain: false });
   assert.equal(lookupPointSensitivity(sensTable, { x: 10, y: 1.5 }), 1.5);
   assert.equal(lookupStoredValue(sensTable, 10, 1.5), 1.5);
+  assert.equal(lookupStoredValue(velocityTable, 10, -1.5), -15);
+  assert.equal(lookupPointSensitivity(velocityTable, { x: 10, y: -15 }), -1.5);
+});
+
+test('signed bounds contain negative LUT sensitivity and falling-velocity gain', () => {
+  assert.deepEqual(axisBounds([0, 1], 1.5), { min: 0, max: 1.5 });
+  assert.ok(axisBounds([-2, -1, 0], 1.5).min < -2);
+  const s = sampleCurve(args({ mode: 'lookup', gain: true,
+    lookup_table: [{ x: 10, y: 20 }, { x: 20, y: 10 }] }), 80);
+  assert.ok(s.gain.some(value => value < 0));
+  const bounds = axisBounds([...s.gain], 1.5);
+  assert.ok(bounds.min <= Math.min(...s.gain));
+  assert.deepEqual(axisBounds([NaN, Infinity], 20), { min: 0, max: 20 });
 });
