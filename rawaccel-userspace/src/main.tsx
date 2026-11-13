@@ -1,7 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./fonts";
-import "./index.css";
 import App from "./App";
 import { MotionConfig } from 'framer-motion';
 import { MouseTelemetryProvider } from './components/MouseTelemetry';

@@ -36,14 +36,23 @@ const server = http.createServer((req,res)=>{
     res.end(content);
   } catch {res.writeHead(404).end();}
 });
+// The profile name is edited in place on its tab (double-click, type, Enter).
+async function rename(page,name){
+  await page.locator('.ptab[aria-selected="true"]').dblclick();
+  const box=page.getByRole('textbox',{name:'Profile name'});
+  await box.fill(name);
+  await box.press('Enter');
+}
+const activeName=page=>page.locator('.ptab[aria-selected="true"] .pname').textContent();
 (async()=>{
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-  const browser=await chromium.launch({headless:true,channel:'chrome'});
+  const browser=await chromium.launch({headless:true,channel:process.env.PW_CHANNEL||'chrome'});
   try {
     const page=await browser.newPage({viewport:{width:1440,height:1000},colorScheme:'dark'});
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+server.address().port);
     await page.getByRole('button',{name:'Settings',exact:true}).click();
+    await page.getByRole('tab',{name:'Startup & storage'}).click();
     const checkbox=page.getByRole('checkbox',{name:'Restore settings at sign-in'});
     await checkbox.waitFor();
     await page.evaluate(()=>{
@@ -84,6 +93,7 @@ const server = http.createServer((req,res)=>{
     assert.equal(await page.evaluate(()=>window.mockCalls.filter(x=>x.cmd==='set_startup_enabled').length),before);
     assert.equal(await page.evaluate(()=>window.mockCalls.some(x=>x.cmd==='apply_settings')),false);
     const loads=await page.evaluate(()=>window.mockCalls.filter(x=>x.cmd==='load_settings').length);
+    await page.getByRole('tab',{name:'General'}).click();
     await page.getByRole('checkbox',{name:'Show Toast Notifications'}).uncheck();
     await page.getByRole('checkbox',{name:'Confirm profile actions'}).uncheck();
     assert.equal(await page.evaluate(()=>window.mockCalls.filter(x=>x.cmd==='load_settings').length),loads);
@@ -93,16 +103,18 @@ const server = http.createServer((req,res)=>{
     assert.equal(await page.getByRole('checkbox',{name:'Show Toast Notifications'}).isChecked(),false);
     assert.equal(await page.getByRole('checkbox',{name:'Confirm profile actions'}).isChecked(),false);
     assert.equal(await page.getByRole('option',{name:'Japanese (日本語) — planned'}).isDisabled(),true);
-    await page.getByRole('button',{name:'Profiles',exact:true}).click();
-    await page.getByRole('button',{name:'Reset',exact:true}).click();
+    await page.getByRole('button',{name:'Curve',exact:true}).click();
+    await page.getByRole('button',{name:'Profile actions'}).click();
+    await page.getByRole('menuitem',{name:'Reset curve to defaults'}).click();
     assert.equal(await page.getByRole('dialog').count(),0);
     await page.getByRole('button',{name:'Apply & Save',exact:true}).click();
     assert.equal(await page.locator('.notification-toast').count(),0);
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     await page.getByRole('checkbox',{name:'Show Toast Notifications'}).check();
     await page.getByRole('checkbox',{name:'Confirm profile actions'}).check();
-    await page.getByRole('button',{name:'Profiles',exact:true}).click();
-    await page.getByRole('button',{name:'Reset',exact:true}).click();
+    await page.getByRole('button',{name:'Curve',exact:true}).click();
+    await page.getByRole('button',{name:'Profile actions'}).click();
+    await page.getByRole('menuitem',{name:'Reset curve to defaults'}).click();
     await page.getByRole('dialog',{name:'Reset this profile?'}).waitFor();
     await page.getByRole('button',{name:'Cancel',exact:true}).click();
     await page.getByRole('button',{name:'Apply & Save',exact:true}).click();
@@ -110,26 +122,26 @@ const server = http.createServer((req,res)=>{
     await page.getByRole('button',{name:'Dismiss notification'}).click();
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     await page.getByRole('checkbox',{name:'Confirm profile actions'}).uncheck();
-    await page.getByRole('button',{name:'Profiles',exact:true}).click();
-    await page.getByRole('textbox',{name:'Profile name'}).fill('Unsaved edit');
+    await page.getByRole('button',{name:'Curve',exact:true}).click();
+    await rename(page,'Unsaved edit');
     const imported=JSON.parse(await page.evaluate(()=>window.mockCalls.findLast(x=>x.cmd==='apply_settings').args.settingsJson));
     imported.profiles[0].name='Imported profile';
     const upload={name:'settings.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(imported))};
     await page.locator('#import-settings-upload').setInputFiles(upload);
     await page.getByRole('dialog',{name:'Replace unsaved edits?'}).waitFor({timeout:1500});
     await page.getByRole('button',{name:'Cancel',exact:true}).click();
-    assert.equal(await page.getByRole('textbox',{name:'Profile name'}).inputValue(),'Unsaved edit');
+    assert.equal(await activeName(page),'Unsaved edit');
     await page.locator('#import-settings-upload').setInputFiles(upload);
     await page.getByRole('button',{name:'Replace edits',exact:true}).click();
-    assert.equal(await page.getByRole('textbox',{name:'Profile name'}).inputValue(),'Imported profile');
-    assert.equal(await page.locator('.document-status strong').textContent(),'Unsaved changes');
-    await page.getByRole('button',{name:'Revert',exact:true}).click();
-    assert.equal(await page.getByRole('textbox',{name:'Profile name'}).inputValue(),'Default Profile');
+    assert.equal(await activeName(page),'Imported profile');
+    assert.equal(await page.locator('.statusbar .document-status').textContent(),'Unsaved changes');
+    await page.getByRole('button',{name:'Revert to saved',exact:true}).click();
+    assert.equal(await activeName(page),'Default Profile');
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     await page.screenshot({path:path.join(artifacts,'startup-settings-dark.png'),fullPage:true});
     await page.getByRole('button',{name:'Switch to light theme'}).click();
     await page.setViewportSize({width:1024,height:768});
-    await page.waitForFunction(()=>getComputedStyle(document.body).color==='rgb(25, 42, 54)');
+    await page.waitForFunction(()=>getComputedStyle(document.body).color==='rgb(15, 23, 36)');
     await page.screenshot({path:path.join(artifacts,'startup-settings-light-min.png'),fullPage:true});
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
     assert.equal(overflow,false);
@@ -137,18 +149,18 @@ const server = http.createServer((req,res)=>{
     const late=await browser.newPage({viewport:{width:1440,height:1000}});
     late.on('pageerror',e=>errors.push(String(e)));
     await late.goto('http://127.0.0.1:'+server.address().port+'/?delayload=1');
-    await late.getByRole('textbox',{name:'Profile name'}).fill('Keep early edits');
+    await rename(late,'Keep early edits');
     await late.evaluate(doc=>window.mockResolveLoad({settings_json:JSON.stringify(doc),source:'mock settings.json',recovered:false,migrated:false,warnings:[]}),imported);
     await late.getByRole('dialog',{name:'Your edits were kept'}).waitFor();
     await late.getByRole('button',{name:'OK',exact:true}).click();
-    assert.equal(await late.getByRole('textbox',{name:'Profile name'}).inputValue(),'Keep early edits');
+    assert.equal(await activeName(late),'Keep early edits');
     const dialogPromise=late.waitForEvent('dialog');
     const reload=late.reload().catch(()=>undefined);
     const unload=await dialogPromise;
     assert.equal(unload.type(),'beforeunload');
     await unload.dismiss();
     await reload;
-    assert.equal(await late.getByRole('textbox',{name:'Profile name'}).inputValue(),'Keep early edits');
+    assert.equal(await activeName(late),'Keep early edits');
     await late.close();
     assert.deepEqual(errors,[]);
     console.log(JSON.stringify({checks:'startup controls; persistent preferences; language deferral; toast on/off; reset confirmation on/off; import discard protection; delayed load protection; browser close protection; themes; minimum width',pageErrors:errors,overflow,calls:await page.evaluate(()=>window.mockCalls.filter(x=>!x.cmd.startsWith('plugin:')).map(x=>x.cmd))},null,2));

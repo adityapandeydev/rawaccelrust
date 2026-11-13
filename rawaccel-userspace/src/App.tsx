@@ -1,14 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { FolderOpen, Layers, Plus, Mouse, Menu, X, Settings, Moon, Sun, Check, ChevronDown, Undo2, RotateCcw } from 'lucide-react';
-import { ProfileWorkspace } from './components/ProfileWorkspace';
-import { DevicesView } from './components/DevicesView';
-import { MappingsView } from './components/MappingsView';
-import { SettingsView } from './components/SettingsView';
-import { SettingsTransfer } from './components/SettingsTransfer';
-import { DriverStatusIndicator } from './components/DriverStatus';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Activity, Mouse, Settings } from 'lucide-react';
 import { LiveInput } from './components/MouseTelemetry';
-import { CustomModal } from './components/CustomModal';
-import { AnimatedButton } from './components/AnimatedButton';
 import { useApplySettings } from './hooks/useApplySettings';
 import { useDriverStatus } from './hooks/useDriverStatus';
 import { useDevices } from './hooks/useDevices';
@@ -16,18 +8,27 @@ import { useProfileEditor } from './hooks/useProfileEditor';
 import { useSettingsTransfer } from './hooks/useSettingsTransfer';
 import { usePreferences } from './hooks/usePreferences';
 import { useNotifications } from './hooks/useNotifications';
-import { useNavigation } from './hooks/useNavigation';
 import { useWindowState } from './hooks/useWindowState';
 import { useUnsavedChanges } from './hooks/useUnsavedChanges';
 import { serializeSettingsDocument } from './settingsDocument';
 import { validateSettings } from './validation';
-import { defaultProfile } from './types';
+import { defaultProfile, type Profile } from './types';
 import { documentStatus } from './documentStatus';
-import './index.css';
-import './workspace.css';
+import { CurvePage } from './ui/CurvePage';
+import { DevicesPage } from './ui/DevicesPage';
+import { SettingsPage, type SettingsTab } from './ui/SettingsPage';
+import { AddProfileButton, ApplyButton, DriverChip, ProfileMenu, ProfileTabs, ThemeToggle } from './ui/TopBar';
+import { Modal, Toast } from './ui/Overlays';
+import './styles/app.css';
 
-type Page = 'profiles' | 'devices' | 'mappings' | 'settings';
+type Page = 'curve' | 'devices' | 'settings';
 type Confirmation = { title: string; message: string; action: () => void; label: string };
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const NAV: { id: Page; label: string; Icon: typeof Activity }[] = [
+  { id: 'curve', label: 'Curve', Icon: Activity },
+  { id: 'devices', label: 'Devices', Icon: Mouse },
+  { id: 'settings', label: 'Settings', Icon: Settings },
+];
 
 function App() {
   useWindowState();
@@ -37,18 +38,21 @@ function App() {
   const { notification, toast, notify, dismiss, dismissToast } = useNotifications(preferences.showToastNotifications);
   const editor = useProfileEditor(notify);
   const apply = useApplySettings(editor, driverStatus, notify);
-  const navigation = useNavigation();
-  const [page, setPage] = useState<Page>('profiles');
-  const [profilesExpanded, setProfilesExpanded] = useState(true);
-  const [graphs, setGraphs] = useState(['sensitivity']);
-  const [expanded, setExpanded] = useState(false);
+  const [page, setPage] = useState<Page>('curve');
+  const [shown, setShown] = useState<Page>('curve');
+  const [leaving, setLeaving] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
+  const [renaming, setRenaming] = useState<number | null>(null);
+  const [live, setLive] = useState(true);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const navTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const railIndicator = useRef<HTMLSpanElement>(null);
+  const importInput = useRef<HTMLInputElement>(null);
+
   const confirmProfileAction = (request: Confirmation) => {
     if (preferences.showConfirmModals) setConfirmation(request);
     else request.action();
   };
-  const sidebar = useRef<HTMLElement>(null);
-  const menu = useRef<HTMLButtonElement>(null);
   const current = serializeSettingsDocument(editor.settingsMetadata, editor.profiles, editor.deviceConfig);
   const status = documentStatus(current, editor.savedSnapshot, editor.snapshotOrigin, apply.appliedSnapshot);
   const guard = useUnsavedChanges(status.edited, apply.isApplying, (action, reason) => setConfirmation({
@@ -61,25 +65,36 @@ function App() {
   const transfer = useSettingsTransfer(editor, notify, guard.confirmReplace);
   const validationError = validateSettings(editor.profiles, editor.deviceConfig, editor.settingsMetadata.default_device_config);
   const disabledReason = validationError ?? apply.applyDisabledReason;
-  const tieredPreview = !driverStatus.report?.tiered_apply_enabled && [editor.activeProfile.accel_x, editor.activeProfile.accel_y].some(args => args.mode === 'tiered');
-  const navigate = (next: Page) => { setPage(next); navigation.closeDrawer(); };
+  const tieredApplyEnabled = driverStatus.report?.tiered_apply_enabled === true;
 
-  useEffect(() => {
-    if (!navigation.open || navigation.wide) return;
-    sidebar.current?.querySelector<HTMLButtonElement>('button')?.focus();
-    const key = (event: KeyboardEvent) => {
-      if (document.querySelector('.modal-overlay')) return;
-      if (event.key === 'Escape') { event.preventDefault(); navigation.closeDrawer(); }
-      if (event.key !== 'Tab') return;
-      const targets = Array.from(sidebar.current?.querySelectorAll<HTMLElement>('button, input, select') ?? [])
-        .filter(element => !element.hasAttribute('disabled') && element.getClientRects().length > 0);
-      const index = targets.indexOf(document.activeElement as HTMLElement);
-      event.preventDefault();
-      targets[(index + (event.shiftKey ? -1 : 1) + targets.length) % targets.length]?.focus();
+  // Profiles that differ from the saved document get a dot on their tab.
+  const savedProfiles = useMemo<Profile[]>(() => {
+    try { return editor.savedSnapshot ? JSON.parse(editor.savedSnapshot).profiles ?? [] : []; } catch { return []; }
+  }, [editor.savedSnapshot]);
+  const dirty = useMemo(() => new Set(editor.profiles.filter(profile => {
+    const saved = savedProfiles.find(item => item.id === profile.id);
+    return !saved || JSON.stringify(saved) !== JSON.stringify(profile);
+  }).map(profile => profile.id)), [editor.profiles, savedProfiles]);
+
+  // The old page fades out, then the new one rises in; rapid clicks keep only the last.
+  const navigate = (next: Page) => {
+    if (next === page) return;
+    setPage(next);
+    if (navTimer.current) clearTimeout(navTimer.current);
+    if (reducedMotion()) { setShown(next); return; }
+    setLeaving(true);
+    navTimer.current = setTimeout(() => { setShown(next); setLeaving(false); navTimer.current = null; }, 140);
+  };
+  useEffect(() => () => { if (navTimer.current) clearTimeout(navTimer.current); }, []);
+  useLayoutEffect(() => {
+    const place = () => {
+      const button = document.querySelector<HTMLElement>(`.rail-btn[data-nav="${page}"]`);
+      if (button && railIndicator.current) railIndicator.current.style.transform = `translateY(${button.offsetTop - 12}px)`;
     };
-    document.addEventListener('keydown', key);
-    return () => { document.removeEventListener('keydown', key); menu.current?.focus(); };
-  }, [navigation.open, navigation.wide]);
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [page]);
 
   const reset = () => confirmProfileAction({ title: 'Reset this profile?', label: 'Reset profile',
     message: 'Restore the active profile’s curve and advanced parameters to their defaults. Its name and device mappings will stay in place. Apply & save when you are ready.',
@@ -93,71 +108,76 @@ function App() {
       editor.replaceDocument(JSON.parse(snapshot));
       if (saved) editor.markSaved(snapshot);
     } });
+  const remove = () => {
+    const index = editor.activeProfileIndex, name = editor.activeProfile.name;
+    confirmProfileAction({ title: `Delete ${name}?`, label: 'Delete profile',
+      message: 'Remove this profile and clear its device mappings. Apply & save when you are ready.', action: () => editor.deleteProfile(index) });
+  };
 
-  return <div className={`app-container ${navigation.open ? 'nav-open' : 'nav-closed'}`}>
-    {!navigation.wide && navigation.open && <div className="navigation-backdrop" onClick={navigation.closeDrawer} />}
-    {navigation.open && <aside ref={sidebar} className="app-sidebar" aria-label="Navigation"
-      role={navigation.wide ? undefined : 'dialog'} aria-modal={navigation.wide ? undefined : true}>
-      <div className="brand"><Mouse size={34} strokeWidth={1.5} /><strong>Raw Accel</strong>
-        <button className="btn icon-button" aria-label="Close navigation" onClick={navigation.toggle}><X size={16} /></button>
+  return <div className="window">
+    <div className="brand" aria-hidden="true">
+      <svg viewBox="0 0 26 26"><rect x="1" y="1" width="24" height="24" rx="7" fill="var(--accent)" /><path d="M6 19c5 0 7-1.5 9-5s3-6 5-7" fill="none" stroke="var(--accent-fg)" strokeWidth="2.2" strokeLinecap="round" /><circle cx="15" cy="14" r="1.9" fill="var(--accent-fg)" /></svg>
+    </div>
+
+    <header className="topbar">
+      <div className="profiles-wrap">
+        <ProfileTabs profiles={editor.profiles} active={editor.activeProfileIndex} dirty={dirty} renaming={renaming} setRenaming={setRenaming}
+          onSelect={index => { if (index !== editor.activeProfileIndex) editor.selectProfile(index); }}
+          onRename={(_, name) => editor.renameProfile(name)} />
+        <AddProfileButton count={editor.profiles.length} onAdd={() => { if (editor.addProfile()) navigate('curve'); }} />
+        <ProfileMenu count={editor.profiles.length} activeName={editor.activeProfile.name}
+          onRename={() => setRenaming(editor.activeProfileIndex)} onDuplicate={() => editor.duplicateProfile(editor.activeProfileIndex)}
+          onReset={reset} onDelete={remove} />
       </div>
-      <nav className="navigation" aria-label="Main navigation">
-        {([{ id: 'profiles', title: 'Profiles', Icon: FolderOpen }, { id: 'devices', title: 'Devices', Icon: Mouse },
-          { id: 'mappings', title: 'Mappings', Icon: Layers }, { id: 'settings', title: 'Settings', Icon: Settings }] as const).map(({id,title,Icon}) =>
-          <button key={id} className={`nav-link ${page === id ? 'active' : ''}`} aria-current={page === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={23} strokeWidth={1.5} />{title}</button>)}
-        <div className="profile-nav-heading"><button className="profile-list-toggle" aria-expanded={profilesExpanded} aria-label="Toggle profile list" onClick={() => setProfilesExpanded(value => !value)}>Profiles <ChevronDown size={13} /></button>
-          <button className="btn icon-button" title="Add New Profile" onClick={() => { if (editor.addProfile()) { setProfilesExpanded(true); navigate('profiles'); } }}><Plus size={19} /></button>
-        </div>
-        {profilesExpanded && <div className="profile-list">
-          {editor.profiles.map((profile, index) => <div key={profile.id} className={`profile-item ${editor.activeProfileIndex === index ? 'selected' : ''}`}>
-            <button onClick={() => { editor.selectProfile(index); navigate('profiles'); }}
-              aria-current={page === 'profiles' && editor.activeProfileIndex === index ? 'page' : undefined} title={profile.name}>{profile.name}</button>
-            {editor.profiles.length > 1 && <button className="delete-profile" title={`Delete ${profile.name}`} onClick={() => confirmProfileAction({
-              title: `Delete ${profile.name}?`, label: 'Delete profile', message: 'Remove this profile and clear its device mappings. Apply & save when you are ready.', action: () => editor.deleteProfile(index),
-            })}><X size={13} /></button>}
-          </div>)}
-        </div>}
-        <div className="configuration-import"><SettingsTransfer {...transfer} variant="import" /></div>
-      </nav>
-      <div className="sidebar-footer"><DriverStatusIndicator snapshot={driverStatus} onRefresh={driverStatus.refresh} />
-        <button className="btn icon-button theme-button" aria-label={`Switch to ${preferences.resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
-          title={`Switch to ${preferences.resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
-          onClick={() => preferences.setTheme(preferences.resolvedTheme === 'dark' ? 'light' : 'dark')}>
-          {preferences.resolvedTheme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}</button></div>
-    </aside>}
-    <main className="main-content" inert={!navigation.wide && navigation.open ? true : undefined}>
-      <header className="workspace-header">
-        <div className="page-heading">
-          <button ref={menu} className="btn icon-button" aria-label={navigation.open ? 'Collapse navigation' : 'Open navigation'} aria-expanded={navigation.open} onClick={navigation.toggle}><Menu size={20} /></button>
-          <div><h1>{page === 'profiles' ? <input className="profile-name" aria-label="Profile name" title="Rename profile" value={editor.activeProfile.name} onChange={event => editor.renameProfile(event.target.value)} />
-              : {devices: 'Devices', mappings: 'Device mappings', settings: 'Settings'}[page]}</h1>
-            <p className="page-subtitle">{page === 'profiles' ? editor.activeAccel.mode === 'tiered' ? 'Two-stage acceleration' : editor.activeAccel.mode === 'noaccel' ? 'Unmodified mouse input' : `${editor.activeAccel.mode === 'lookup' ? 'Lookup table' : editor.activeAccel.mode[0].toUpperCase() + editor.activeAccel.mode.slice(1)} acceleration`
-              : {devices: 'Configure your mouse hardware', mappings: 'Connect your profiles to your devices', settings: 'Appearance, preferences & application information'}[page]}
-              {page === 'profiles' && tieredPreview && <span className="preview-badge" role="note" title="Applying Tiered requires a compatible signed driver.">Preview only</span>}</p></div>
-        </div>
-        <div className="header-actions"><LiveInput whole={editor.linkXY} /></div>
-      </header>
-      {page !== 'settings' && validationError && <div className="inline-notice" role="alert">{validationError}</div>}
-      {page === 'profiles' && <ProfileWorkspace editor={editor} visibleGraphs={graphs} isExpanded={expanded} notify={notify}
-        toggleGraph={graph => setGraphs(previous => previous.includes(graph) ? previous.length > 1 ? previous.filter(value => value !== graph) : previous : [...previous, graph])}
-        toggleExpanded={() => setExpanded(value => !value)} devices={devices} devicesLoading={loading} onMappings={() => navigate('mappings')} />}
-      {page === 'devices' && <DevicesView devices={devices} deviceConfig={editor.deviceConfig} setDeviceConfig={editor.setDeviceConfig} loading={loading} error={error} onRefresh={refresh} />}
-      {page === 'mappings' && <MappingsView devices={devices} deviceConfig={editor.deviceConfig} setDeviceConfig={editor.setDeviceConfig} profiles={editor.profiles.map(profile => profile.name)} />}
-      {page === 'settings' && <SettingsView driverStatus={driverStatus} onRefreshDriver={driverStatus.refresh} {...preferences} />}
-      {page !== 'settings' && <footer className="action-bar">
-        <div className="document-status"><span className={`state-dot ${status.edited ? 'edited' : ''}`} /><div><strong className={status.edited ? 'unsaved-label' : ''}>{status.disk}</strong><span className="driver-document-state">{status.driver}</span></div></div>
-        <div className="action-buttons">
-          {status.edited && editor.savedSnapshot && <button className="btn quiet" title="Revert unsaved edits" onClick={revert}><Undo2 size={15} /><span>Revert</span></button>}
-          {page === 'profiles' && <button className="btn" onClick={reset}><RotateCcw size={15} />Reset</button>}
-          <SettingsTransfer {...transfer} variant="export" />
-          <AnimatedButton disabled={apply.isApplying || disabledReason !== null} title={disabledReason ?? 'Apply all profiles and device settings, then save to disk'} onClick={apply.applySettings}
-            defaultText={apply.isApplying ? 'Applying…' : 'Apply & Save'} successText={<><Check size={16} />Applied & saved</>} />
-        </div>
-      </footer>}
+      <div className="top-actions">
+        <DriverChip snapshot={driverStatus} onOpen={() => { setSettingsTab('driver'); navigate('settings'); }} />
+        <ThemeToggle dark={preferences.resolvedTheme === 'dark'}
+          onToggle={origin => preferences.switchTheme(preferences.resolvedTheme === 'dark' ? 'light' : 'dark', origin)} />
+        <ApplyButton onApply={apply.applySettings} disabledReason={apply.isApplying ? 'Applying…' : disabledReason} />
+      </div>
+    </header>
+
+    <nav className="rail" aria-label="Main navigation">
+      <span className="rail-ind" ref={railIndicator} aria-hidden="true" />
+      {NAV.map(({ id, label, Icon }) => <button key={id} type="button" className="rail-btn" data-nav={id}
+        aria-current={page === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={19} aria-hidden="true" />{label}</button>)}
+    </nav>
+
+    <main className="stage">
+      <div key={shown} className={`page-host ${leaving ? 'page-out' : 'page-in'}`}>
+        {shown === 'curve' && <CurvePage editor={editor} notify={notify} devices={devices} devicesLoading={loading} tieredApplyEnabled={tieredApplyEnabled}
+          live={live} appearance={`${preferences.palette}-${preferences.resolvedTheme}`} onAssign={() => navigate('devices')} />}
+        {shown === 'devices' && <DevicesPage editor={editor} devices={devices} loading={loading} error={error} onRefresh={refresh} tieredApplyEnabled={tieredApplyEnabled} />}
+        {shown === 'settings' && <SettingsPage tab={settingsTab} onTab={setSettingsTab} theme={preferences.theme} palette={preferences.palette}
+          onMode={(theme, origin) => preferences.switchTheme(theme, origin)} onPalette={(id, origin) => preferences.switchPalette(id, origin)}
+          showToastNotifications={preferences.showToastNotifications} setShowToastNotifications={preferences.setShowToastNotifications}
+          showConfirmModals={preferences.showConfirmModals} setShowConfirmModals={preferences.setShowConfirmModals}
+          onImport={() => importInput.current?.click()} onExport={transfer.exportSettings}
+          driverStatus={driverStatus} onRefreshDriver={driverStatus.refresh} />}
+      </div>
     </main>
-    {toast.isOpen && <div className="notification-toast" role="status" aria-live="polite"><div><strong>{toast.title}</strong><p>{toast.message}</p></div>
-      <button className="btn icon-button" aria-label="Dismiss notification" onClick={dismissToast}><X size={16} /></button></div>}
-    <CustomModal isOpen={confirmation !== null || notification.isOpen} title={confirmation?.title ?? notification.title} message={confirmation?.message ?? notification.message}
+
+    <footer className="statusbar">
+      <span className={`doc ${status.edited ? 'dirty' : ''}`}><i aria-hidden="true" /><b className="document-status">{status.disk}</b></span>
+      <span className="driver-state">{status.driver}</span>
+      {status.edited && editor.savedSnapshot && <button type="button" className="link-btn" onClick={revert}>Revert to saved</button>}
+      {disabledReason && <span className="reason" role={validationError ? 'alert' : 'status'} title={disabledReason}>{disabledReason}</span>}
+      <span className="grow" />
+      <LiveInput whole={editor.linkXY} />
+      <button type="button" className="link-btn" aria-pressed={!live} onClick={() => setLive(value => !value)}
+        title={live ? 'Hide the live-input dot on the graph' : 'Show the live-input dot on the graph'}>{live ? 'Pause' : 'Resume'}</button>
+    </footer>
+
+    <input ref={importInput} type="file" accept=".json" id="import-settings-upload" hidden
+      onChange={async event => {
+        const control = event.currentTarget;
+        const file = control.files?.[0];
+        if (!file) return;
+        await transfer.importSettings(file);
+        control.value = '';
+      }} />
+    <Toast toast={toast} onDismiss={dismissToast} />
+    <Modal isOpen={confirmation !== null || notification.isOpen} title={confirmation?.title ?? notification.title} message={confirmation?.message ?? notification.message}
       onClose={() => { if (confirmation) setConfirmation(null); else dismiss(); }} onConfirm={confirmation?.action} confirmLabel={confirmation?.label} />
   </div>;
 }
