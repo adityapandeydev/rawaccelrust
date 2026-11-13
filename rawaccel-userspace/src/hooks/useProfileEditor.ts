@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { serializeSettingsDocument, splitSettingsDocument, type SettingsDocument } from '../settingsDocument';
 import { defaultProfile, type Profile, type DeviceConfig, type AccelArgs, SETTINGS_SCHEMA_VERSION } from '../types';
-import { renameProfileState, deleteProfileState } from '../profileState';
+import { renameProfileState, deleteProfileState, duplicateProfileState, MAX_PROFILES } from '../profileState';
+import { patchDeviceDefaults, readDeviceDefaults, type DeviceDefaults } from '../deviceState';
 import type { Notify } from './useNotifications';
 
 // Own the settings document and the editor state that must follow its profiles.
@@ -113,7 +114,7 @@ export function useProfileEditor(setModalState: Notify) {
   };
 
   const addProfile = () => {
-    if (profiles.length < 5) {
+    if (profiles.length < MAX_PROFILES) {
       const newProfile = defaultProfile();
       let nameIndex = profiles.length + 1;
       let candidateName = `Profile ${nameIndex}`;
@@ -128,10 +129,25 @@ export function useProfileEditor(setModalState: Notify) {
       setActiveCurveAxis("x");
       return true;
     } else {
-      setModalState({ isOpen: true, title: "Profile Limit Reached", message: "Maximum 5 profiles allowed." });
+      setModalState({ isOpen: true, title: "Profile Limit Reached", message: `Maximum ${MAX_PROFILES} profiles allowed.` });
     }
     return false;
   };
+  const duplicateProfile = (index: number) => {
+    try {
+      const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+      const next = duplicateProfileState(profiles, index, id);
+      setProfiles(next.profiles);
+      setActiveProfileIndex(next.activeIndex);
+      setActiveCurveAxis('x');
+      return true;
+    } catch (error) {
+      setModalState({ isOpen: true, title: "Profile Limit Reached", message: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+  };
+  const deviceDefaults = readDeviceDefaults(settingsMetadata);
+  const updateDeviceDefaults = (patch: Partial<DeviceDefaults>) => setSettingsMetadata(metadata => patchDeviceDefaults(metadata, patch));
   const selectProfile = (index: number) => {
     setActiveProfileIndex(index);
     setActiveCurveAxis('x');
@@ -147,6 +163,7 @@ export function useProfileEditor(setModalState: Notify) {
     activeProfile, deviceConfig, setDeviceConfig, settingsMetadata,
     activeCurveAxis, linkXY, activeAccel, updateActiveProfile,
     updateProfile, renameProfile, updateSpeed, updateAccel, updateLookup,
-    handleLinkXY, handleSelectXAxis, handleSelectYAxis, addProfile, selectProfile, deleteProfile };
+    handleLinkXY, handleSelectXAxis, handleSelectYAxis, addProfile, duplicateProfile, selectProfile, deleteProfile,
+    deviceDefaults, updateDeviceDefaults };
 }
 export type ProfileEditor = ReturnType<typeof useProfileEditor>;

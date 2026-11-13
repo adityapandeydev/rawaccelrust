@@ -25,3 +25,26 @@ test('first edit creates unassigned config; later edits retain mappings and disc
   assert.equal(next[1].dpi, 800);
   assert.equal(next[1].poll_time_lock, true);
 });
+
+test('device defaults are written only on edit and keep unrelated metadata', async () => {
+  const { readDeviceDefaults, patchDeviceDefaults, BASE_DEVICE_DEFAULTS } = await loadTs('deviceState');
+  const metadata = { schema_version: 2 };
+  assert.deepEqual(readDeviceDefaults(metadata), BASE_DEVICE_DEFAULTS);
+  assert.deepEqual(readDeviceDefaults({ default_device_config: [] }), BASE_DEVICE_DEFAULTS);
+  const patched = patchDeviceDefaults(metadata, { dpi: 1600 });
+  assert.equal(patched.schema_version, 2);
+  assert.deepEqual(patched.default_device_config, { ...BASE_DEVICE_DEFAULTS, dpi: 1600 });
+  assert.equal(metadata.default_device_config, undefined);
+  const again = patchDeviceDefaults(patched, { clamp_max: 4 });
+  assert.equal(again.default_device_config.dpi, 1600);
+  assert.equal(again.default_device_config.clamp_max, 4);
+});
+
+test('device entries list connected mice first, then saved disconnected mice', async () => {
+  const { deviceEntries } = await loadTs('deviceState');
+  const entries = deviceEntries([{ id: 'b', name: 'Mouse B' }, { id: 'a', name: 'Mouse A' }],
+    [{ id: 'z', profile_id: 'P', dpi: 800 }, { id: 'a', profile_id: 'Q', dpi: 400 }, { id: 'm', profile_id: null }]);
+  assert.deepEqual(entries.map(e => [e.id, e.connected]), [['b', true], ['a', true], ['m', false], ['z', false]]);
+  assert.equal(entries[1].config.dpi, 400);
+  assert.equal(entries[0].config.profile_id, null, 'unconfigured mice get a default entry');
+});
