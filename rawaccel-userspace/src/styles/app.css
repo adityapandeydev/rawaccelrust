@@ -137,7 +137,10 @@ button:disabled { cursor: not-allowed; }
 .chip:not([data-tone="ok"]) .led::after { animation: none; }
 
 /* Sun ↔ moon */
-.theme-btn svg { width: 19px; height: 19px; overflow: visible; }
+/* A visible button shape, matching the driver chip beside it. */
+.theme-btn { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--fg); box-shadow: var(--shadow-1); }
+.theme-btn:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-2); }
+.theme-btn svg { width: 18px; height: 18px; overflow: visible; }
 .theme-btn .core { transform-box: fill-box; transform-origin: center; transition: transform var(--t-slow) var(--spring); }
 .theme-btn .mask-dot { transform-box: fill-box; transform-origin: center; transition: transform var(--t-slow) var(--ease); }
 .theme-btn .rays { transform-box: fill-box; transform-origin: center; transition: transform var(--t-slow) var(--ease), opacity var(--t) var(--ease); }
