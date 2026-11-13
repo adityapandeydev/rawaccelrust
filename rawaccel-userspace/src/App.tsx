@@ -89,7 +89,16 @@ function App() {
   useLayoutEffect(() => {
     const place = () => {
       const button = document.querySelector<HTMLElement>(`.rail-btn[data-nav="${page}"]`);
-      if (button && railIndicator.current) railIndicator.current.style.transform = `translateY(${button.offsetTop - 12}px)`;
+      const indicator = railIndicator.current;
+      const rail = indicator?.parentElement;
+      if (!button || !indicator || !rail) return;
+      // Sub-pixel geometry: offsetLeft would round a half-pixel centring offset.
+      const r = rail.getBoundingClientRect(), box = button.getBoundingClientRect();
+      const left = box.left - r.left - rail.clientLeft, top = box.top - r.top - rail.clientTop;
+      indicator.style.transform = `translate(${left}px, ${top}px)`;
+      indicator.style.width = `${box.width}px`;
+      indicator.style.height = `${box.height}px`;
+      indicator.style.setProperty('--bar', `${-left}px`);
     };
     place();
     window.addEventListener('resize', place);

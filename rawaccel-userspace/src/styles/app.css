@@ -173,8 +173,8 @@ button:disabled { cursor: not-allowed; }
 /* ── Rail ─────────────────────────────────────────────── */
 .rail { grid-area: rail; position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-block: 12px; border-right: 1px solid var(--line); }
 .rail-btn {
-  position: relative; z-index: 1; display: grid; place-items: center; gap: 3px; width: 46px; height: 50px;
-  border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 500;
+  position: relative; z-index: 1; display: grid; place-items: center; justify-content: center; gap: 3px; width: 52px; height: 50px;
+  padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 500; text-align: center;
   transition: color var(--t) var(--ease), transform var(--t-fast) var(--ease);
 }
 .rail-btn svg { transition: transform var(--t) var(--spring); }
@@ -183,8 +183,9 @@ button:disabled { cursor: not-allowed; }
 .rail-btn:active { transform: scale(0.94); }
 .rail-btn[aria-current="page"] { color: var(--accent); }
 .rail-btn[data-nav="settings"] { margin-top: auto; }
-.rail-ind { position: absolute; left: 7px; top: 12px; width: 46px; height: 50px; border-radius: 10px; background: var(--accent-soft); transition: transform var(--t-slow) var(--spring); pointer-events: none; }
-.rail-ind::before { content: ""; position: absolute; left: -7px; top: 14px; width: 3px; height: 22px; border-radius: 0 3px 3px 0; background: var(--accent); }
+/* Placed and sized from the selected button, so the two always line up. */
+.rail-ind { position: absolute; left: 0; top: 0; width: 52px; height: 50px; border-radius: 10px; background: var(--accent-soft); transition: transform var(--t-slow) var(--spring); pointer-events: none; }
+.rail-ind::before { content: ""; position: absolute; left: var(--bar, -4px); top: 14px; width: 3px; height: 22px; border-radius: 0 3px 3px 0; background: var(--accent); }
 
 /* ── Stage & pages ────────────────────────────────────── */
 .stage { grid-area: stage; position: relative; min-width: 0; min-height: 0; }
