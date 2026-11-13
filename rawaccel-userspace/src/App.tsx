@@ -133,7 +133,8 @@ function App() {
         <DriverChip snapshot={driverStatus} onOpen={() => { setSettingsTab('driver'); navigate('settings'); }} />
         <ThemeToggle dark={preferences.resolvedTheme === 'dark'}
           onToggle={origin => preferences.switchTheme(preferences.resolvedTheme === 'dark' ? 'light' : 'dark', origin)} />
-        <ApplyButton onApply={apply.applySettings} disabledReason={apply.isApplying ? 'Applying…' : disabledReason} />
+        <ApplyButton onApply={apply.applySettings} disabledReason={apply.isApplying ? 'Applying…' : disabledReason}
+          onBlocked={reason => { if (!apply.isApplying) notify({ isOpen: true, title: 'Settings Were Not Applied', message: reason }); }} />
       </div>
     </header>
 

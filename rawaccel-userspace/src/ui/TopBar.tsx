@@ -28,7 +28,7 @@ export function ProfileTabs({ profiles, active, dirty, renaming, setRenaming, on
     if (list.current) observer.observe(list.current);
     void document.fonts?.ready.then(place);
     return () => observer.disconnect();
-  }, [active, profiles, renaming]);
+  }, [active, renaming, profiles.map(p => `${p.id}:${p.name}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <div className="profiles" role="tablist" aria-label="Profiles" ref={list}
     onKeyDown={event => {
@@ -139,7 +139,9 @@ const APPLY_LABEL: Record<ApplyState, string> = { idle: 'Apply & Save', busy: 'A
 
 // The operation resolves true for a full success, false for a partial one
 // (applied but not saved) and rejects when nothing was applied.
-export function ApplyButton({ onApply, disabledReason }: { onApply: () => Promise<boolean | void>; disabledReason: string | null }) {
+export function ApplyButton({ onApply, disabledReason, onBlocked }: {
+  onApply: () => Promise<boolean | void>; disabledReason: string | null; onBlocked: (reason: string) => void;
+}) {
   const [state, setState] = useState<ApplyState>('idle');
   const [shake, setShake] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,7 +149,7 @@ export function ApplyButton({ onApply, disabledReason }: { onApply: () => Promis
   useEffect(() => () => { mounted.current = false; if (timer.current) clearTimeout(timer.current); }, []);
   const click = async () => {
     if (state !== 'idle') return;
-    if (disabledReason) { setShake(n => n + 1); return; }
+    if (disabledReason) { setShake(n => n + 1); onBlocked(disabledReason); return; }
     setState('busy');
     try {
       const result = await onApply();

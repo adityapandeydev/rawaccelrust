@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { memo, useCallback, useRef, type ReactNode } from 'react';
 import { Plus, Upload, RotateCcw, X } from 'lucide-react';
 import type { AccelArgs } from '../types';
 import type { ProfileEditor } from '../hooks/useProfileEditor';
@@ -115,19 +115,38 @@ function TieredLadder({ editor, applyEnabled }: { editor: ProfileEditor; applyEn
   </>;
 }
 
+// Rows re-render only when their own point changes, so dragging one point on
+// the graph does not rebuild a 257-row table.
+const LutRow = memo(function LutRow({ index, x, y, velocity, canRemove, onSet, onRemove }: {
+  index: number; x: number; y: number; velocity: boolean; canRemove: boolean;
+  onSet: (index: number, key: 'x' | 'y', value: number) => void; onRemove: (index: number) => void;
+}) {
+  return <div className="lut-row">
+    <span className="idx">{index + 1}</span>
+    <div className="numbox"><NumberInput className="num" aria-label={`Point ${index + 1} speed`} step="0.1" value={x}
+      onChange={event => onSet(index, 'x', parseFloat(event.target.value) || 0)} /></div>
+    <div className="numbox"><NumberInput className="num" aria-label={`Point ${index + 1} ${velocity ? 'velocity' : 'sensitivity'}`} step="0.01" value={y}
+      onChange={event => onSet(index, 'y', parseFloat(event.target.value) || 0)} /></div>
+    <button type="button" className="icon-btn" aria-label={`Remove point ${index + 1}`} disabled={!canRemove} onClick={() => onRemove(index)}><X size={14} /></button>
+  </div>;
+});
+
 function LookupEditor({ editor, notify }: { editor: ProfileEditor; notify: Notify }) {
   const { activeAccel, updateLookup } = editor;
   const file = useRef<HTMLInputElement>(null);
   const table = activeAccel.lookup_table ?? [];
-  const setPoint = (index: number, key: 'x' | 'y', value: number) =>
-    updateLookup(args => ({ ...args, lookup_table: (args.lookup_table ?? []).map((point, i) => i === index ? { ...point, [key]: value } : { ...point }) }));
+  // Stable handlers that always reach the current editor.
+  const latest = useRef(updateLookup);
+  latest.current = updateLookup;
+  const setPoint = useCallback((index: number, key: 'x' | 'y', value: number) =>
+    latest.current(args => ({ ...args, lookup_table: (args.lookup_table ?? []).map((point, i) => i === index ? { ...point, [key]: value } : { ...point }) })), []);
   const addPoint = () => updateLookup(args => {
     const points = copyTable(args.lookup_table ?? []);
     const last = points[points.length - 1], previous = points[points.length - 2];
     const gap = last && previous ? Math.max(1, last.x - previous.x) : 10;
     return { ...args, lookup_table: [...points, { x: (last?.x ?? 0) + gap, y: last?.y ?? 1 }] };
   });
-  const removePoint = (index: number) => updateLookup(args => ({ ...args, lookup_table: (args.lookup_table ?? []).filter((_, i) => i !== index).map(p => ({ ...p })) }));
+  const removePoint = useCallback((index: number) => latest.current(args => ({ ...args, lookup_table: (args.lookup_table ?? []).filter((_, i) => i !== index).map(p => ({ ...p })) })), []);
 
   const readCsv = (input: HTMLInputElement) => {
     const chosen = input.files?.[0];
@@ -188,14 +207,8 @@ function LookupEditor({ editor, notify }: { editor: ProfileEditor; notify: Notif
       <div className="group-title">Points <span className="mono">{table.length} of {MAX_LOOKUP_POINTS}</span></div>
       <div className="lut-head" aria-hidden="true"><span>#</span><span>Speed (counts/ms)</span><span>{activeAccel.gain ? 'Velocity' : 'Sensitivity'}</span><span /></div>
       <div className="lut">
-        {table.map((point, index) => <div className="lut-row" key={index}>
-          <span className="idx">{index + 1}</span>
-          <div className="numbox"><NumberInput className="num" aria-label={`Point ${index + 1} speed`} step="0.1" value={point.x}
-            onChange={event => setPoint(index, 'x', parseFloat(event.target.value) || 0)} /></div>
-          <div className="numbox"><NumberInput className="num" aria-label={`Point ${index + 1} ${activeAccel.gain ? 'velocity' : 'sensitivity'}`} step="0.01" value={point.y}
-            onChange={event => setPoint(index, 'y', parseFloat(event.target.value) || 0)} /></div>
-          <button type="button" className="icon-btn" aria-label={`Remove point ${index + 1}`} disabled={table.length <= 2} onClick={() => removePoint(index)}><X size={14} /></button>
-        </div>)}
+        {table.map((point, index) => <LutRow key={index} index={index} x={point.x} y={point.y} velocity={activeAccel.gain}
+          canRemove={table.length > 2} onSet={setPoint} onRemove={removePoint} />)}
       </div>
       <div className="btn-row">
         <button type="button" className="btn" disabled={table.length >= MAX_LOOKUP_POINTS} onClick={addPoint}><Plus size={14} />Add point</button>
