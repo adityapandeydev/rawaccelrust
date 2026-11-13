@@ -74,6 +74,9 @@ export function CurveCanvas({ argsX, argsY, whole, editAxis, visible, expanded, 
     e.setColors(readColors());
     const element = card.current!;
     let alive = true;
+    // Size now so the first curve can play its draw-in animation.
+    const first = element.getBoundingClientRect();
+    if (first.width && first.height) e.resize(first.width, first.height, Math.min(2, window.devicePixelRatio || 1));
     // Observers and font loading can report after unmount; ignore those.
     const observer = new ResizeObserver(() => {
       if (!alive) return;
@@ -133,21 +136,23 @@ export function CurveCanvas({ argsX, argsY, whole, editAxis, visible, expanded, 
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} />
     <div className="axis-key l" aria-hidden="true">Multiplier ×</div>
     <div className="axis-key r" aria-hidden="true">{showRight ? 'Output velocity' : ''}</div>
-    <LiveLayer engine={engine} whole={whole} live={live} samples={samples} domain={domain} />
+    <LiveLayer engine={engine} whole={whole} live={live} samples={samples} domain={domain} onCurve={visible.sensitivity} />
     {children}
   </div>;
 }
 
 // Only this layer re-renders on telemetry events.
-function LiveLayer({ engine, whole, live, samples, domain }: {
-  engine: RefObject<GraphEngine | null>; whole: boolean; live: boolean; domain: number;
+function LiveLayer({ engine, whole, live, samples, domain, onCurve }: {
+  engine: RefObject<GraphEngine | null>; whole: boolean; live: boolean; domain: number; onCurve: boolean;
   samples: { x: { sensitivity: Float64Array }; y: { sensitivity: Float64Array } | null };
 }) {
   const { mouseSpeed, trackerUnavailable } = useMouseTelemetry();
   const inputs = live && !trackerUnavailable ? trackerInputs(whole, mouseSpeed) : [];
+  // The dot rides the sensitivity curve, so it is hidden while that curve is.
   useEffect(() => {
+    if (!onCurve) { engine.current?.drawLive([]); return; }
     engine.current?.drawLive(inputs.map(input => ({
-      speed: input.speed, hollow: input.axis === 'y',
+      speed: input.speed, axis: input.axis, hollow: input.axis === 'y',
       values: input.axis === 'y' ? samples.y?.sensitivity ?? null : samples.x.sensitivity,
     })));
   });

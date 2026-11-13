@@ -28,7 +28,7 @@ export interface GraphColors {
   grid: string; faint: string; line: string; surface: string; accent: string; font: string;
 }
 
-export interface LiveDot { speed: number; values: Float64Array | null; hollow: boolean }
+export interface LiveDot { speed: number; axis: 'x' | 'y'; values: Float64Array | null; hollow: boolean }
 
 const PAD = { l: 46, r: 54, t: 30, b: 28 };
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -275,7 +275,9 @@ export class GraphEngine {
     ctx.clearRect(0, 0, this.width, this.height);
     const top = PAD.t, bottom = this.height - PAD.b;
     for (const dot of dots) {
-      const values = dot.values;
+      // Follow the drawn curve, which differs from the target while it morphs.
+      const drawn = this.current.series.get(`sensitivity-${dot.axis}`);
+      const values = drawn && drawn.alpha > 0.5 ? drawn.values : dot.values;
       if (!values || !Number.isFinite(dot.speed)) continue;
       const n = values.length;
       const t = clamp(dot.speed / this.current.domain, 0, 1) * (n - 1);
