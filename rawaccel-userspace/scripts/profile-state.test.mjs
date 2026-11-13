@@ -28,3 +28,16 @@ test('delete preserves active identity, clears only deleted mappings and keeps a
   assert.equal(active.devices[1].profile_id, null);
   assert.throws(() => deleteProfileState([profiles[0]], devices, 0, 0), /last profile/);
 });
+
+test('duplicate inserts a uniquely named copy after the source and keeps mappings', async () => {
+  const { duplicateProfileState, MAX_PROFILES } = await loadTs('profileState');
+  const source = [{ id: '1', name: 'Aim', accel_x: { mode: 'tiered' } }, { id: '2', name: 'Aim (2)' }];
+  const result = duplicateProfileState(source, 0, 'new');
+  assert.deepEqual(result.profiles.map(p => p.name), ['Aim', 'Aim (3)', 'Aim (2)']);
+  assert.equal(result.activeIndex, 1);
+  assert.equal(result.profiles[1].id, 'new');
+  result.profiles[1].accel_x.mode = 'natural';
+  assert.equal(source[0].accel_x.mode, 'tiered', 'the copy is deep');
+  const full = Array.from({ length: MAX_PROFILES }, (_, i) => ({ id: String(i), name: `P${i}` }));
+  assert.throws(() => duplicateProfileState(full, 0, 'x'), /Maximum 5/);
+});
